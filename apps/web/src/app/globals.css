@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+.dark {
+  --bg: #17293c;
+  --surface: #1a3349;
+  --surface-hover: #213548;
+  --border: #2a4055;
+  --text: #e2e8f0;
+  --text-muted: #8ba3b8;
+  --text-secondary: #c4d4e0;
+  --accent: #1ebbd4;
+  --accent-hover: #1599b8;
+  --warning: #f89c11;
+  --warning-hover: #d8870e;
+  --brand: #1ebbd4;
+  --brand-hover: #1599b8;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sora), sans-serif;
+}

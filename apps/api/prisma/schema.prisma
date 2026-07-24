@@ -1,0 +1,501 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────────────────
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum RoleName {
+  SUPER_ADMIN
+  ORG_ADMIN
+  MANAGER
+  USER
+  READ_ONLY
+  GUEST
+}
+
+enum AroType {
+  USER
+  GROUP
+}
+
+enum AcoType {
+  RESOURCE
+  FOLDER
+}
+
+// Passbolt-compatible: 1 = READ, 7 = UPDATE, 15 = OWNER
+enum PermissionLevel {
+  READ
+  UPDATE
+  OWNER
+}
+
+enum MfaType {
+  TOTP
+  WEBAUTHN
+}
+
+enum SharingMode {
+  AUTO
+  RESTRICTED
+}
+
+enum OrgMode {
+  SELF_HOSTED
+  ORGANIZATION
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  USER
+}
+
+enum RecoveryStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+  REMOVED
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// ── Identity ─────────────────────────────────────────────────────────
+
+model Organization {
+  id           String   @id @default(uuid())
+  name         String
+  mode         OrgMode  @default(ORGANIZATION)
+  plan         String   @default("free")
+  settingsJson Json     @default("{}") @map("settings_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  users        User[]
+  groups       Group[]
+  folders      Folder[]
+  resources    Resource[]
+  tags         Tag[]
+  auditLogs    AuditLog[]
+  invites      Invite[]
+  memberships  OrganizationMembership[]
+  installation Installation?
+  emailLogs    EmailLog[]
+
+  @@map("organizations")
+}
+
+model User {
+  id          String     @id @default(uuid())
+  email       String     @unique
+  firstName   String     @map("first_name")
+  lastName    String     @map("last_name")
+  role        RoleName   @default(USER)
+  orgRole     OrgRole    @default(USER) @map("org_role")
+  status      UserStatus @default(PENDING)
+  orgId       String     @map("org_id")
+  suspendedAt DateTime?  @map("suspended_at")
+  avatarBase64 String?  @map("avatar_base64")
+  jobTitle     String?  @map("job_title")
+  phone        String?
+  bio          String?
+  timezone     String?
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  org               Organization      @relation(fields: [orgId], references: [id])
+  gpgKey            GpgKey?
+  secrets           Secret[]
+  groupMemberships  GroupUser[]
+  sessions          Session[]
+  mfaDevices        MfaDevice[]
+  createdResources  Resource[]        @relation("ResourceCreator")
+  modifiedResources Resource[]        @relation("ResourceModifier")
+  createdFolders    Folder[]          @relation("FolderCreator")
+  sharesGiven       ShareHistory[]    @relation("SharedBy")
+  sharesReceived    ShareHistory[]    @relation("SharedWith")
+  auditLogs         AuditLog[]
+  recoveryRequests  RecoveryRequest[]
+  favorites         UserFavorite[]
+  sentInvites       Invite[]          @relation("InviteInviter")
+  acceptedInvites   Invite[]          @relation("InviteAccepted")
+  memberships       OrganizationMembership[]
+
+  @@index([orgId])
+  @@map("users")
+}
+
+model GpgKey {
+  id                  String   @id @default(uuid())
+  userId              String   @unique @map("user_id")
+  publicKey           String   @map("public_key")
+  fingerprint         String   @unique
+  // Passphrase-encrypted private key blob (EncryptedBlob JSON) — zero-knowledge:
+  // the server can never decrypt this.
+  encryptedPrivateKey Json     @map("encrypted_private_key")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("gpg_keys")
+}
+
+// ── Groups ───────────────────────────────────────────────────────────
+
+enum GroupRole {
+  OWNER
+  ADMIN
+  USER
+}
+
+model Group {
+  id        String   @id @default(uuid())
+  orgId     String   @map("org_id")
+  name      String
+  groupKey  String?  @map("group_key")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  org       Organization @relation(fields: [orgId], references: [id])
+  members   GroupUser[]
+  folders   Folder[]      @relation("GroupFolders")
+  resources Resource[]    @relation("ResourceGroup")
+
+  @@unique([orgId, name])
+  @@map("groups")
+}
+
+model GroupUser {
+  groupId   String    @map("group_id")
+  userId            String    @map("user_id")
+  role              GroupRole @default(USER)
+  encryptedGroupKey String?   @map("encrypted_group_key")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+  @@map("group_users")
+}
+
+// ── Vault ────────────────────────────────────────────────────────────
+
+model Folder {
+  id             String   @id @default(uuid())
+  orgId          String   @map("org_id")
+  groupId        String?  @map("group_id")
+  parentFolderId String?  @map("parent_folder_id")
+  createdBy      String?  @map("created_by")
+  name           String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  org       Organization @relation(fields: [orgId], references: [id])
+  group     Group?       @relation("GroupFolders", fields: [groupId], references: [id])
+  parent    Folder?      @relation("FolderTree", fields: [parentFolderId], references: [id])
+  children  Folder[]     @relation("FolderTree")
+  resources Resource[]
+  creator   User?        @relation("FolderCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([orgId])
+  @@index([groupId])
+  @@index([orgId, createdBy])
+  @@unique([orgId, groupId, parentFolderId, name])
+  @@map("folders")
+}
+
+model ResourceType {
+  id         String @id @default(uuid())
+  name       String @unique
+  schemaJson Json   @default("{}") @map("schema_json")
+
+  resources Resource[]
+
+  @@map("resource_types")
+}
+
+model Resource {
+  id             String   @id @default(uuid())
+  orgId          String   @map("org_id")
+  folderId       String?  @map("folder_id")
+  groupId        String?  @map("group_id")
+  resourceTypeId String   @map("resource_type_id")
+  name           String
+  uri            String?
+  metadataJson   Json     @default("{}") @map("metadata_json")
+  sharingMode    SharingMode @default(AUTO) @map("sharing_mode")
+  createdBy      String?  @map("created_by")
+  modifiedBy     String?  @map("modified_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  org          Organization   @relation(fields: [orgId], references: [id])
+  folder       Folder?        @relation(fields: [folderId], references: [id])
+  group        Group?         @relation("ResourceGroup", fields: [groupId], references: [id])
+  resourceType ResourceType   @relation(fields: [resourceTypeId], references: [id])
+  creator      User?          @relation("ResourceCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  modifier     User?          @relation("ResourceModifier", fields: [modifiedBy], references: [id], onDelete: SetNull)
+  secrets      Secret[]
+  groupSecret  GroupSecret?
+  tags         ResourceTag[]
+  shareHistory ShareHistory[]
+  favorites    UserFavorite[]
+
+  @@index([orgId, folderId])
+  @@index([orgId, groupId])
+  @@map("resources")
+}
+
+model GroupSecret {
+  id            String   @id @default(uuid())
+  resourceId    String   @unique @map("resource_id")
+  encryptedData String   @map("encrypted_data")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@map("group_secrets")
+}
+
+// One ciphertext per recipient — OpenPGP is per-recipient by design.
+model Secret {
+  id            String   @id @default(uuid())
+  resourceId    String   @map("resource_id")
+  userId        String   @map("user_id")
+  encryptedData String   @map("encrypted_data")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceId, userId])
+  @@map("secrets")
+}
+
+// ARO (user/group) × ACO (resource/folder) permission model.
+model Permission {
+  id        String          @id @default(uuid())
+  aroType   AroType         @map("aro_type")
+  aroId     String          @map("aro_id")
+  acoType   AcoType         @map("aco_type")
+  acoId     String          @map("aco_id")
+  level     PermissionLevel
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  @@unique([aroType, aroId, acoType, acoId])
+  @@index([acoType, acoId])
+  @@map("permissions")
+}
+
+// ── Tags ─────────────────────────────────────────────────────────────
+
+model Tag {
+  id    String  @id @default(uuid())
+  orgId String  @map("org_id")
+  name  String
+  color String?
+
+  org       Organization  @relation(fields: [orgId], references: [id])
+  resources ResourceTag[]
+
+  @@unique([orgId, name])
+  @@map("tags")
+}
+
+model ResourceTag {
+  resourceId String @map("resource_id")
+  tagId      String @map("tag_id")
+
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([resourceId, tagId])
+  @@map("resource_tags")
+}
+
+// ── Audit & sessions ─────────────────────────────────────────────────
+
+model ShareHistory {
+  id           String          @id @default(uuid())
+  resourceId   String          @map("resource_id")
+  sharedById   String          @map("shared_by")
+  sharedWithId String          @map("shared_with")
+  level        PermissionLevel
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  resource   Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  sharedBy   User     @relation("SharedBy", fields: [sharedById], references: [id])
+  sharedWith User     @relation("SharedWith", fields: [sharedWithId], references: [id])
+
+  @@map("share_history")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  orgId        String   @map("org_id")
+  userId       String?  @map("user_id")
+  action       String
+  entityType   String   @map("entity_type")
+  entityId     String?  @map("entity_id")
+  ipAddress    String?  @map("ip_address")
+  metadataJson Json     @default("{}") @map("metadata_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  org  Organization @relation(fields: [orgId], references: [id])
+  user User?        @relation(fields: [userId], references: [id])
+
+  @@index([orgId, createdAt])
+  @@map("audit_logs")
+}
+
+model Session {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  tokenHash  String   @unique @map("token_hash")
+  deviceInfo String?  @map("device_info")
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model MfaDevice {
+  id             String    @id @default(uuid())
+  userId         String    @map("user_id")
+  type           MfaType
+  credentialData String    @map("credential_data")
+  verifiedAt     DateTime? @map("verified_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mfa_devices")
+}
+
+model RecoveryRequest {
+  id          String         @id @default(uuid())
+  userId      String         @map("user_id")
+  status      RecoveryStatus @default(PENDING)
+  initiatedBy String         @map("initiated_by")
+  approvedBy  String?        @map("approved_by")
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("recovery_requests")
+}
+
+model Invite {
+  id              String           @id @default(uuid())
+  orgId           String           @map("org_id")
+  email           String
+  role            OrgRole          @default(USER)
+  tokenHash       String           @unique @map("token_hash")
+  expiresAt       DateTime         @map("expires_at")
+  status          InvitationStatus @default(PENDING)
+  acceptedAt      DateTime?        @map("accepted_at")
+  acceptedById    String?          @map("accepted_by_id")
+  invitedById     String           @map("invited_by")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  inviter   User         @relation("InviteInviter", fields: [invitedById], references: [id])
+  acceptedBy User?       @relation("InviteAccepted", fields: [acceptedById], references: [id])
+
+  @@index([orgId])
+  @@index([orgId, email])
+  @@index([email, status])
+  @@map("invites")
+}
+
+model UserFavorite {
+  userId     String
+  resourceId String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@id([userId, resourceId])
+  @@map("user_favorites")
+}
+
+// ── Installation & Memberships ───────────────────────────────────────
+
+model Installation {
+  id             String      @id @default(uuid())
+  mode           OrgMode?
+  organizationId String?     @unique
+  initializedAt  DateTime?   @map("initialized_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+
+  @@map("installations")
+}
+
+model OrganizationMembership {
+  id             String           @id @default(uuid())
+  organizationId String
+  userId         String
+  role           OrgRole          @default(USER)
+  status         MembershipStatus @default(ACTIVE)
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, role])
+  @@map("organization_memberships")
+}
+
+model EmailLog {
+  id        String      @id @default(uuid())
+  orgId     String      @map("org_id")
+  recipient String
+  subject   String
+  status    EmailStatus @default(PENDING)
+  error     String?
+  createdAt DateTime    @default(now()) @map("created_at")
+  sentAt    DateTime?   @map("sent_at")
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+  @@map("email_logs")
+}

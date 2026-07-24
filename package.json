@@ -1,0 +1,21 @@
+{
+  "name": "clickrypt",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "set PATH=%APPDATA%\\npm;%PATH% && concurrently -n docker,api,web -c blue,green,yellow \"docker compose -f infra/docker/docker-compose.dev.yml up -d\" \"pnpm --filter @clickrypt/api dev\" \"pnpm --filter @clickrypt/web dev\"",
+    "dev:api": "set PATH=%APPDATA%\\npm;%PATH% && pnpm --filter @clickrypt/api dev",
+    "dev:web": "set PATH=%APPDATA%\\npm;%PATH% && pnpm --filter @clickrypt/web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "esbuild": "^0.28.1"
+  }
+}
