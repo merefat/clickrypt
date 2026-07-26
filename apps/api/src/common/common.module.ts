@@ -2,6 +2,7 @@ import { Global, Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 import { ThrottleGuard } from "./throttle.guard";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { OrganizationModeGuard } from "./organization-mode.guard";
 
 @Global()
 @Module({
@@ -13,7 +14,7 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
       },
     }),
   ],
-  providers: [ThrottleGuard, JwtAuthGuard],
-  exports: [ThrottleGuard, JwtAuthGuard, JwtModule],
+  providers: [ThrottleGuard, JwtAuthGuard, OrganizationModeGuard],
+  exports: [ThrottleGuard, JwtAuthGuard, OrganizationModeGuard, JwtModule],
 })
 export class CommonModule {}

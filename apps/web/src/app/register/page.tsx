@@ -20,7 +20,7 @@ export default function RegisterPage() {
         }
       })
       .catch(() => {
-        router.replace("/login");
+        router.replace("/onboarding");
       })
       .finally(() => setChecking(false));
   }, [router]);

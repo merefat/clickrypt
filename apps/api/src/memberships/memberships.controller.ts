@@ -19,10 +19,11 @@ import { Roles, RequireCapability } from "./roles.decorator";
 import { OrganizationCapability } from "./capabilities";
 import { MembershipsService } from "./memberships.service";
 import { UpdateRoleDto } from "./dto/update-role.dto";
+import { OrganizationModeGuard } from "../common/organization-mode.guard";
 
 @ApiTags("memberships")
 @Controller("organizations")
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, OrganizationModeGuard)
 @ApiBearerAuth()
 export class MembershipsController {
   constructor(private readonly membershipsService: MembershipsService) {}

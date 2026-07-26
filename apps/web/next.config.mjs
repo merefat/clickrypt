@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const apiUrl = (process.env.API_URL ?? "http://localhost:4001").replace(/\/+$/, "");
+
 const nextConfig = {
   transpilePackages: ["@clickrypt/crypto"],
   distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next",
@@ -6,7 +8,7 @@ const nextConfig = {
     return [
       {
         source: "/api/v1/:path*",
-        destination: `${process.env.API_URL ?? "http://localhost:4001"}/api/v1/:path*`,
+        destination: `${apiUrl}/api/v1/:path*`,
       },
     ];
   },

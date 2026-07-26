@@ -24,6 +24,7 @@ export default function OnboardingPage() {
   const [downloaded, setDownloaded] = useState(false);
   const [checking, setChecking] = useState(true);
   const [completing, setCompleting] = useState(false);
+  const [configuring, setConfiguring] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
@@ -59,7 +60,8 @@ export default function OnboardingPage() {
           setChecking(false);
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("[Onboarding] getSetupStatus failed", err);
         setChecking(false);
         setStatusError(
           "Could not verify setup status. If this installation is already initialized, sign in at /login. Otherwise, restart the API and refresh."
@@ -81,14 +83,22 @@ export default function OnboardingPage() {
     return () => clearTimeout(timer);
   }, [statusError, retryCount, checkSetupStatus]);
 
-  function handleModeContinue(e: React.FormEvent) {
+  async function handleModeContinue(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!orgName.trim()) {
       setError("Please enter an organization name.");
       return;
     }
-    setStep("form");
+    setConfiguring(true);
+    try {
+      await apiClient.configureSystem({ mode, orgName });
+      setStep("form");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save mode.");
+    } finally {
+      setConfiguring(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -155,8 +165,6 @@ export default function OnboardingPage() {
 
     try {
       await apiClient.setupInitialize({
-        mode,
-        orgName,
         email,
         firstName,
         lastName,
@@ -411,9 +419,10 @@ export default function OnboardingPage() {
 
             <button
               type="submit"
-              className="w-full rounded-lg bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-700"
+              disabled={configuring}
+              className="w-full rounded-lg bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
             >
-              Continue
+              {configuring ? "Saving…" : "Continue"}
             </button>
           </form>
         </div>

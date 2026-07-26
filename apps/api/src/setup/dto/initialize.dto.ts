@@ -1,15 +1,17 @@
 import { IsEnum, IsNotEmpty, IsOptional, IsString, MinLength } from "class-validator";
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class InitializeDto {
-  @ApiProperty({ enum: ["SELF_HOSTED", "ORGANIZATION"] })
+  @ApiPropertyOptional({ enum: ["SELF_HOSTED", "ORGANIZATION"] })
   @IsEnum(["SELF_HOSTED", "ORGANIZATION"])
-  mode!: "SELF_HOSTED" | "ORGANIZATION";
+  @IsOptional()
+  mode?: "SELF_HOSTED" | "ORGANIZATION";
 
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsString()
   @IsNotEmpty()
-  orgName!: string;
+  @IsOptional()
+  orgName?: string;
 
   @ApiProperty()
   @IsString()

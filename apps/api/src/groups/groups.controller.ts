@@ -16,10 +16,11 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AddGroupMemberDto, CreateGroupDto, SetGroupKeyDto, UpdateGroupDto } from "./dto/group.dto";
 import { SyncGroupSecretsDto } from "./dto/sync-group-secrets.dto";
 import { GroupsService } from "./groups.service";
+import { OrganizationModeGuard } from "../common/organization-mode.guard";
 
 @ApiTags("groups")
 @Controller("groups")
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, OrganizationModeGuard)
 @ApiBearerAuth()
 export class GroupsController {
   constructor(private readonly groupsService: GroupsService) {}

@@ -48,6 +48,7 @@ export class HealthController {
       const installation = await this.prisma.installation.findFirst();
       if (installation?.initializedAt) {
         return {
+          isConfigured: true,
           needsSetup: false,
           initialized: true,
         };
@@ -56,12 +57,14 @@ export class HealthController {
       const userCount = await this.prisma.user.count();
       const initialized = userCount > 0;
       return {
+        isConfigured: initialized,
         needsSetup: !initialized,
         initialized,
       };
     } catch {
       // Table may not exist yet (pre-migration) — safe default allows onboarding
       return {
+        isConfigured: false,
         needsSetup: true,
         initialized: false,
       };

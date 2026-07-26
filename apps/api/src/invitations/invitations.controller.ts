@@ -16,6 +16,7 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RolesGuard } from "../memberships/roles.guard";
 import { Roles } from "../memberships/roles.decorator";
 import { InvitationsService } from "./invitations.service";
+import { OrganizationModeGuard } from "../common/organization-mode.guard";
 import { CreateInvitationDto } from "./dto/create-invitation.dto";
 import { AcceptInvitationDto } from "./dto/accept-invitation.dto";
 
@@ -45,7 +46,7 @@ export class InvitationsController {
   // ── Authenticated endpoints ─────────────────────────────────────────────
 
   @Post("organizations/:orgId/invitations")
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, OrganizationModeGuard, RolesGuard)
   @Roles("ADMIN")
   @ApiBearerAuth()
   @HttpCode(201)
@@ -62,7 +63,7 @@ export class InvitationsController {
   }
 
   @Get("organizations/:orgId/invitations")
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, OrganizationModeGuard, RolesGuard)
   @Roles("ADMIN")
   @ApiBearerAuth()
   @ApiOperation({ summary: "List pending invitations (ADMIN+)" })
@@ -77,7 +78,7 @@ export class InvitationsController {
   }
 
   @Delete("organizations/:orgId/invitations/:inviteId")
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, OrganizationModeGuard, RolesGuard)
   @Roles("ADMIN")
   @ApiBearerAuth()
   @HttpCode(200)

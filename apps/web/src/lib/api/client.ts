@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
+const API_BASE = "/api/v1";
 
 let accessToken: string | null = null;
 
@@ -371,14 +371,21 @@ export const apiClient = {
     api<{ deploymentMode: "self-hosted" | "organization" }>("/health/config", { skipAuth: true }),
 
   getSetupStatus: () =>
-    api<{ needsSetup: boolean; initialized: boolean }>("/health/setup-status", { skipAuth: true }),
+    api<{ isConfigured: boolean; needsSetup: boolean; initialized: boolean }>("/health/setup-status", { skipAuth: true }),
 
   // ── Setup ────────────────────────────────────────────────────────────
 
   setupStatus: () =>
     api<{ initialized: boolean; mode?: string; organizationName?: string | null }>("/setup/status", { skipAuth: true }),
 
-  setupInitialize: (data: { mode: string; orgName: string; email: string; firstName: string; lastName: string; armoredPublicKey: string; encryptedPrivateKey: Record<string, unknown> }) =>
+  configureSystem: (data: { mode: string; orgName: string }) =>
+    api<{ configured: boolean; orgId?: string }>("/system/config", {
+      method: "POST",
+      body: JSON.stringify(data),
+      skipAuth: true,
+    }),
+
+  setupInitialize: (data: { mode?: string; orgName?: string; email: string; firstName: string; lastName: string; armoredPublicKey: string; encryptedPrivateKey: Record<string, unknown> }) =>
     api<{ org: { id: string; name: string; mode: string }; user: { id: string; email: string; firstName: string; lastName: string; orgRole: string; status: string } }>("/setup/initialize", {
       method: "POST",
       body: JSON.stringify(data),
