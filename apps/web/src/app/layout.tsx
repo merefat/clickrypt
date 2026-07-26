@@ -12,6 +12,10 @@ export const metadata: Metadata = {
   title: "Clickrypt — Zero-Knowledge Password Manager",
   description:
     "Open, secure, zero-knowledge password management for teams. Your secrets never leave your device unencrypted.",
+  icons: {
+    icon: "/clickrypt.png",
+    apple: "/clickrypt.png",
+  },
 };
 
 const themeScript = `

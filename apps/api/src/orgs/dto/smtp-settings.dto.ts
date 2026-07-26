@@ -1,4 +1,4 @@
-import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, Min, Max } from "class-validator";
+import { IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, Min, Max } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class UpdateSmtpSettingsDto {
@@ -33,8 +33,11 @@ export class UpdateSmtpSettingsDto {
   @IsString()
   smtpFrom?: string;
 
-  @ApiProperty({ example: "https://your-public-url.com" })
+  @ApiProperty({ example: "http://localhost:3000" })
   @IsString()
   @IsNotEmpty()
+  @Matches(/^https?:\/\/(?!.*your-public-url\.com)(?!.*example\.com).+/, {
+    message: "appUrl must be a real URL, not a placeholder",
+  })
   appUrl!: string;
 }

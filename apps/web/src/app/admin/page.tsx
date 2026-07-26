@@ -363,7 +363,7 @@ export default function AdminPage() {
                   required
                   value={smtpForm.appUrl}
                   onChange={(e) => setSmtpForm({ ...smtpForm, appUrl: e.target.value })}
-                  placeholder="https://your-public-url.com"
+                  placeholder="http://localhost:3000"
                   className="w-full rounded-lg border border-[#2a4055] bg-[#0f1f2e] px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
                 />
               </div>

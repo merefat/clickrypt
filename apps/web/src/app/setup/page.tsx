@@ -249,7 +249,7 @@ export default function SetupPage() {
     <div className="flex min-h-screen items-center justify-center px-6">
       <div className="w-full max-w-md">
         <div className="mb-8 flex items-center justify-center gap-2">
-          <Lock className="h-6 w-6 text-brand-500" />
+          <img src="/clickrypt.png" alt="Clickrypt" className="h-8 w-8" />
           <span className="text-xl font-bold">Clickrypt</span>
         </div>
 

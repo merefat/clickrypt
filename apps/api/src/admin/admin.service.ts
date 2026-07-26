@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { createHash, randomBytes } from "crypto";
@@ -16,6 +17,8 @@ import { InviteUserDto, AddMemberDto } from "./dto/invite-user.dto";
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -218,6 +221,9 @@ export class AdminService {
 
     const smtpConfig = await this.orgsService.getFullSmtpSettings(orgId);
     const appUrl = smtpConfig?.appUrl ?? process.env.APP_URL ?? "http://localhost:3000";
+    if (appUrl.includes("your-public-url.com")) {
+      this.logger.warn("APP_URL is set to placeholder 'your-public-url.com' — invite links will not work!");
+    }
     const inviteLink = `${appUrl}/invite/${token}`;
 
     try {
@@ -328,6 +334,9 @@ export class AdminService {
 
     const smtpConfig = await this.orgsService.getFullSmtpSettings(orgId);
     const appUrl = smtpConfig?.appUrl ?? process.env.APP_URL ?? "http://localhost:3000";
+    if (appUrl.includes("your-public-url.com")) {
+      this.logger.warn("APP_URL is set to placeholder 'your-public-url.com' — invite links will not work!");
+    }
     const inviteLink = `${appUrl}/invite/${token}`;
 
     try {

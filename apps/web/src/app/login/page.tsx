@@ -23,6 +23,7 @@ export default function LoginPage() {
   const [emailFocused, setEmailFocused] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [initialized, setInitialized] = useState(true);
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   useEffect(() => {
     setSavedEmails(getSavedEmails());
@@ -30,7 +31,9 @@ export default function LoginPage() {
       setNeedsSetup(s.needsSetup);
       setInitialized(s.initialized);
       if (s.needsSetup) router.replace("/onboarding");
-    }).catch(() => {});
+    }).catch(() => {
+      setSetupError("Could not verify setup status. If this is a new installation, you may need to complete onboarding.");
+    });
   }, [router]);
 
   async function handleEmailSubmit(e?: React.FormEvent, emailArg?: string) {
@@ -106,6 +109,13 @@ export default function LoginPage() {
       console.error("[Login] Error:", err);
       const message = err instanceof Error ? err.message : "Login failed.";
       if (message.includes("passphrase") || message.includes("Decryption failed")) {
+        try {
+          const status = await apiClient.getSetupStatus();
+          if (status.needsSetup) {
+            router.replace("/onboarding");
+            return;
+          }
+        } catch {}
         setError("Wrong passphrase, corrupted key, or the account no longer exists (e.g., after a database reset). If the database was reset, complete setup again.");
       } else if (message.includes("challenge") || message.includes("decrypt")) {
         setError("Challenge decryption failed. Please try again.");
@@ -369,17 +379,32 @@ export default function LoginPage() {
           </form>
         )}
 
-        {!needsSetup && initialized && (
-        <p className="mt-6 text-center text-sm text-[#8ba3b8]">
-          Invited by your admin?{" "}
-          <Link
-            href="/setup"
-            className="text-brand-500 hover:text-brand-400"
-          >
-            Complete your setup
-          </Link>
-        </p>
+        {setupError && (
+          <p className="mt-4 text-center text-xs text-[#f89c11]">
+            {setupError}{" "}
+            <Link href="/onboarding" className="font-medium text-[#f89c11] underline hover:text-white">
+              Go to onboarding
+            </Link>
+          </p>
         )}
+
+        <p className="mt-6 text-center text-sm text-[#8ba3b8]">
+          {!needsSetup && initialized ? (
+            <>
+              Invited by your admin?{" "}
+              <Link href="/setup" className="text-brand-500 hover:text-brand-400">
+                Complete your setup
+              </Link>
+            </>
+          ) : (
+            <>
+              Need to set up a new installation?{" "}
+              <Link href="/onboarding" className="text-brand-500 hover:text-brand-400">
+                Complete onboarding
+              </Link>
+            </>
+          )}
+        </p>
       </div>
     </div>
   );
