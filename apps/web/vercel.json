@@ -1,0 +1,4 @@
+{
+  "buildCommand": "cd ../.. && pnpm --filter @clickrypt/crypto build && pnpm --filter @clickrypt/web build",
+  "installCommand": "pnpm install"
+}
