@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, AlertCircle, Loader2, CheckCircle2, Eye, EyeOff, User, Building2, Server } from "lucide-react";
+import { Lock, AlertCircle, Loader2, CheckCircle2, Eye, EyeOff, User, Building2, Server, RefreshCw } from "lucide-react";
 import {
   generateKeyPair,
   encryptWithPassphrase,
@@ -25,6 +25,7 @@ export default function OnboardingPage() {
   const [checking, setChecking] = useState(true);
   const [completing, setCompleting] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   const [generatedKeys, setGeneratedKeys] = useState<{
     publicKeyArmored: string;
@@ -46,7 +47,9 @@ export default function OnboardingPage() {
   const [showPassphrase, setShowPassphrase] = useState(false);
   const [showConfirmPassphrase, setShowConfirmPassphrase] = useState(false);
 
-  useEffect(() => {
+  const checkSetupStatus = useCallback(() => {
+    setChecking(true);
+    setStatusError(null);
     apiClient
       .getSetupStatus()
       .then((status) => {
@@ -57,12 +60,26 @@ export default function OnboardingPage() {
         }
       })
       .catch(() => {
+        setChecking(false);
         setStatusError(
           "Could not verify setup status. If this installation is already initialized, sign in at /login. Otherwise, restart the API and refresh."
         );
-        setChecking(false);
       });
   }, [router]);
+
+  useEffect(() => {
+    checkSetupStatus();
+  }, [checkSetupStatus]);
+
+  useEffect(() => {
+    if (!statusError) return;
+    if (retryCount >= 3) return;
+    const timer = setTimeout(() => {
+      setRetryCount((c) => c + 1);
+      checkSetupStatus();
+    }, 3000 * (retryCount + 1));
+    return () => clearTimeout(timer);
+  }, [statusError, retryCount, checkSetupStatus]);
 
   function handleModeContinue(e: React.FormEvent) {
     e.preventDefault();
@@ -201,6 +218,24 @@ export default function OnboardingPage() {
         <div className="w-full max-w-lg rounded-xl border border-[#2a4055] bg-[#1a3349]/50 p-8 text-center">
           <AlertCircle className="mx-auto h-8 w-8 text-[#f89c11]" />
           <p className="mt-4 text-[#f89c11]">{statusError}</p>
+          <div className="mt-6 flex items-center justify-center gap-4">
+            <button
+              onClick={() => {
+                setRetryCount(0);
+                checkSetupStatus();
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </button>
+            <a
+              href="/login"
+              className="text-sm text-[#8ba3b8] underline hover:text-white"
+            >
+              Go to login
+            </a>
+          </div>
         </div>
       </div>
     );

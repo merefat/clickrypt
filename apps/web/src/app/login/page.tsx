@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Lock, AlertCircle, Loader2, KeyRound, X } from "lucide-react";
+import { Lock, AlertCircle, Loader2, KeyRound, X, RefreshCw } from "lucide-react";
 import { decryptWithPassphrase, decryptMessage } from "@clickrypt/crypto";
 import { apiClient, setAccessToken, ApiError } from "@/lib/api/client";
 import { useSessionStore, getSavedEmails, removeSavedEmail } from "@/stores/session";
@@ -24,9 +24,10 @@ export default function LoginPage() {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [initialized, setInitialized] = useState(true);
   const [setupError, setSetupError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
-  useEffect(() => {
-    setSavedEmails(getSavedEmails());
+  const checkSetupStatus = useCallback(() => {
+    setSetupError(null);
     apiClient.getSetupStatus().then((s) => {
       setNeedsSetup(s.needsSetup);
       setInitialized(s.initialized);
@@ -35,6 +36,21 @@ export default function LoginPage() {
       setSetupError("Could not verify setup status. If this is a new installation, you may need to complete onboarding.");
     });
   }, [router]);
+
+  useEffect(() => {
+    setSavedEmails(getSavedEmails());
+    checkSetupStatus();
+  }, [checkSetupStatus]);
+
+  useEffect(() => {
+    if (!setupError) return;
+    if (retryCount >= 3) return;
+    const timer = setTimeout(() => {
+      setRetryCount((c) => c + 1);
+      checkSetupStatus();
+    }, 3000 * (retryCount + 1));
+    return () => clearTimeout(timer);
+  }, [setupError, retryCount, checkSetupStatus]);
 
   async function handleEmailSubmit(e?: React.FormEvent, emailArg?: string) {
     if (e) e.preventDefault();
@@ -380,12 +396,24 @@ export default function LoginPage() {
         )}
 
         {setupError && (
-          <p className="mt-4 text-center text-xs text-[#f89c11]">
-            {setupError}{" "}
-            <Link href="/onboarding" className="font-medium text-[#f89c11] underline hover:text-white">
-              Go to onboarding
-            </Link>
-          </p>
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <p className="text-center text-xs text-[#f89c11]">
+              {setupError}{" "}
+              <Link href="/onboarding" className="font-medium text-[#f89c11] underline hover:text-white">
+                Go to onboarding
+              </Link>
+            </p>
+            <button
+              onClick={() => {
+                setRetryCount(0);
+                checkSetupStatus();
+              }}
+              className="inline-flex items-center gap-1.5 text-xs text-[#8ba3b8] hover:text-white"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Retry connection
+            </button>
+          </div>
         )}
 
         <p className="mt-6 text-center text-sm text-[#8ba3b8]">

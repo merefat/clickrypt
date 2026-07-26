@@ -39,7 +39,7 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup("api/docs", app, document);
 
-    const port = Number(process.env.API_PORT ?? 4001);
+    const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4001);
     await app.listen(port);
     console.log(`✅ Clickrypt API listening on http://localhost:${port}/api/v1`);
   } catch (error) {

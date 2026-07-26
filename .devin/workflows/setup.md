@@ -72,3 +72,19 @@ The web app defaults to `http://localhost:4001/api/v1` for API calls. Override w
 - **Prisma generate fails (EPERM on Windows)**: Stop any running API dev server, then retry `npx prisma generate`.
 - **404 on all pages**: Ensure the web dev server is running (`pnpm dev:web`).
 - **Database connection refused**: Ensure Docker containers are up (`docker compose -f infra/docker/docker-compose.dev.yml up -d`).
+- **404 on API calls in Vercel deployment**: The API is not deployed. Deploy the API + Postgres + Redis to Railway (see `railway.json`), then set `API_URL` and `NEXT_PUBLIC_API_URL` env vars on Vercel pointing to the Railway API URL.
+
+## Deployment (Vercel + Railway)
+
+1. **Deploy API + DB on Railway**:
+   - Create a Railway project from the repo root
+   - Add PostgreSQL and Redis services
+   - Railway auto-detects `railway.json` for build/deploy config
+   - Set env vars: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `WEB_ORIGIN` (your Vercel URL)
+   - Railway sets `PORT` automatically
+
+2. **Configure Vercel env vars**:
+   - `API_URL` = Railway API base URL (e.g. `https://your-api.up.railway.app`)
+   - `NEXT_PUBLIC_API_URL` = `https://your-api.up.railway.app/api/v1`
+
+3. **Redeploy** and verify the health endpoint: `curl https://your-api.up.railway.app/api/v1/health`
