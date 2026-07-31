@@ -1,29 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { apiClient } from "@/lib/api/client";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    apiClient
-      .getSetupStatus()
-      .then((s) => {
-        if (s.needsSetup) {
-          router.replace("/onboarding");
-        } else {
-          router.replace("/login");
-        }
-      })
-      .catch(() => {
-        router.replace("/onboarding");
-      })
-      .finally(() => setChecking(false));
-  }, [router]);
+    const token = searchParams.get("token");
+    if (token) {
+      router.replace(`/setup?token=${encodeURIComponent(token)}`);
+      setChecking(false);
+      return;
+    }
+
+    router.replace("/onboarding");
+    setChecking(false);
+  }, [router, searchParams]);
 
   return (
     <div className="flex min-h-screen items-center justify-center">

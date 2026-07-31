@@ -17,7 +17,24 @@ export class PermissionsService {
     userId: string,
     resourceId: string
   ): Promise<PermissionLevel | null> {
-    // Check direct user permission
+    const resource = await this.prisma.resource.findUnique({
+      where: { id: resourceId },
+      select: { ownerId: true, workspaceType: true },
+    });
+    if (!resource) return null;
+
+    // Owner always has OWNER
+    if (resource.ownerId === userId) return "OWNER";
+
+    // Group resources are visible to anyone with a per-user Secret row
+    if (resource.workspaceType === "GROUP") {
+      const secret = await this.prisma.secret.findUnique({
+        where: { resourceId_userId: { resourceId, userId } },
+      });
+      return secret ? "READ" : null;
+    }
+
+    // Check direct user permission for private resources
     const userPerm = await this.prisma.permission.findFirst({
       where: {
         aroType: "USER",
@@ -27,7 +44,7 @@ export class PermissionsService {
       },
     });
 
-    // Check group permissions via group memberships
+    // Check group permissions via group memberships for private resources
     const groupIds = await this.prisma.groupUser.findMany({
       where: { userId },
       select: { groupId: true },
@@ -51,7 +68,6 @@ export class PermissionsService {
       }
     }
 
-    // Return the highest permission level
     const userLevel = userPerm ? (userPerm.level as PermissionLevel) : null;
     if (!userLevel && !groupLevel) return null;
     if (!userLevel) return groupLevel;

@@ -40,3 +40,14 @@ export class UpdateFolderDto {
   @IsUUID()
   parentFolderId?: string | null;
 }
+
+export class ReorderFolderDto {
+  @ApiPropertyOptional({ description: "New parent folder UUID (null for root)" })
+  @IsOptional()
+  @ValidateIf((o: ReorderFolderDto) => o.parentFolderId !== null)
+  @IsUUID()
+  parentFolderId?: string | null;
+
+  @ApiProperty({ description: "New sort order among siblings" })
+  sortOrder!: number;
+}

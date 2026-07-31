@@ -13,7 +13,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
-import { CreateFolderDto, UpdateFolderDto } from "./dto/folder.dto";
+import { CreateFolderDto, UpdateFolderDto, ReorderFolderDto } from "./dto/folder.dto";
 import { FoldersService } from "./folders.service";
 
 @ApiTags("folders")
@@ -55,6 +55,16 @@ export class FoldersController {
     @Body() dto: UpdateFolderDto
   ) {
     return this.foldersService.update(user.id, user.orgId, id, dto);
+  }
+
+  @Put(":id/reorder")
+  @ApiOperation({ summary: "Reorder or move a folder" })
+  reorder(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: ReorderFolderDto
+  ) {
+    return this.foldersService.reorder(user.id, user.orgId, id, dto);
   }
 
   @Delete(":id")

@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Upload, FileUp } from "lucide-react";
 import { apiClient, type ImportResult } from "@/lib/api/client";
-import { useSessionStore } from "@/stores/session";
+import { useSessionStore, clearCallbackUrl } from "@/stores/session";
+import { useSessionRestore } from "@/hooks/useSessionRestore";
+import { ReUnlockDialog } from "@/components/ReUnlockDialog";
 import { encryptMessage, getPublicKeyFromPrivateKey } from "@clickrypt/crypto";
 
 export default function ImportPage() {
@@ -15,12 +17,15 @@ export default function ImportPage() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showReUnlock, setShowReUnlock] = useState(false);
+
+  const { status: restoreStatus } = useSessionRestore();
 
   useEffect(() => {
-    if (!unlocked) {
-      router.push("/login");
+    if (restoreStatus === "locked") {
+      setShowReUnlock(true);
     }
-  }, [unlocked, router]);
+  }, [restoreStatus]);
 
   async function handleImport() {
     if (!file || !privateKey) return;
@@ -89,6 +94,14 @@ export default function ImportPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (showReUnlock) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <ReUnlockDialog onClose={() => { setShowReUnlock(false); router.push("/login"); }} onUnlocked={() => { setShowReUnlock(false); clearCallbackUrl(); }} />
+      </div>
+    );
   }
 
   return (

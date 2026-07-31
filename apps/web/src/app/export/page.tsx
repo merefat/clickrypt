@@ -3,24 +3,40 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Download, FileDown } from "lucide-react";
-import { apiClient, type ExportItem } from "@/lib/api/client";
-import { useSessionStore } from "@/stores/session";
-import { decryptMessage, decryptGroupKey, decryptWithGroupKey } from "@clickrypt/crypto";
+import { apiClient, type ExportItem, type GroupInfo } from "@/lib/api/client";
+import { useSessionStore, clearCallbackUrl } from "@/stores/session";
+import { useSessionRestore } from "@/hooks/useSessionRestore";
+import { ReUnlockDialog } from "@/components/ReUnlockDialog";
+import { decryptMessage } from "@clickrypt/crypto";
 
 export default function ExportPage() {
   const router = useRouter();
   const { unlocked, privateKey } = useSessionStore();
   const [format, setFormat] = useState<"csv" | "bitwarden">("csv");
+  const [scope, setScope] = useState<"all" | "workplace" | "groups">("all");
+  const [groups, setGroups] = useState<GroupInfo[]>([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+  const [groupsLoading, setGroupsLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [count, setCount] = useState(0);
+  const [showReUnlock, setShowReUnlock] = useState(false);
+
+  const { status: restoreStatus } = useSessionRestore();
 
   useEffect(() => {
-    if (!unlocked) {
-      router.push("/login");
+    if (restoreStatus === "locked") {
+      setShowReUnlock(true);
     }
-  }, [unlocked, router]);
+  }, [restoreStatus]);
+
+  useEffect(() => {
+    if (unlocked) {
+      setGroupsLoading(true);
+      apiClient.listGroups().then(setGroups).catch(() => {}).finally(() => setGroupsLoading(false));
+    }
+  }, [unlocked]);
 
   async function handleExport() {
     if (!privateKey) return;
@@ -30,7 +46,12 @@ export default function ExportPage() {
     setCount(0);
 
     try {
-      const items = await apiClient.exportResources();
+      const exportParams = scope === "groups"
+        ? { scope: "groups" as const, groupIds: [...selectedGroupIds] }
+        : scope === "workplace"
+          ? { scope: "workplace" as const }
+          : undefined;
+      const items = await apiClient.exportResources(exportParams);
 
       if (items.length === 0) {
         setError("No resources to export.");
@@ -48,17 +69,8 @@ export default function ExportPage() {
       for (const item of items) {
         if (!item.encryptedData) continue;
         try {
-          let plaintext = "";
-          if (item.groupId) {
-            const { encryptedGroupKey } = await apiClient.getGroupKey(item.groupId);
-            if (!encryptedGroupKey) continue;
-            const groupKey = await decryptGroupKey(encryptedGroupKey, privateKey);
-            const { iv, ciphertext } = JSON.parse(item.encryptedData);
-            plaintext = await decryptWithGroupKey({ iv, ciphertext }, groupKey);
-          } else {
-            const result = await decryptMessage(item.encryptedData, privateKey);
-            plaintext = result.plaintext;
-          }
+          const result = await decryptMessage(item.encryptedData, privateKey);
+          const plaintext = result.plaintext;
           const secret = JSON.parse(plaintext);
           decrypted.push({
             name: item.name,
@@ -131,6 +143,14 @@ export default function ExportPage() {
     }
   }
 
+  if (showReUnlock) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <ReUnlockDialog onClose={() => { setShowReUnlock(false); router.push("/login"); }} onUnlocked={() => { setShowReUnlock(false); clearCallbackUrl(); }} />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col px-6 py-8">
       <button
@@ -167,6 +187,69 @@ export default function ExportPage() {
         </div>
 
         <div>
+          <label className="mb-2 block text-sm text-[#c4d4e0]">Scope</label>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setScope("all")}
+              className={`rounded-lg px-4 py-2 text-sm font-medium ${scope === "all" ? "bg-[#213548] text-white" : "text-[#8ba3b8] hover:bg-[#213548]/50"}`}
+            >
+              Everything
+            </button>
+            <button
+              onClick={() => setScope("workplace")}
+              className={`rounded-lg px-4 py-2 text-sm font-medium ${scope === "workplace" ? "bg-[#213548] text-white" : "text-[#8ba3b8] hover:bg-[#213548]/50"}`}
+            >
+              My Workplace
+            </button>
+            <button
+              onClick={() => setScope("groups")}
+              className={`rounded-lg px-4 py-2 text-sm font-medium ${scope === "groups" ? "bg-[#213548] text-white" : "text-[#8ba3b8] hover:bg-[#213548]/50"}`}
+            >
+              Selected Groups
+            </button>
+          </div>
+        </div>
+
+        {scope === "groups" && (
+          <div>
+            <label className="mb-2 block text-sm text-[#c4d4e0]">Select Groups</label>
+            {groupsLoading ? (
+              <p className="text-sm text-[#8ba3b8]">Loading groups…</p>
+            ) : groups.length === 0 ? (
+              <p className="text-sm text-[#8ba3b8]">No groups available.</p>
+            ) : (
+              <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-[#2a4055] p-2">
+                {groups.map((g) => (
+                  <label
+                    key={g.id}
+                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-[#213548]/50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedGroupIds.has(g.id)}
+                      onChange={(e) => {
+                        setSelectedGroupIds((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(g.id);
+                          else next.delete(g.id);
+                          return next;
+                        });
+                      }}
+                      className="h-4 w-4 rounded border-[#2a4055] accent-[#1ebbd4]"
+                    />
+                    <span className="text-[#c4d4e0]">{g.name}</span>
+                    <span className="ml-auto text-xs text-[#8ba3b8]">{g.memberCount} members</span>
+                  </label>
+                ))}
+              </div>
+            )}
+            {scope === "groups" && selectedGroupIds.size === 0 && !groupsLoading && groups.length > 0 && (
+              <p className="mt-1 text-xs text-[#f89c11]">Select at least one group to export.</p>
+            )}
+          </div>
+        )}
+
+        <div>
           <label className="mb-2 block text-sm text-[#c4d4e0]">Format</label>
           <div className="flex gap-2">
             <button
@@ -196,7 +279,7 @@ export default function ExportPage() {
 
         <button
           onClick={handleExport}
-          disabled={busy}
+          disabled={busy || (scope === "groups" && selectedGroupIds.size === 0)}
           className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
         >
           <FileDown className="h-4 w-4" />

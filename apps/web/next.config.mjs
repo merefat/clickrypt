@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-const apiUrl = (process.env.API_URL ?? "http://localhost:4001").replace(/\/+$/, "");
+const apiUrl = (process.env.API_URL ?? "http://localhost:8081").replace(/\/+$/, "");
 
 const nextConfig = {
   transpilePackages: ["@clickrypt/crypto"],

@@ -10,6 +10,7 @@ import {
   Post,
   Put,
   Query,
+  UnauthorizedException,
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
@@ -35,11 +36,20 @@ export class ResourcesController {
 
   @Post()
   @ApiOperation({ summary: "Create a new password entry with encrypted secret" })
-  create(
+  async create(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateResourceDto
   ) {
-    return this.resourcesService.create(user.id, user.orgId, dto);
+    console.log("[ResourcesController.create] user:", user, "dto:", dto);
+    if (!user?.id || !user?.orgId) {
+      throw new UnauthorizedException("Invalid authentication context");
+    }
+    try {
+      return await this.resourcesService.create(user.id, user.orgId, dto);
+    } catch (err) {
+      console.error("[ResourcesController.create] unhandled error:", err);
+      throw err;
+    }
   }
 
   @Get()
@@ -74,9 +84,23 @@ export class ResourcesController {
   }
 
   @Get("export")
-  @ApiOperation({ summary: "Export all user-visible resources with encrypted secrets for client-side decryption" })
-  exportForUser(@CurrentUser() user: AuthenticatedUser) {
-    return this.resourcesService.exportForUser(user.id, user.orgId);
+  @ApiOperation({ summary: "Export user-visible resources with encrypted secrets for client-side decryption (scope: all, workplace, or groups)" })
+  exportForUser(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query("scope") scope?: string,
+    @Query("groupIds") groupIds?: string
+  ) {
+    const validScopes = ["all", "workplace", "groups"] as const;
+    const mode = (validScopes as readonly string[]).includes(scope ?? "all")
+      ? (scope as "all" | "workplace" | "groups") ?? "all"
+      : "all";
+    const parsedGroupIds = groupIds
+      ? groupIds.split(",").map((g) => g.trim()).filter(Boolean)
+      : undefined;
+    return this.resourcesService.exportForUser(user.id, user.orgId, {
+      mode,
+      groupIds: parsedGroupIds,
+    });
   }
 
   @Get(":id")

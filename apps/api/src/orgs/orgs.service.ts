@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { UpdateSmtpSettingsDto } from "./dto/smtp-settings.dto";
 
@@ -20,6 +20,44 @@ export class OrgsService {
     const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
     if (!org) throw new NotFoundException("Organization not found");
     return { id: org.id, name: org.name, mode: org.mode };
+  }
+
+  async createForUser(
+    userId: string,
+    dto: { mode: "SELF_HOSTED" | "ORGANIZATION"; name: string }
+  ) {
+    if (dto.mode === "SELF_HOSTED") {
+      const existing = await this.prisma.organization.findFirst({
+        where: { mode: "SELF_HOSTED" },
+      });
+      if (existing) {
+        throw new ConflictException("Self-hosted mode supports only one vault.");
+      }
+    }
+
+    const result = await this.prisma.$transaction(async (tx: any) => {
+      const org = await tx.organization.create({
+        data: { name: dto.name, mode: dto.mode as any },
+      });
+
+      await tx.user.update({
+        where: { id: userId },
+        data: { orgId: org.id, orgRole: "OWNER" as any },
+      });
+
+      await tx.organizationMembership.create({
+        data: {
+          organizationId: org.id,
+          userId,
+          role: "OWNER" as any,
+          status: "ACTIVE" as any,
+        },
+      });
+
+      return org;
+    });
+
+    return { id: result.id, name: result.name, mode: result.mode };
   }
 
   async getSmtpSettings(orgId: string): Promise<Partial<SmtpSettings>> {

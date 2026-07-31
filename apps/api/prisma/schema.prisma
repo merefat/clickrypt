@@ -57,6 +57,11 @@ enum OrgMode {
   ORGANIZATION
 }
 
+enum WorkspaceType {
+  PRIVATE
+  GROUP
+}
+
 enum OrgRole {
   OWNER
   ADMIN
@@ -139,6 +144,7 @@ model User {
   mfaDevices        MfaDevice[]
   createdResources  Resource[]        @relation("ResourceCreator")
   modifiedResources Resource[]        @relation("ResourceModifier")
+  ownedResources    Resource[]        @relation("ResourceOwner")
   createdFolders    Folder[]          @relation("FolderCreator")
   sharesGiven       ShareHistory[]    @relation("SharedBy")
   sharesReceived    ShareHistory[]    @relation("SharedWith")
@@ -180,7 +186,6 @@ model Group {
   id        String   @id @default(uuid())
   orgId     String   @map("org_id")
   name      String
-  groupKey  String?  @map("group_key")
   createdAt DateTime @default(now()) @map("created_at")
 
   org       Organization @relation(fields: [orgId], references: [id])
@@ -196,7 +201,6 @@ model GroupUser {
   groupId   String    @map("group_id")
   userId            String    @map("user_id")
   role              GroupRole @default(USER)
-  encryptedGroupKey String?   @map("encrypted_group_key")
   createdAt         DateTime  @default(now()) @map("created_at")
 
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -215,6 +219,7 @@ model Folder {
   parentFolderId String?  @map("parent_folder_id")
   createdBy      String?  @map("created_by")
   name           String
+  sortOrder      Int      @default(0) @map("sort_order")
   createdAt      DateTime @default(now()) @map("created_at")
 
   org       Organization @relation(fields: [orgId], references: [id])
@@ -247,10 +252,12 @@ model Resource {
   folderId       String?  @map("folder_id")
   groupId        String?  @map("group_id")
   resourceTypeId String   @map("resource_type_id")
+  workspaceType  WorkspaceType @default(PRIVATE) @map("workspace_type")
   name           String
   uri            String?
   metadataJson   Json     @default("{}") @map("metadata_json")
   sharingMode    SharingMode @default(AUTO) @map("sharing_mode")
+  ownerId        String?  @map("owner_id")
   createdBy      String?  @map("created_by")
   modifiedBy     String?  @map("modified_by")
   createdAt      DateTime @default(now()) @map("created_at")
@@ -260,10 +267,10 @@ model Resource {
   folder       Folder?        @relation(fields: [folderId], references: [id])
   group        Group?         @relation("ResourceGroup", fields: [groupId], references: [id])
   resourceType ResourceType   @relation(fields: [resourceTypeId], references: [id])
+  owner        User?          @relation("ResourceOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   creator      User?          @relation("ResourceCreator", fields: [createdBy], references: [id], onDelete: SetNull)
   modifier     User?          @relation("ResourceModifier", fields: [modifiedBy], references: [id], onDelete: SetNull)
   secrets      Secret[]
-  groupSecret  GroupSecret?
   tags         ResourceTag[]
   shareHistory ShareHistory[]
   favorites    UserFavorite[]
@@ -271,18 +278,6 @@ model Resource {
   @@index([orgId, folderId])
   @@index([orgId, groupId])
   @@map("resources")
-}
-
-model GroupSecret {
-  id            String   @id @default(uuid())
-  resourceId    String   @unique @map("resource_id")
-  encryptedData String   @map("encrypted_data")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
-
-  @@map("group_secrets")
 }
 
 // One ciphertext per recipient — OpenPGP is per-recipient by design.

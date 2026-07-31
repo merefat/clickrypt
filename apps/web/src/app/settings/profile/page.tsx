@@ -39,7 +39,9 @@ import {
   type UserProfile,
   type SessionInfo,
 } from "@/lib/api/client";
-import { useSessionStore, getStoredEmail } from "@/stores/session";
+import { useSessionStore, getStoredEmail, clearCallbackUrl } from "@/stores/session";
+import { useSessionRestore } from "@/hooks/useSessionRestore";
+import { ReUnlockDialog } from "@/components/ReUnlockDialog";
 import {
   encryptWithPassphrase,
   decryptWithPassphrase,
@@ -202,6 +204,7 @@ export default function ProfilePage() {
   const email = sessionEmail || storedEmail;
   const [activeTab, setActiveTab] = useState<TabKey>("profile");
   const [loading, setLoading] = useState(true);
+  const [showReUnlock, setShowReUnlock] = useState(false);
 
   // Profile state
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -251,12 +254,15 @@ export default function ProfilePage() {
   const matches = newPass === confirmPass && newPass.length > 0;
   const canSubmit = currentPass.length > 0 && passes && matches && !passBusy;
 
+  const { status: restoreStatus } = useSessionRestore();
+
   useEffect(() => {
-    if (!unlocked) {
-      router.push("/login");
-      return;
-    }
-    cancelledRef.current = false;
+    if (restoreStatus === "locked") {
+      setShowReUnlock(true);
+    } else if (restoreStatus === "ready") {
+      setShowReUnlock(false);
+      clearCallbackUrl();
+      cancelledRef.current = false;
     const timeout = setTimeout(() => {
       if (!cancelledRef.current) {
         setKeysError("Loading timed out. Please refresh the page.");
@@ -343,7 +349,8 @@ export default function ProfilePage() {
       cancelledRef.current = true;
       clearTimeout(timeout);
     };
-  }, [unlocked, router, setAvatar]);
+    }
+  }, [restoreStatus]);
 
   function showToast(message: string) {
     setToast(message);
@@ -486,6 +493,14 @@ export default function ProfilePage() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-[#8ba3b8]">Failed to load profile.</p>
+      </div>
+    );
+  }
+
+  if (showReUnlock) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <ReUnlockDialog onClose={() => { setShowReUnlock(false); router.push("/login"); }} onUnlocked={() => setShowReUnlock(false)} />
       </div>
     );
   }

@@ -8,7 +8,7 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { SyncGateway } from "../sync/sync.gateway";
 import { PermissionsService } from "../permissions/permissions.service";
-import { CreateFolderDto, UpdateFolderDto } from "./dto/folder.dto";
+import { CreateFolderDto, UpdateFolderDto, ReorderFolderDto } from "./dto/folder.dto";
 
 @Injectable()
 export class FoldersService {
@@ -68,6 +68,16 @@ export class FoldersService {
       }
     }
 
+    // Determine sortOrder: append after last sibling
+    const siblingCount = await this.prisma.folder.count({
+      where: {
+        orgId,
+        groupId: dto.groupId ?? null,
+        parentFolderId: dto.parentFolderId ?? null,
+        ...(dto.groupId ? {} : { createdBy: userId }),
+      },
+    });
+
     try {
       const folder = await this.prisma.folder.create({
         data: {
@@ -76,6 +86,7 @@ export class FoldersService {
           parentFolderId: dto.parentFolderId ?? null,
           groupId: dto.groupId ?? null,
           createdBy: userId,
+          sortOrder: siblingCount,
         },
       });
       const recipientIds = folder.groupId
@@ -98,18 +109,20 @@ export class FoldersService {
       where.groupId = groupId;
     } else {
       where.groupId = null;
+      // Non-group folders are always private to their creator, regardless of role
       where.createdBy = userId;
     }
 
     const folders = await this.prisma.folder.findMany({
       where,
-      orderBy: { name: "asc" },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
     return folders.map((f) => ({
       id: f.id,
       name: f.name,
       parentFolderId: f.parentFolderId,
       groupId: f.groupId,
+      sortOrder: f.sortOrder,
       createdAt: f.createdAt,
     }));
   }
@@ -189,6 +202,81 @@ export class FoldersService {
       current = parent.parentFolderId;
     }
     return false;
+  }
+
+  async reorder(userId: string, orgId: string, id: string, dto: ReorderFolderDto) {
+    const folder = await this.prisma.folder.findFirst({
+      where: { id, orgId },
+    });
+    if (!folder) {
+      throw new NotFoundException("Folder not found");
+    }
+
+    // Non-group folders are private to their creator
+    if (!folder.groupId && folder.createdBy !== userId) {
+      throw new ForbiddenException("You do not own this folder");
+    }
+
+    const newParentId = dto.parentFolderId ?? null;
+
+    // Validate new parent if not root
+    if (newParentId) {
+      if (newParentId === id) {
+        throw new BadRequestException("A folder cannot be its own parent");
+      }
+      const target = await this.prisma.folder.findFirst({
+        where: { id: newParentId, orgId },
+        select: { id: true, groupId: true },
+      });
+      if (!target) {
+        throw new NotFoundException("Target parent folder not found");
+      }
+      if (target.groupId !== folder.groupId) {
+        throw new BadRequestException("Cannot move folder to a different group");
+      }
+      if (await this.isDescendant(id, newParentId)) {
+        throw new BadRequestException("Cannot move folder into its own subtree");
+      }
+    }
+
+    // Get siblings at the new parent level (excluding the folder being moved)
+    const siblings = await this.prisma.folder.findMany({
+      where: {
+        orgId,
+        groupId: folder.groupId,
+        parentFolderId: newParentId,
+        id: { not: id },
+        ...(folder.groupId ? {} : { createdBy: userId }),
+      },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    });
+
+    // Clamp sortOrder to valid range
+    const clampedOrder = Math.max(0, Math.min(dto.sortOrder, siblings.length));
+
+    // Update the moved folder
+    await this.prisma.folder.update({
+      where: { id },
+      data: { parentFolderId: newParentId, sortOrder: clampedOrder },
+    });
+
+    // Reindex siblings to make room for the moved folder
+    let insertIndex = 0;
+    for (const sibling of siblings) {
+      if (insertIndex === clampedOrder) insertIndex++;
+      await this.prisma.folder.update({
+        where: { id: sibling.id },
+        data: { sortOrder: insertIndex },
+      });
+      insertIndex++;
+    }
+
+    const updated = await this.prisma.folder.findFirst({ where: { id } });
+    const recipientIds = updated!.groupId
+      ? [...new Set([...(await this.permissions.getGroupMemberIds(updated!.groupId!)), userId])]
+      : [userId];
+    this.sync.emitToUsers(recipientIds, { type: "folder:update", entityType: "folder", entityId: id, data: { id: updated!.id, name: updated!.name, parentFolderId: updated!.parentFolderId, groupId: updated!.groupId, sortOrder: updated!.sortOrder, createdAt: updated!.createdAt } });
+    return updated;
   }
 
   async delete(userId: string, orgId: string, id: string) {

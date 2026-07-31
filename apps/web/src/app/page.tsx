@@ -1,5 +1,9 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { KeyRound, Lock, Share2, ShieldCheck } from "lucide-react";
+import { KeyRound, Loader2, Lock, Share2, ShieldCheck } from "lucide-react";
+import { apiClient } from "@/lib/api/client";
 
 const features = [
   {
@@ -29,6 +33,25 @@ const features = [
 ];
 
 export default function HomePage() {
+  const [mode, setMode] = useState<"loading" | "setup" | "signin">("loading");
+
+  useEffect(() => {
+    let mounted = true;
+    apiClient
+      .getSetupStatus()
+      .then((status) => {
+        if (!mounted) return;
+        setMode(status.needsSetup ? "setup" : "signin");
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setMode("signin");
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col px-6">
       <header className="flex items-center justify-between py-6">
@@ -43,12 +66,14 @@ export default function HomePage() {
           >
             Sign in
           </Link>
-          <Link
-            href="/onboarding"
-            className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-          >
-            Get started
-          </Link>
+          {mode === "setup" && (
+            <Link
+              href="/onboarding"
+              className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+            >
+              Get started
+            </Link>
+          )}
         </nav>
       </header>
 
@@ -61,13 +86,25 @@ export default function HomePage() {
           Clickrypt encrypts everything on your device with keys only you hold.
           Built for teams. Designed for zero trust.
         </p>
+        {mode === "setup" && (
+          <p className="mt-2 text-sm text-brand-500">
+            No vault configured yet. Create one to get started.
+          </p>
+        )}
         <div className="mt-10 flex gap-4">
-          <Link
-            href="/onboarding"
-            className="rounded-lg bg-brand-600 px-6 py-3 font-semibold text-white hover:bg-brand-700"
-          >
-            Create your vault
-          </Link>
+          {mode === "loading" ? (
+            <span className="rounded-lg bg-[#2a4055] px-6 py-3 font-semibold text-white">
+              <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
+              Loading…
+            </span>
+          ) : (
+            <Link
+              href="/onboarding"
+              className="rounded-lg bg-brand-600 px-6 py-3 font-semibold text-white hover:bg-brand-700"
+            >
+              Create your vault
+            </Link>
+          )}
           <Link
             href="/security"
             className="rounded-lg border border-[#2a4055] px-6 py-3 font-semibold text-[#e2e8f0] hover:bg-[#1a3349]"

@@ -5,7 +5,6 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import * as openpgp from "openpgp";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import { PermissionsService } from "../permissions/permissions.service";
@@ -260,41 +259,29 @@ export class GroupsService {
       throw new ForbiddenException("You are not a member of this organization");
     }
 
-    // Return all active org members with their public keys and group key status
-    const activeMembers = await this.prisma.organizationMembership.findMany({
-      where: { organizationId: orgId, status: "ACTIVE" },
-      select: { userId: true },
-    });
-    const memberUserIds = activeMembers.map((m) => m.userId);
-
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: memberUserIds } },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        gpgKey: { select: { publicKey: true } },
+    // Return all group members with their public keys
+    const groupUsers = await this.prisma.groupUser.findMany({
+      where: { groupId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            gpgKey: { select: { publicKey: true } },
+          },
+        },
       },
     });
 
-    // Fetch group key status for each user
-    const groupUsers = await this.prisma.groupUser.findMany({
-      where: { groupId, userId: { in: memberUserIds } },
-      select: { userId: true, encryptedGroupKey: true },
-    });
-    const keyMap = new Map<string, boolean>();
-    for (const gu of groupUsers) {
-      keyMap.set(gu.userId, !!gu.encryptedGroupKey);
-    }
-
-    return users.map((u: any) => ({
-      userId: u.id,
-      email: u.email,
-      firstName: u.firstName,
-      lastName: u.lastName,
-      publicKey: u.gpgKey?.publicKey ?? null,
-      hasGroupKey: keyMap.get(u.id) ?? false,
+    return groupUsers.map((gu: any) => ({
+      userId: gu.user.id,
+      email: gu.user.email,
+      firstName: gu.user.firstName,
+      lastName: gu.user.lastName,
+      publicKey: gu.user.gpgKey?.publicKey ?? null,
+      isGroupMember: true,
     }));
   }
 
@@ -362,24 +349,6 @@ export class GroupsService {
             encryptedData,
           },
         });
-        await tx.permission.upsert({
-          where: {
-            aroType_aroId_acoType_acoId: {
-              aroType: "USER",
-              aroId: targetUserId,
-              acoType: "RESOURCE",
-              acoId: resourceId,
-            },
-          },
-          update: { level: "READ" },
-          create: {
-            aroType: "USER",
-            aroId: targetUserId,
-            acoType: "RESOURCE",
-            acoId: resourceId,
-            level: "READ",
-          },
-        });
         synced += 1;
       }
       return synced;
@@ -387,140 +356,6 @@ export class GroupsService {
     /* eslint-enable @typescript-eslint/no-explicit-any */
 
     return { synced: result };
-  }
-
-  async getMyGroupKey(userId: string, orgId: string, groupId: string) {
-    /* eslint-disable @typescript-eslint/no-explicit-any */
-    const group = await this.prisma.group.findFirst({
-      where: { id: groupId, orgId },
-    }) as any;
-    if (!group) {
-      throw new NotFoundException("Group not found");
-    }
-
-    // Verify caller is an org member (any org member can access group keys)
-    const orgMembership = await this.prisma.organizationMembership.findUnique({
-      where: { organizationId_userId: { organizationId: orgId, userId } },
-    });
-    if (!orgMembership) {
-      throw new ForbiddenException("You are not a member of this organization");
-    }
-
-    // Check if caller has a GroupUser row and a key
-    const membership = await this.prisma.groupUser.findUnique({
-      where: { groupId_userId: { groupId, userId } },
-    }) as any;
-
-    // If caller already has the key, return it
-    if (membership?.encryptedGroupKey) {
-      const membersWithKeys = await this.prisma.groupUser.count({
-        where: { groupId, encryptedGroupKey: { not: null } },
-      } as any);
-      return {
-        encryptedGroupKey: membership.encryptedGroupKey,
-        keyExists: membersWithKeys > 0,
-      };
-    }
-
-    // Caller doesn't have the key — try to auto-encrypt from the stored raw group key
-    const rawGroupKey: string | null = group.groupKey ?? null;
-    const membersWithKeys = await this.prisma.groupUser.count({
-      where: { groupId, encryptedGroupKey: { not: null } },
-    } as any);
-    const keyExists = membersWithKeys > 0 || !!rawGroupKey;
-
-    if (rawGroupKey) {
-      // Fetch the caller's public key
-      const userWithKey = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { gpgKey: { select: { publicKey: true } } },
-      }) as any;
-
-      if (userWithKey?.gpgKey?.publicKey) {
-        // Encrypt the raw group key with the caller's public key
-        const publicKey = await openpgp.readKey({ armoredKey: userWithKey.gpgKey.publicKey });
-        const message = await openpgp.createMessage({ text: rawGroupKey });
-        const encrypted = await openpgp.encrypt({
-          message,
-          encryptionKeys: [publicKey],
-        }) as string;
-
-        // Store it in the caller's GroupUser row
-        const existingGU = await this.prisma.groupUser.findUnique({
-          where: { groupId_userId: { groupId, userId } },
-        }) as any;
-        if (existingGU) {
-          await this.prisma.groupUser.update({
-            where: { groupId_userId: { groupId, userId } },
-            data: { encryptedGroupKey: encrypted } as any,
-          });
-        } else {
-          await this.prisma.groupUser.create({
-            data: { groupId, userId, role: "USER", encryptedGroupKey: encrypted } as any,
-          });
-        }
-
-        return { encryptedGroupKey: encrypted, keyExists: true };
-      }
-      // User has no public key — can't encrypt for them
-    }
-
-    return {
-      encryptedGroupKey: null,
-      keyExists,
-    };
-    /* eslint-enable @typescript-eslint/no-explicit-any */
-  }
-
-  async setGroupKey(
-    userId: string,
-    orgId: string,
-    groupId: string,
-    targetUserId: string,
-    encryptedGroupKey: string,
-    rawGroupKey?: string
-  ) {
-    /* eslint-disable @typescript-eslint/no-explicit-any */
-    // Verify caller is an org member (any org member can distribute keys)
-    const orgMembership = await this.prisma.organizationMembership.findUnique({
-      where: { organizationId_userId: { organizationId: orgId, userId } },
-    });
-    if (!orgMembership) {
-      throw new ForbiddenException("You are not a member of this organization");
-    }
-
-    // Verify target is an org member
-    const targetOrgMembership = await this.prisma.organizationMembership.findUnique({
-      where: { organizationId_userId: { organizationId: orgId, userId: targetUserId } },
-    });
-    if (!targetOrgMembership) {
-      throw new BadRequestException("Target user is not a member of this organization");
-    }
-
-    // Store the raw group key on the Group table if provided (for auto-distribution)
-    if (rawGroupKey) {
-      await this.prisma.group.update({
-        where: { id: groupId },
-        data: { groupKey: rawGroupKey } as any,
-      });
-    }
-
-    // Upsert GroupUser row if it doesn't exist (auto-add to group)
-    const existing = await this.prisma.groupUser.findUnique({
-      where: { groupId_userId: { groupId, userId: targetUserId } },
-    }) as any;
-    if (existing) {
-      await this.prisma.groupUser.update({
-        where: { groupId_userId: { groupId, userId: targetUserId } },
-        data: { encryptedGroupKey } as any,
-      });
-    } else {
-      await this.prisma.groupUser.create({
-        data: { groupId, userId: targetUserId, role: "USER", encryptedGroupKey } as any,
-      });
-    }
-    return { success: true };
-    /* eslint-enable @typescript-eslint/no-explicit-any */
   }
 
   async listMembers(userId: string, orgId: string, groupId: string) {
@@ -602,7 +437,7 @@ export class GroupsService {
       throw new NotFoundException("Group not found");
     }
 
-    await this.requireRole(userId, orgId, groupId, "ADMIN");
+    await this.requireRole(userId, orgId, groupId, "USER");
 
     const activeMembers = await this.prisma.organizationMembership.findMany({
       where: { organizationId: orgId, status: "ACTIVE" },

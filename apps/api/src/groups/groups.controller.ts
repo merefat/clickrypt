@@ -13,7 +13,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
-import { AddGroupMemberDto, CreateGroupDto, SetGroupKeyDto, UpdateGroupDto } from "./dto/group.dto";
+import { AddGroupMemberDto, CreateGroupDto, UpdateGroupDto } from "./dto/group.dto";
 import { SyncGroupSecretsDto } from "./dto/sync-group-secrets.dto";
 import { GroupsService } from "./groups.service";
 import { OrganizationModeGuard } from "../common/organization-mode.guard";
@@ -76,25 +76,6 @@ export class GroupsController {
     @Param("id", ParseUUIDPipe) id: string
   ) {
     return this.groupsService.getRecipientKeys(user.id, user.orgId, id);
-  }
-
-  @Get(":id/my-key")
-  @ApiOperation({ summary: "Get the caller's encrypted group symmetric key" })
-  getMyKey(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param("id", ParseUUIDPipe) id: string
-  ) {
-    return this.groupsService.getMyGroupKey(user.id, user.orgId, id);
-  }
-
-  @Post(":id/keys")
-  @ApiOperation({ summary: "Set a member's encrypted group symmetric key" })
-  setKey(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param("id", ParseUUIDPipe) id: string,
-    @Body() dto: SetGroupKeyDto
-  ) {
-    return this.groupsService.setGroupKey(user.id, user.orgId, id, dto.userId, dto.encryptedGroupKey, dto.rawGroupKey);
   }
 
   @Get(":id/members")

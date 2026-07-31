@@ -28,7 +28,7 @@ interface ApiOptions extends RequestInit {
   skipJson?: boolean;
 }
 
-async function refreshAccessToken(): Promise<boolean> {
+export async function refreshAccessToken(): Promise<boolean> {
   const res = await fetch(`${API_BASE}/auth/refresh`, {
     method: "POST",
     credentials: "include",
@@ -58,6 +58,7 @@ export async function api<T = unknown>(
     defaultHeaders["Content-Type"] = "application/json";
   }
 
+  console.log("[api]", options.method || "GET", path, options.body);
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
     headers: { ...defaultHeaders, ...headers },
@@ -226,23 +227,23 @@ export const apiClient = {
     folderId?: string;
     groupId?: string;
     encryptedData?: string;
-    groupEncryptedData?: string;
     metadata?: Record<string, unknown>;
     resourceType?: string;
     additionalSecrets?: Record<string, string>;
     sharingMode?: "AUTO" | "RESTRICTED";
-  }) =>
-    api<ResourceListItem>("/resources", {
+  }) => {
+    console.log("[createResource] payload:", data);
+    return api<ResourceListItem>("/resources", {
       method: "POST",
       body: JSON.stringify(data),
-    }),
+    });
+  },
 
   updateResource: (id: string, data: {
     name?: string;
     uri?: string;
     folderId?: string;
     encryptedData?: string;
-    groupEncryptedData?: string;
     metadata?: Record<string, unknown>;
     additionalSecrets?: Record<string, string>;
     sharingMode?: "AUTO" | "RESTRICTED";
@@ -284,6 +285,12 @@ export const apiClient = {
 
   updateFolder: (id: string, data: { name?: string; parentFolderId?: string | null }) =>
     api<Folder>(`/folders/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  reorderFolder: (id: string, data: { parentFolderId: string | null; sortOrder: number }) =>
+    api<Folder>(`/folders/${id}/reorder`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
@@ -379,10 +386,13 @@ export const apiClient = {
     api<{ initialized: boolean; mode?: string; organizationName?: string | null }>("/setup/status", { skipAuth: true }),
 
   configureSystem: (data: { mode: string; orgName: string }) =>
-    api<{ configured: boolean; orgId?: string }>("/system/config", {
+    api<{ configured: boolean; orgId?: string; accessToken?: string }>("/system/config", {
       method: "POST",
       body: JSON.stringify(data),
       skipAuth: true,
+    }).then((res) => {
+      if (res.accessToken) setAccessToken(res.accessToken);
+      return res;
     }),
 
   setupInitialize: (data: { mode?: string; orgName?: string; email: string; firstName: string; lastName: string; armoredPublicKey: string; encryptedPrivateKey: Record<string, unknown> }) =>
@@ -396,6 +406,20 @@ export const apiClient = {
 
   getOrgInfo: () =>
     api<{ id: string; name: string; mode: string }>("/orgs/me"),
+
+  createOrg: (data: { mode: string; name: string }) =>
+    api<{ id: string; name: string; mode: string }>("/orgs", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  refresh: () =>
+    api<{ accessToken: string }>("/auth/refresh", { method: "POST" }).then(
+      (res) => {
+        setAccessToken(res.accessToken);
+        return res;
+      }
+    ),
 
   getSmtpSettings: () =>
     api<Partial<SmtpSettings>>("/orgs/settings/smtp"),
@@ -495,18 +519,9 @@ export const apiClient = {
     ),
 
   getGroupRecipients: (groupId: string) =>
-    api<{ userId: string; email: string; firstName: string; lastName: string; publicKey: string | null; hasGroupKey: boolean }[]>(
+    api<{ userId: string; email: string; firstName: string; lastName: string; publicKey: string | null; isGroupMember: boolean }[]>(
       `/groups/${groupId}/recipients`
     ),
-
-  getGroupKey: (groupId: string) =>
-    api<{ encryptedGroupKey: string | null; keyExists: boolean }>(`/groups/${groupId}/my-key`),
-
-  setGroupKey: (groupId: string, userId: string, encryptedGroupKey: string, rawGroupKey?: string) =>
-    api<{ success: boolean }>(`/groups/${groupId}/keys`, {
-      method: "POST",
-      body: JSON.stringify({ userId, encryptedGroupKey, rawGroupKey }),
-    }),
 
   syncGroupSecrets: (groupId: string, userId: string, resourceShares: Record<string, string>) =>
     api<{ synced: number }>(`/groups/${groupId}/sync/${userId}`, {
@@ -570,8 +585,13 @@ export const apiClient = {
 
   // ── Export ──────────────────────────────────────────────────────────
 
-  exportResources: () =>
-    api<ExportItem[]>("/resources/export"),
+  exportResources: (params?: { scope?: "all" | "workplace" | "groups"; groupIds?: string[] }) => {
+    const qs = new URLSearchParams();
+    if (params?.scope) qs.set("scope", params.scope);
+    if (params?.groupIds?.length) qs.set("groupIds", params.groupIds.join(","));
+    const query = qs.toString();
+    return api<ExportItem[]>(`/resources/export${query ? `?${query}` : ""}`);
+  },
 };
 
 // ── Shared types ───────────────────────────────────────────────────────
@@ -605,6 +625,7 @@ export interface Folder {
   name: string;
   parentFolderId: string | null;
   groupId: string | null;
+  sortOrder: number;
   createdAt: string;
 }
 

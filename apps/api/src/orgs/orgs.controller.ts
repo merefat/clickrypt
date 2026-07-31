@@ -1,14 +1,23 @@
-import { Body, Controller, Get, Put, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post, Put, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { CurrentUser, type AuthenticatedUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { OrgsService } from "./orgs.service";
+import { CreateOrgDto } from "./dto/create-org.dto";
 import { UpdateSmtpSettingsDto } from "./dto/smtp-settings.dto";
 
 @ApiTags("orgs")
 @Controller("orgs")
 export class OrgsController {
   constructor(private readonly orgsService: OrgsService) {}
+
+  @Post()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Create a new organization/vault" })
+  createOrg(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateOrgDto) {
+    return this.orgsService.createForUser(user.id, dto);
+  }
 
   @Get("me")
   @UseGuards(JwtAuthGuard)

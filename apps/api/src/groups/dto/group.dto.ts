@@ -15,22 +15,6 @@ export class UpdateGroupDto {
   name?: string;
 }
 
-export class SetGroupKeyDto {
-  @ApiProperty({ description: "User UUID who will receive the encrypted group key" })
-  @IsUUID()
-  userId!: string;
-
-  @ApiProperty({ description: "Armored OpenPGP ciphertext wrapping the group symmetric key" })
-  @IsString()
-  @IsNotEmpty()
-  encryptedGroupKey!: string;
-
-  @ApiPropertyOptional({ description: "Raw base64 group symmetric key — stored server-side for auto-distribution to new members" })
-  @IsOptional()
-  @IsString()
-  rawGroupKey?: string;
-}
-
 export class AddGroupMemberDto {
   @ApiProperty({ example: "member@example.com" })
   @IsString()

@@ -35,14 +35,6 @@ export class UpdateResourceDto {
   @IsNotEmpty()
   encryptedData?: string;
 
-  @ApiPropertyOptional({
-    description: "New AES-GCM payload encrypted with group key (JSON string) — for group resources",
-  })
-  @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  groupEncryptedData?: string;
-
   @ApiPropertyOptional()
   @IsOptional()
   metadata?: Record<string, unknown>;

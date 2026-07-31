@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, Copy, Shield, Trash2, UserPlus, UserPlus2, X } from "lucide-react";
+import { ArrowLeft, Check, Copy, Shield, Trash2, UserPlus, X } from "lucide-react";
 import { apiClient, type AdminUser, type AuditLogEntry, type SmtpSettings, type EmailLogEntry } from "@/lib/api/client";
-import { useSessionStore, getStoredEmail } from "@/stores/session";
+import { useSessionStore, getStoredEmail, clearCallbackUrl } from "@/stores/session";
+import { useSessionRestore } from "@/hooks/useSessionRestore";
+import { ReUnlockDialog } from "@/components/ReUnlockDialog";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -18,15 +20,6 @@ export default function AdminPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("USER");
   const [inviting, setInviting] = useState(false);
-  const [showAddMember, setShowAddMember] = useState(false);
-  const [memberEmail, setMemberEmail] = useState("");
-  const [memberFirstName, setMemberFirstName] = useState("");
-  const [memberLastName, setMemberLastName] = useState("");
-  const [memberRole, setMemberRole] = useState("USER");
-  const [memberPassword, setMemberPassword] = useState("");
-  const [addingMember, setAddingMember] = useState(false);
-  const [memberLink, setMemberLink] = useState<string | null>(null);
-  const [memberLinkCopied, setMemberLinkCopied] = useState(false);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [orgMode, setOrgMode] = useState<string>("ORGANIZATION");
   const [inviteLink, setInviteLink] = useState<string | null>(null);
@@ -44,14 +37,19 @@ export default function AdminPage() {
   const [smtpSaved, setSmtpSaved] = useState(false);
   const [emailLogs, setEmailLogs] = useState<EmailLogEntry[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [showReUnlock, setShowReUnlock] = useState(false);
+
+  const { status: restoreStatus } = useSessionRestore();
 
   useEffect(() => {
-    if (!unlocked) {
-      router.push("/login");
-      return;
+    if (restoreStatus === "locked") {
+      setShowReUnlock(true);
+    } else if (restoreStatus === "ready") {
+      setShowReUnlock(false);
+      clearCallbackUrl();
+      loadData();
     }
-    loadData();
-  }, [unlocked, router]);
+  }, [restoreStatus]);
 
   async function loadData() {
     try {
@@ -155,44 +153,6 @@ export default function AdminPage() {
     }
   }
 
-  async function handleAddMember(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setAddingMember(true);
-    try {
-      const newMember = await apiClient.adminAddMember({
-        email: memberEmail,
-        firstName: memberFirstName,
-        lastName: memberLastName,
-        role: memberRole,
-        password: memberPassword || undefined,
-      });
-      setUsers((prev) => [...prev, newMember]);
-      setShowAddMember(false);
-      setMemberEmail("");
-      setMemberFirstName("");
-      setMemberLastName("");
-      setMemberRole("USER");
-      setMemberPassword("");
-      setMemberLink(newMember.inviteLink);
-      setMemberLinkCopied(false);
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to add member.");
-    } finally {
-      setAddingMember(false);
-    }
-  }
-
-  async function handleCopyMemberLink() {
-    if (!memberLink) return;
-    try {
-      await navigator.clipboard.writeText(memberLink);
-      setMemberLinkCopied(true);
-      setTimeout(() => setMemberLinkCopied(false), 2000);
-    } catch {
-      setError("Failed to copy link to clipboard.");
-    }
-  }
 
   async function handleSaveSmtp(e: React.FormEvent) {
     e.preventDefault();
@@ -229,6 +189,14 @@ export default function AdminPage() {
     );
   }
 
+  if (showReUnlock) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <ReUnlockDialog onClose={() => { setShowReUnlock(false); router.push("/login"); }} onUnlocked={() => setShowReUnlock(false)} />
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto flex min-h-screen max-w-4xl flex-col px-6 py-8">
       <button
@@ -244,20 +212,12 @@ export default function AdminPage() {
           <h1 className="text-2xl font-bold">Admin Panel</h1>
         </div>
         {tab === "users" && orgMode !== "SELF_HOSTED" && (
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowAddMember(true)}
-              className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
-            >
-              <UserPlus2 className="h-4 w-4" /> Add Member
-            </button>
-            <button
-              onClick={() => setShowInvite(true)}
-              className="flex items-center gap-2 rounded-lg border border-[#2a4055] px-4 py-2 text-sm font-semibold text-[#c4d4e0] hover:bg-[#213548]"
-            >
-              <UserPlus className="h-4 w-4" /> Invite User
-            </button>
-          </div>
+          <button
+            onClick={() => setShowInvite(true)}
+            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+          >
+            <UserPlus className="h-4 w-4" /> Invite User
+          </button>
         )}
       </div>
 
@@ -647,126 +607,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {memberLink && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setMemberLink(null)}>
-          <div className="w-full max-w-md rounded-xl border border-[#2a4055] bg-[#1a3349] p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold">Member Added</h2>
-              <button onClick={() => setMemberLink(null)} className="text-[#8ba3b8] hover:text-white">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <p className="text-sm text-[#8ba3b8]">
-              An email has been sent with a setup link. You can also copy this link and share it directly — it expires in 48 hours:
-            </p>
-            <div className="mt-4 flex items-center gap-2">
-              <input
-                readOnly
-                value={memberLink}
-                onFocus={(e) => e.target.select()}
-                className="flex-1 rounded-lg border border-[#2a4055] bg-[#0f1f2e] px-3 py-2 text-xs text-[#c4d4e0] focus:outline-none"
-              />
-              <button
-                onClick={handleCopyMemberLink}
-                className="flex items-center gap-1 rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700"
-              >
-                {memberLinkCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                {memberLinkCopied ? "Copied" : "Copy"}
-              </button>
-            </div>
-            <button
-              onClick={() => setMemberLink(null)}
-              className="mt-4 w-full rounded-lg border border-[#2a4055] px-4 py-2 font-semibold text-[#e2e8f0] hover:bg-[#213548]"
-            >
-              Done
-            </button>
-          </div>
-        </div>
-      )}
 
-      {showAddMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowAddMember(false)}>
-          <div className="w-full max-w-md rounded-xl border border-[#2a4055] bg-[#1a3349] p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold">Add Member</h2>
-              <button onClick={() => setShowAddMember(false)} className="text-[#8ba3b8] hover:text-white">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <form onSubmit={handleAddMember} className="space-y-4">
-              <div>
-                <label className="mb-1 block text-sm text-[#c4d4e0]">Email</label>
-                <input
-                  type="email"
-                  required
-                  value={memberEmail}
-                  onChange={(e) => setMemberEmail(e.target.value)}
-                  className="w-full rounded-lg border border-[#2a4055] bg-[#0f1f2e] px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-sm text-[#c4d4e0]">First Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={memberFirstName}
-                    onChange={(e) => setMemberFirstName(e.target.value)}
-                    className="w-full rounded-lg border border-[#2a4055] bg-[#0f1f2e] px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-sm text-[#c4d4e0]">Last Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={memberLastName}
-                    onChange={(e) => setMemberLastName(e.target.value)}
-                    className="w-full rounded-lg border border-[#2a4055] bg-[#0f1f2e] px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-[#c4d4e0]">Role</label>
-                <select
-                  value={memberRole}
-                  onChange={(e) => setMemberRole(e.target.value)}
-                  className="w-full rounded-lg border border-[#2a4055] bg-[#0f1f2e] px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
-                >
-                  <option value="USER">User</option>
-                  <option value="ADMIN">Admin</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm text-[#c4d4e0]">Temporary Password (optional)</label>
-                <input
-                  type="password"
-                  value={memberPassword}
-                  onChange={(e) => setMemberPassword(e.target.value)}
-                  placeholder="Min 8 characters"
-                  className="w-full rounded-lg border border-[#2a4055] bg-[#0f1f2e] px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
-                />
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="submit"
-                  disabled={addingMember}
-                  className="flex-1 rounded-lg bg-brand-600 px-4 py-2 font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-                >
-                  {addingMember ? "Adding…" : "Add Member"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAddMember(false)}
-                  className="rounded-lg border border-[#2a4055] px-4 py-2 font-semibold text-[#e2e8f0] hover:bg-[#213548]"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

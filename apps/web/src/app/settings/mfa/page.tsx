@@ -15,7 +15,9 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import { apiClient } from "@/lib/api/client";
-import { useSessionStore } from "@/stores/session";
+import { useSessionStore, clearCallbackUrl } from "@/stores/session";
+import { useSessionRestore } from "@/hooks/useSessionRestore";
+import { ReUnlockDialog } from "@/components/ReUnlockDialog";
 
 export default function MfaSettingsPage() {
   const router = useRouter();
@@ -29,18 +31,23 @@ export default function MfaSettingsPage() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [copiedSecret, setCopiedSecret] = useState(false);
+  const [showReUnlock, setShowReUnlock] = useState(false);
+
+  const { status: restoreStatus } = useSessionRestore();
 
   useEffect(() => {
-    if (!unlocked) {
-      router.push("/login");
-      return;
-    }
+    if (restoreStatus === "locked") {
+      setShowReUnlock(true);
+    } else if (restoreStatus === "ready") {
+      setShowReUnlock(false);
+      clearCallbackUrl();
     apiClient
       .getMfaStatus()
       .then((r) => setEnabled(r.enabled))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [unlocked, router]);
+    }
+  }, [restoreStatus]);
 
   useEffect(() => {
     if (enrollData?.otpauthUri) {
@@ -119,6 +126,14 @@ export default function MfaSettingsPage() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-[#8ba3b8]">Loading…</p>
+      </div>
+    );
+  }
+
+  if (showReUnlock) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <ReUnlockDialog onClose={() => { setShowReUnlock(false); router.push("/login"); }} onUnlocked={() => setShowReUnlock(false)} />
       </div>
     );
   }

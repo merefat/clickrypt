@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, AlertCircle, Loader2, CheckCircle2, Eye, EyeOff, User, Building2, Server, RefreshCw } from "lucide-react";
+import { Lock, AlertCircle, Loader2, CheckCircle2, Eye, EyeOff, User, Building2, Server } from "lucide-react";
 import {
   generateKeyPair,
   encryptWithPassphrase,
@@ -11,7 +11,7 @@ import {
   createRecoveryKit,
   type EncryptedBlob,
 } from "@clickrypt/crypto";
-import { apiClient, setAccessToken } from "@/lib/api/client";
+import { apiClient, getAccessToken, setAccessToken } from "@/lib/api/client";
 import { useSessionStore } from "@/stores/session";
 
 type Step = "mode" | "form" | "generating" | "downloading" | "done";
@@ -22,11 +22,11 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [recoveryKit, setRecoveryKit] = useState<string | null>(null);
   const [downloaded, setDownloaded] = useState(false);
-  const [checking, setChecking] = useState(true);
   const [completing, setCompleting] = useState(false);
   const [configuring, setConfiguring] = useState(false);
-  const [statusError, setStatusError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [serverInitialized, setServerInitialized] = useState(false);
 
   const [generatedKeys, setGeneratedKeys] = useState<{
     publicKeyArmored: string;
@@ -48,40 +48,34 @@ export default function OnboardingPage() {
   const [showPassphrase, setShowPassphrase] = useState(false);
   const [showConfirmPassphrase, setShowConfirmPassphrase] = useState(false);
 
-  const checkSetupStatus = useCallback(() => {
-    setChecking(true);
-    setStatusError(null);
+  useEffect(() => {
+    const token = getAccessToken();
+    if (!token) {
+      setIsAuthenticated(false);
+      setAuthChecked(true);
+      return;
+    }
+    apiClient
+      .me()
+      .then(() => setIsAuthenticated(true))
+      .catch(() => setIsAuthenticated(false))
+      .finally(() => setAuthChecked(true));
+  }, []);
+
+  useEffect(() => {
+    if (!authChecked || isAuthenticated) return;
+    let cancelled = false;
     apiClient
       .getSetupStatus()
       .then((status) => {
-        if (!status.needsSetup) {
-          router.replace("/login");
-        } else {
-          setChecking(false);
-        }
+        if (cancelled) return;
+        if (status.initialized) setServerInitialized(true);
       })
-      .catch((err) => {
-        console.error("[Onboarding] getSetupStatus failed", err);
-        setChecking(false);
-        setStatusError(
-          "Could not verify setup status. If this installation is already initialized, sign in at /login. Otherwise, restart the API and refresh."
-        );
-      });
-  }, [router]);
-
-  useEffect(() => {
-    checkSetupStatus();
-  }, [checkSetupStatus]);
-
-  useEffect(() => {
-    if (!statusError) return;
-    if (retryCount >= 3) return;
-    const timer = setTimeout(() => {
-      setRetryCount((c) => c + 1);
-      checkSetupStatus();
-    }, 3000 * (retryCount + 1));
-    return () => clearTimeout(timer);
-  }, [statusError, retryCount, checkSetupStatus]);
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [authChecked, isAuthenticated, router]);
 
   async function handleModeContinue(e: React.FormEvent) {
     e.preventDefault();
@@ -92,6 +86,17 @@ export default function OnboardingPage() {
     }
     setConfiguring(true);
     try {
+      if (isAuthenticated) {
+        const org = await apiClient.createOrg({ mode, name: orgName });
+        useSessionStore
+          .getState()
+          .setDeploymentMode(
+            org.mode === "SELF_HOSTED" ? "self-hosted" : "organization"
+          );
+        await apiClient.refresh();
+        router.push("/vault");
+        return;
+      }
       await apiClient.configureSystem({ mode, orgName });
       setStep("form");
     } catch (err) {
@@ -164,6 +169,11 @@ export default function OnboardingPage() {
     setCompleting(true);
 
     try {
+      const setupStatus = await apiClient.getSetupStatus();
+      if (setupStatus.initialized) {
+        throw new Error("This vault is already set up. Please sign in instead.");
+      }
+
       await apiClient.setupInitialize({
         email,
         firstName,
@@ -212,7 +222,7 @@ export default function OnboardingPage() {
     }
   }
 
-  if (checking) {
+  if (!authChecked) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
@@ -220,30 +230,20 @@ export default function OnboardingPage() {
     );
   }
 
-  if (statusError) {
+  if (serverInitialized) {
     return (
       <div className="flex min-h-screen items-center justify-center px-6">
-        <div className="w-full max-w-lg rounded-xl border border-[#2a4055] bg-[#1a3349]/50 p-8 text-center">
-          <AlertCircle className="mx-auto h-8 w-8 text-[#f89c11]" />
-          <p className="mt-4 text-[#f89c11]">{statusError}</p>
-          <div className="mt-6 flex items-center justify-center gap-4">
-            <button
-              onClick={() => {
-                setRetryCount(0);
-                checkSetupStatus();
-              }}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white hover:bg-brand-600"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Retry
-            </button>
-            <a
-              href="/login"
-              className="text-sm text-[#8ba3b8] underline hover:text-white"
-            >
-              Go to login
-            </a>
-          </div>
+        <div className="w-full max-w-md rounded-xl border border-[#2a4055] bg-[#1a3349]/50 p-8 text-center">
+          <h2 className="text-xl font-bold">This vault is already configured</h2>
+          <p className="mt-2 text-sm text-[#8ba3b8]">
+            Sign in to access it.
+          </p>
+          <button
+            onClick={() => router.push("/login")}
+            className="mt-6 w-full rounded-lg bg-brand-600 px-4 py-3 font-semibold text-white hover:bg-brand-700"
+          >
+            Sign in
+          </button>
         </div>
       </div>
     );

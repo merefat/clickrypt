@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Lock, AlertCircle, Loader2, KeyRound, X, RefreshCw } from "lucide-react";
 import { decryptWithPassphrase, decryptMessage } from "@clickrypt/crypto";
 import { apiClient, setAccessToken, ApiError } from "@/lib/api/client";
-import { useSessionStore, getSavedEmails, removeSavedEmail } from "@/stores/session";
+import { useSessionStore, getSavedEmails, removeSavedEmail, getCallbackUrl, clearCallbackUrl } from "@/stores/session";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,7 +31,7 @@ export default function LoginPage() {
     apiClient.getSetupStatus().then((s) => {
       setNeedsSetup(s.needsSetup);
       setInitialized(s.initialized);
-      if (s.needsSetup) router.replace("/onboarding");
+      if (s.needsSetup && !s.initialized) router.replace("/onboarding");
     }).catch(() => {
       setSetupError("Could not verify setup status. If this is a new installation, you may need to complete onboarding.");
     });
@@ -120,7 +120,10 @@ export default function LoginPage() {
         } catch {}
       }
 
-      router.push("/vault");
+      // Redirect to callback URL if set, otherwise go to vault
+      const callbackUrl = getCallbackUrl();
+      clearCallbackUrl();
+      router.push(callbackUrl || "/vault");
     } catch (err) {
       console.error("[Login] Error:", err);
       const message = err instanceof Error ? err.message : "Login failed.";
@@ -187,7 +190,10 @@ export default function LoginPage() {
         } catch {}
       }
 
-      router.push("/vault");
+      // Redirect to callback URL if set, otherwise go to vault
+      const callbackUrl = getCallbackUrl();
+      clearCallbackUrl();
+      router.push(callbackUrl || "/vault");
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 404) {

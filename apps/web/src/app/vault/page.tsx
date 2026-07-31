@@ -12,7 +12,6 @@ import {
   Eye,
   EyeOff,
   FileUp,
-  Folder as FolderIcon,
   FolderPlus,
   Info,
   Key,
@@ -36,12 +35,8 @@ import {
 import {
   encryptMessage,
   decryptMessage,
-  decryptGroupKey,
-  decryptWithGroupKey,
   decryptWithPassphrase,
   getPublicKeyFromPrivateKey,
-  generateGroupKey,
-  encryptGroupKey,
 } from "@clickrypt/crypto";
 import {
   apiClient,
@@ -54,8 +49,15 @@ import {
   type Tag,
   type UserProfile,
 } from "@/lib/api/client";
-import { useSessionStore, getStoredEmail, hasStoredSession, clearStoredSession } from "@/stores/session";
+import { useSessionStore, clearCallbackUrl } from "@/stores/session";
+import { useSessionRestore } from "@/hooks/useSessionRestore";
 import { useSync } from "@/lib/api/sync";
+import { ReUnlockDialog } from "@/components/ReUnlockDialog";
+import { SortableFolderTree } from "@/components/SortableFolderTree";
+import { Dialog } from "@/components/ui/Dialog";
+import { Field } from "@/components/ui/Field";
+import { ErrorMsg } from "@/components/ui/ErrorMsg";
+import { inputClass, primaryBtnClass, secondaryBtnClass } from "@/components/ui/buttonClasses";
 
 function formatApiError(err: unknown): string {
   if (err instanceof ApiError) {
@@ -100,7 +102,6 @@ export default function VaultPage() {
   const [decrypting, setDecrypting] = useState(false);
   const [secretAccessible, setSecretAccessible] = useState(true);
   const [dialogMode, setDialogMode] = useState<"detail" | "edit" | "share" | "permissions" | "info">("detail");
-  const [ownerShareResource, setOwnerShareResource] = useState<{ id: string; name: string; secretPayload: string; selfPublicKey: string } | null>(null);
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, string>>({});
   const [decryptingPasswordId, setDecryptingPasswordId] = useState<string | null>(null);
 
@@ -165,40 +166,32 @@ export default function VaultPage() {
     },
   });
 
+  const { status: restoreStatus } = useSessionRestore();
+
   useEffect(() => {
-    if (!unlocked) {
-      // Check if setup is needed first
-      apiClient.getSetupStatus().then((s) => {
-        if (s.needsSetup) {
-          clearStoredSession();
-          setAccessToken(null);
-          router.push("/onboarding");
-          return;
-        }
-        // If we have a stored access token + email, show re-unlock dialog instead of full login.
-        if (hasStoredSession()) {
-          setShowReUnlock(true);
-          return;
-        }
-        router.push("/login");
-      }).catch(() => {
-        // If setup status check fails, fall back to existing behavior
-        if (hasStoredSession()) {
-          setShowReUnlock(true);
-          return;
-        }
-        router.push("/login");
-      });
-      return;
+    if (restoreStatus === "ready") {
+      setShowReUnlock(false);
+      clearCallbackUrl();
+      loadData();
+    } else if (restoreStatus === "locked") {
+      setShowReUnlock(true);
     }
-    setShowReUnlock(false);
-    loadData();
-  }, [unlocked, router, loadData]);
+  }, [restoreStatus, loadData]);
 
   // Fetch deployment mode config once on mount
   useEffect(() => {
     apiClient.getDeploymentConfig().then((cfg) => setDeploymentMode(cfg.deploymentMode)).catch(() => {});
   }, [setDeploymentMode]);
+
+  // Restore orgRole and userId if missing (e.g., after page reload)
+  useEffect(() => {
+    if (!orgRole || !useSessionStore.getState().userId) {
+      apiClient.me().then((profile) => {
+        if (profile.orgRole) useSessionStore.getState().setOrgRole(profile.orgRole);
+        if (profile.id) useSessionStore.getState().setUserId(profile.id);
+      }).catch(() => {});
+    }
+  }, [orgRole]);
 
   // Debounce search for server-side filtering
   useEffect(() => {
@@ -209,13 +202,19 @@ export default function VaultPage() {
   useEffect(() => {
     if (!unlocked) return;
     const handleActivity = () => resetLockTimer();
+    const handleBeforeUnload = () => {
+      // Private key is memory-only and is lost on unload.
+      // Do NOT call lock() here — it wipes cp_email from sessionStorage,
+      // which breaks session restoration on reload.
+      useSessionStore.setState({ privateKey: null, unlocked: false, lockTimer: null });
+    };
     document.addEventListener("mousemove", handleActivity);
     document.addEventListener("keydown", handleActivity);
-    window.addEventListener("beforeunload", lock);
+    window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
       document.removeEventListener("mousemove", handleActivity);
       document.removeEventListener("keydown", handleActivity);
-      window.removeEventListener("beforeunload", lock);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [unlocked, lock, resetLockTimer]);
 
@@ -253,58 +252,6 @@ export default function VaultPage() {
     router.push("/login");
   }
 
-  async function ensureAndDecryptGroupKey(groupId: string): Promise<string | null> {
-    if (!privateKey) return null;
-    const currentUserId = useSessionStore.getState().userId;
-    if (!currentUserId) return null;
-    const { encryptedGroupKey, keyExists } = await apiClient.getGroupKey(groupId);
-    if (encryptedGroupKey) {
-      const groupKey = await decryptGroupKey(encryptedGroupKey, privateKey);
-      // Redistribute key to any org members who don't have it yet
-      try {
-        const recipients = await apiClient.getGroupRecipients(groupId);
-        const missingKey = recipients.filter((r: any) => r.publicKey && !r.hasGroupKey);
-        if (missingKey.length > 0) {
-          const wrapped = await encryptGroupKey(groupKey, missingKey.map((r: any) => ({ userId: r.userId, publicKey: r.publicKey })));
-          for (const r of missingKey) {
-            if (wrapped[r.userId]) {
-              await apiClient.setGroupKey(groupId, r.userId, wrapped[r.userId]);
-            }
-          }
-        }
-      } catch (err) {
-        console.error("[ensureAndDecryptGroupKey] Failed to redistribute key:", err);
-      }
-      return groupKey;
-    }
-    if (!keyExists) {
-      // No key exists yet — generate and distribute to all org members
-      const key = await generateGroupKey();
-      const publicKey = await getPublicKeyFromPrivateKey(privateKey);
-      const recipients = await apiClient.getGroupRecipients(groupId);
-      const recipientsWithKeys = recipients.filter((r: any) => r.publicKey);
-      if (recipientsWithKeys.length === 0) {
-        const wrapped = await encryptGroupKey(key, [{ userId: currentUserId, publicKey }]);
-        await apiClient.setGroupKey(groupId, currentUserId, wrapped[currentUserId], key);
-      } else {
-        const wrapped = await encryptGroupKey(key, recipientsWithKeys.map((r: any) => ({ userId: r.userId, publicKey: r.publicKey })));
-        // Send rawGroupKey with the first setGroupKey call so backend stores it for auto-distribution
-        let rawKeySent = false;
-        for (const r of recipientsWithKeys) {
-          if (wrapped[r.userId]) {
-            await apiClient.setGroupKey(groupId, r.userId, wrapped[r.userId], rawKeySent ? undefined : key);
-            rawKeySent = true;
-          }
-        }
-      }
-      return key;
-    }
-    // Key exists but not shared with us — backend should have auto-encrypted it
-    // If we still get null, the raw key wasn't stored (pre-fix groups). Retry once.
-    console.warn("[ensureAndDecryptGroupKey] Group key exists but not shared with current user. groupId:", groupId);
-    return null;
-  }
-
   async function handleReveal(resource: ResourceListItem) {
     if (!privateKey) return;
     // Check if resource still exists in local state (may have been deleted)
@@ -316,16 +263,8 @@ export default function VaultPage() {
     setError(null);
     try {
       const { encryptedData } = await apiClient.getSecret(resource.id);
-      let plaintext = "";
-      if (resource.groupId) {
-        const groupKey = await ensureAndDecryptGroupKey(resource.groupId);
-        if (!groupKey) throw new Error("No group key available");
-        const { iv, ciphertext } = JSON.parse(encryptedData);
-        plaintext = await decryptWithGroupKey({ iv, ciphertext }, groupKey);
-      } else {
-        const result = await decryptMessage(encryptedData, privateKey);
-        plaintext = result.plaintext;
-      }
+      const result = await decryptMessage(encryptedData, privateKey);
+      const plaintext = result.plaintext;
       setDecryptedSecret(JSON.parse(plaintext));
       setSecretAccessible(true);
       setRevealPassword(false);
@@ -440,21 +379,13 @@ export default function VaultPage() {
     setDecryptingPasswordId(resource.id);
     try {
       const { encryptedData } = await apiClient.getSecret(resource.id);
-      let plaintext = "";
-      if (resource.groupId) {
-        const groupKey = await ensureAndDecryptGroupKey(resource.groupId);
-        if (!groupKey) throw new Error("No group key available");
-        const { iv, ciphertext } = JSON.parse(encryptedData);
-        plaintext = await decryptWithGroupKey({ iv, ciphertext }, groupKey);
-      } else {
-        const result = await decryptMessage(encryptedData, privateKey);
-        plaintext = result.plaintext;
-      }
+      const result = await decryptMessage(encryptedData, privateKey);
+      const plaintext = result.plaintext;
       const secret = JSON.parse(plaintext);
       setRevealedPasswords((prev) => ({ ...prev, [resource.id]: secret.password ?? "" }));
     } catch (err) {
       console.error("[handleRevealPassword] Failed to decrypt password for resource:", resource.id, err);
-      showToast("Group key not yet distributed — ask a colleague to open the group page.");
+      showToast("Failed to decrypt password.");
     } finally {
       setDecryptingPasswordId(null);
     }
@@ -485,62 +416,57 @@ export default function VaultPage() {
     );
   }
 
-  // Build folder tree from flat list
-  const folderTree = folders.filter((f) => !f.parentFolderId);
-  function renderFolderNode(folder: Folder, depth: number): React.ReactNode {
-    const children = folders.filter((f) => f.parentFolderId === folder.id);
-    const isExpanded = expandedFolders.has(folder.id);
+  async function handleReorderFolder(id: string, parentFolderId: string | null, sortOrder: number) {
+    setFolders((prev) => {
+      const updated = prev.map((f) =>
+        f.id === id ? { ...f, parentFolderId, sortOrder } : f
+      );
+      const siblings = updated
+        .filter((f) => (f.parentFolderId ?? null) === (parentFolderId ?? null) && f.id !== id)
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      let idx = 0;
+      return updated.map((f) => {
+        if (f.id === id) return { ...f, sortOrder };
+        if ((f.parentFolderId ?? null) === (parentFolderId ?? null) && f.id !== id) {
+          if (idx === sortOrder) idx++;
+          return { ...f, sortOrder: idx++ };
+        }
+        return f;
+      });
+    });
+    try {
+      await apiClient.reorderFolder(id, { parentFolderId, sortOrder });
+    } catch (err) {
+      console.error("[Vault] reorderFolder failed:", err);
+      loadData();
+    }
+  }
+
+  function renderFolderActions(folder: Folder) {
     return (
-      <div key={folder.id}>
-        <div
-          className={`group flex items-center justify-between rounded-md ${selectedFolder === folder.id ? "bg-[#213548] text-white" : "text-[#8ba3b8] hover:bg-[#213548]/50"}`}
-          style={{ paddingLeft: `${12 + depth * 12}px` }}
+      <>
+        <button
+          onClick={() => { setSelectedFolder(folder.id); setShowCreate(true); }}
+          className="px-1.5 py-1 text-[#8ba3b8] hover:text-white"
+          title="New resource in this folder"
         >
-          <div className="flex flex-1 items-center">
-            {children.length > 0 ? (
-              <button
-                onClick={() => toggleExpandFolder(folder.id)}
-                className="px-1 py-1.5 text-[#8ba3b8] hover:text-white"
-                title={isExpanded ? "Collapse" : "Expand"}
-              >
-                <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? "" : "-rotate-90"}`} />
-              </button>
-            ) : (
-              <span className="w-5" />
-            )}
-            <button
-              onClick={() => setSelectedFolder(folder.id)}
-              className="flex flex-1 items-center gap-2 py-1.5 pr-2 text-left text-sm"
-            >
-              <FolderIcon className="h-3.5 w-3.5" /> {folder.name}
-            </button>
-          </div>
-          <div className="flex items-center opacity-0 group-hover:opacity-100">
-            <button
-              onClick={() => { setSelectedFolder(folder.id); setShowCreate(true); }}
-              className="px-1.5 py-1.5 text-[#8ba3b8] hover:text-white"
-              title="New resource in this folder"
-            >
-              <Key className="h-3 w-3" />
-            </button>
-            <button
-              onClick={() => { setCreateFolderParent(folder.id); setCreateFolderGroupId(folder.groupId ?? null); setShowCreateFolder(true); }}
-              className="px-1.5 py-1.5 text-[#8ba3b8] hover:text-white"
-              title="New subfolder"
-            >
-              <FolderPlus className="h-3 w-3" />
-            </button>
-          </div>
-        </div>
-        {isExpanded && children.map((c) => renderFolderNode(c, depth + 1))}
-      </div>
+          <Key className="h-3 w-3" />
+        </button>
+        <button
+          onClick={() => { setCreateFolderParent(folder.id); setCreateFolderGroupId(folder.groupId ?? null); setShowCreateFolder(true); }}
+          className="px-1.5 py-1 text-[#8ba3b8] hover:text-white"
+          title="New subfolder"
+        >
+          <FolderPlus className="h-3 w-3" />
+        </button>
+      </>
     );
   }
 
   if (showReUnlock) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <ReUnlockDialog onClose={() => { setShowReUnlock(false); router.push("/login"); }} onUnlocked={() => setShowReUnlock(false)} />
+        <ReUnlockDialog onClose={() => { setShowReUnlock(false); router.push("/login"); }} onUnlocked={() => { setShowReUnlock(false); }} />
       </div>
     );
   }
@@ -663,7 +589,15 @@ export default function VaultPage() {
                 <Plus className="h-3.5 w-3.5" />
               </button>
             </div>
-            {folderTree.map((f) => renderFolderNode(f, 0))}
+            <SortableFolderTree
+              folders={folders}
+              selectedFolderId={selectedFolder}
+              onSelectFolder={setSelectedFolder}
+              onReorder={handleReorderFolder}
+              expandedFolders={expandedFolders}
+              onToggleExpand={toggleExpandFolder}
+              actionButtons={renderFolderActions}
+            />
           </div>
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase text-[#8ba3b8]">Manage</h3>
@@ -795,7 +729,7 @@ export default function VaultPage() {
                       </td>
                       <td className="px-4 py-3">
                         <span className="rounded bg-[#213548] px-2 py-0.5 text-xs text-[#c4d4e0]">
-                          {r.source === "group" ? "Group" : "My Workplace"}
+                          {r.source === "group" ? (r.groupName ?? "Group") : "My Workplace"}
                         </span>
                       </td>
                       <td className="max-w-[200px] truncate px-4 py-3 text-[#8ba3b8]">
@@ -854,7 +788,7 @@ export default function VaultPage() {
                         </button>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {(orgRole === "OWNER" || orgRole === "ADMIN" || r.createdBy?.email === email) && (
+                        {(orgRole === "OWNER" || orgRole === "ADMIN" || (r.createdBy?.email && email && r.createdBy.email.toLowerCase() === email.toLowerCase())) && (
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDeleteClick(r); }}
                             disabled={deletingId === r.id}
@@ -874,23 +808,15 @@ export default function VaultPage() {
         </main>
       </div>
 
-      {showCreate && <CreateDialog folders={folders} privateKey={privateKey} defaultFolderId={selectedFolder} orgRole={orgRole} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); loadData(); }} onOwnerCreated={(id, name, secretPayload, selfPublicKey) => { setShowCreate(false); setOwnerShareResource({ id, name, secretPayload, selfPublicKey }); loadData(); }} />}
+      {showCreate && <CreateDialog folders={folders} privateKey={privateKey} defaultFolderId={selectedFolder} orgRole={orgRole} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); loadData(); }} />}
 
-      {showCreateTotp && <CreateTotpDialog folders={folders} privateKey={privateKey} defaultFolderId={selectedFolder} orgRole={orgRole} onClose={() => setShowCreateTotp(false)} onCreated={() => { setShowCreateTotp(false); loadData(); }} onOwnerCreated={(id, name, secretPayload, selfPublicKey) => { setShowCreateTotp(false); setOwnerShareResource({ id, name, secretPayload, selfPublicKey }); loadData(); }} />}
+      {showCreateTotp && <CreateTotpDialog folders={folders} privateKey={privateKey} defaultFolderId={selectedFolder} orgRole={orgRole} onClose={() => setShowCreateTotp(false)} onCreated={() => { setShowCreateTotp(false); loadData(); }} />}
 
-      {showCreateNote && <CreateNoteDialog folders={folders} privateKey={privateKey} defaultFolderId={selectedFolder} orgRole={orgRole} onClose={() => setShowCreateNote(false)} onCreated={() => { setShowCreateNote(false); loadData(); }} onOwnerCreated={(id, name, secretPayload, selfPublicKey) => { setShowCreateNote(false); setOwnerShareResource({ id, name, secretPayload, selfPublicKey }); loadData(); }} />}
+      {showCreateNote && <CreateNoteDialog folders={folders} privateKey={privateKey} defaultFolderId={selectedFolder} orgRole={orgRole} onClose={() => setShowCreateNote(false)} onCreated={() => { setShowCreateNote(false); loadData(); }} />}
 
       {showCreateFolder && <CreateFolderDialog parentFolderId={createFolderParent} groupId={createFolderGroupId} onClose={() => { setShowCreateFolder(false); setCreateFolderParent(null); setCreateFolderGroupId(null); }} onCreated={() => { setShowCreateFolder(false); setCreateFolderParent(null); setCreateFolderGroupId(null); loadData(); }} />}
 
       {showReUnlock && <ReUnlockDialog onClose={() => { setShowReUnlock(false); router.push("/login"); }} onUnlocked={() => setShowReUnlock(false)} />}
-
-      {ownerShareResource && (
-        <OwnerShareDialog
-          resource={ownerShareResource}
-          onClose={() => setOwnerShareResource(null)}
-          onDone={() => { setOwnerShareResource(null); loadData(); }}
-        />
-      )}
 
       {toast && (
         <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-[#213548] px-4 py-2 text-sm text-white shadow-lg">
@@ -1030,7 +956,7 @@ async function encryptForAllOrgMembers(secretPayload: string, selfPublicKey: str
   }
 }
 
-function CreateDialog({ folders, privateKey, defaultFolderId, orgRole, onClose, onCreated, onOwnerCreated }: { folders: Folder[]; privateKey: string | null; defaultFolderId: string | null; orgRole: string | null; onClose: () => void; onCreated: () => void; onOwnerCreated: (resourceId: string, name: string, secretPayload: string, selfPublicKey: string) => void; }) {
+function CreateDialog({ folders, privateKey, defaultFolderId, orgRole, onClose, onCreated }: { folders: Folder[]; privateKey: string | null; defaultFolderId: string | null; orgRole: string | null; onClose: () => void; onCreated: () => void; }) {
   const [name, setName] = useState("");
   const [uri, setUri] = useState("");
   const [username, setUsername] = useState("");
@@ -1055,12 +981,8 @@ function CreateDialog({ folders, privateKey, defaultFolderId, orgRole, onClose, 
       const isOwner = orgRole === "OWNER";
       const additionalSecrets = isOwner ? {} : await encryptForAllOrgMembers(secretPayload, publicKey, currentUserId);
       const sharingMode = isOwner ? "RESTRICTED" as const : "AUTO" as const;
-      const created = await apiClient.createResource({ name, uri: uri || undefined, folderId: folderId || undefined, encryptedData, metadata: { username }, additionalSecrets, sharingMode });
-      if (isOwner) {
-        onOwnerCreated(created.id, name, secretPayload, publicKey);
-      } else {
-        onCreated();
-      }
+      await apiClient.createResource({ name, uri: uri || undefined, folderId: folderId || undefined, encryptedData, metadata: { username }, additionalSecrets, sharingMode });
+      onCreated();
     } catch (err) {
       console.error("[CreateDialog] failed:", err);
       setError(formatApiError(err));
@@ -1072,8 +994,8 @@ function CreateDialog({ folders, privateKey, defaultFolderId, orgRole, onClose, 
       <form onSubmit={handleSubmit} className="space-y-4">
         <Field label="Name" required><input type="text" required value={name} onChange={(e) => setName(e.target.value)} className={inputClass} placeholder="e.g. GitHub" /></Field>
         <Field label="URI"><input type="url" value={uri} onChange={(e) => setUri(e.target.value)} className={inputClass} placeholder="https://github.com" /></Field>
-        <Field label="Username"><input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className={inputClass} /></Field>
-        <Field label="Password" required><input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} /></Field>
+        <Field label="Username"><input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className={inputClass} autoComplete="off" name="new-username" /></Field>
+        <Field label="Password" required><input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} autoComplete="new-password" name="new-password" /></Field>
         <Field label="Notes"><textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={`${inputClass} min-h-[60px] resize-y`} /></Field>
         {folders.length > 0 && <Field label="Folder"><select value={folderId} onChange={(e) => setFolderId(e.target.value)} className={inputClass}><option value="">No folder</option>{folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select></Field>}
         {error && <ErrorMsg msg={error} />}
@@ -1115,7 +1037,7 @@ function CreateFolderDialog({ parentFolderId, groupId, onClose, onCreated }: { p
   );
 }
 
-function CreateTotpDialog({ folders, privateKey, defaultFolderId, orgRole, onClose, onCreated, onOwnerCreated }: { folders: Folder[]; privateKey: string | null; defaultFolderId: string | null; orgRole: string | null; onClose: () => void; onCreated: () => void; onOwnerCreated: (resourceId: string, name: string, secretPayload: string, selfPublicKey: string) => void; }) {
+function CreateTotpDialog({ folders, privateKey, defaultFolderId, orgRole, onClose, onCreated }: { folders: Folder[]; privateKey: string | null; defaultFolderId: string | null; orgRole: string | null; onClose: () => void; onCreated: () => void; }) {
   const [name, setName] = useState("");
   const [issuer, setIssuer] = useState("");
   const [totpSecret, setTotpSecret] = useState("");
@@ -1138,12 +1060,8 @@ function CreateTotpDialog({ folders, privateKey, defaultFolderId, orgRole, onClo
       const isOwner = orgRole === "OWNER";
       const additionalSecrets = isOwner ? {} : await encryptForAllOrgMembers(secretPayload, publicKey, currentUserId);
       const sharingMode = isOwner ? "RESTRICTED" as const : "AUTO" as const;
-      const created = await apiClient.createResource({ name, encryptedData, metadata: { issuer }, resourceType: "totp", folderId: folderId || undefined, additionalSecrets, sharingMode });
-      if (isOwner) {
-        onOwnerCreated(created.id, name, secretPayload, publicKey);
-      } else {
-        onCreated();
-      }
+      await apiClient.createResource({ name, encryptedData, metadata: { issuer }, resourceType: "totp", folderId: folderId || undefined, additionalSecrets, sharingMode });
+      onCreated();
     } catch (err) {
       console.error("[CreateTotpDialog] failed:", err);
       setError(formatApiError(err));
@@ -1164,7 +1082,7 @@ function CreateTotpDialog({ folders, privateKey, defaultFolderId, orgRole, onClo
   );
 }
 
-function CreateNoteDialog({ folders, privateKey, defaultFolderId, orgRole, onClose, onCreated, onOwnerCreated }: { folders: Folder[]; privateKey: string | null; defaultFolderId: string | null; orgRole: string | null; onClose: () => void; onCreated: () => void; onOwnerCreated: (resourceId: string, name: string, secretPayload: string, selfPublicKey: string) => void; }) {
+function CreateNoteDialog({ folders, privateKey, defaultFolderId, orgRole, onClose, onCreated }: { folders: Folder[]; privateKey: string | null; defaultFolderId: string | null; orgRole: string | null; onClose: () => void; onCreated: () => void; }) {
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
   const [folderId, setFolderId] = useState(defaultFolderId ?? "");
@@ -1186,12 +1104,8 @@ function CreateNoteDialog({ folders, privateKey, defaultFolderId, orgRole, onClo
       const isOwner = orgRole === "OWNER";
       const additionalSecrets = isOwner ? {} : await encryptForAllOrgMembers(secretPayload, publicKey, currentUserId);
       const sharingMode = isOwner ? "RESTRICTED" as const : "AUTO" as const;
-      const created = await apiClient.createResource({ name, encryptedData, resourceType: "note", folderId: folderId || undefined, additionalSecrets, sharingMode });
-      if (isOwner) {
-        onOwnerCreated(created.id, name, secretPayload, publicKey);
-      } else {
-        onCreated();
-      }
+      await apiClient.createResource({ name, encryptedData, resourceType: "note", folderId: folderId || undefined, additionalSecrets, sharingMode });
+      onCreated();
     } catch (err) {
       console.error("[CreateNoteDialog] failed:", err);
       setError(formatApiError(err));
@@ -1206,165 +1120,6 @@ function CreateNoteDialog({ folders, privateKey, defaultFolderId, orgRole, onClo
         {folders.length > 0 && <Field label="Folder"><select value={folderId} onChange={(e) => setFolderId(e.target.value)} className={inputClass}><option value="">No folder</option>{folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select></Field>}
         {error && <ErrorMsg msg={error} />}
         <div className="flex gap-2 pt-2"><button type="submit" disabled={saving} className={primaryBtnClass}>{saving ? "Saving…" : "Save"}</button><button type="button" onClick={onClose} className={secondaryBtnClass}>Cancel</button></div>
-      </form>
-    </Dialog>
-  );
-}
-
-function OwnerShareDialog({ resource, onClose, onDone }: { resource: { id: string; name: string; secretPayload: string; selfPublicKey: string }; onClose: () => void; onDone: () => void; }) {
-  const [shareWithAll, setShareWithAll] = useState(true);
-  const [members, setMembers] = useState<{ userId: string; email: string; publicKey: string }[]>([]);
-  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const currentUserId = useSessionStore.getState().userId;
-
-  useEffect(() => {
-    Promise.all([
-      apiClient.getOrgMemberKeys(),
-      apiClient.getOrgInfo().then((org) => apiClient.listMembers(org.id)),
-    ]).then(([keys, memberList]) => {
-      const emailMap = new Map(memberList.map((m) => [m.userId, m.email]));
-      setMembers(keys
-        .filter((k) => k.userId !== currentUserId)
-        .map((k) => ({ userId: k.userId, publicKey: k.publicKey, email: emailMap.get(k.userId) ?? k.userId }))
-      );
-    }).catch(() => {
-      // If we can't load members, just allow "share with all" or "keep private"
-    });
-  }, [currentUserId]);
-
-  async function handleSave() {
-    setLoading(true); setError(null);
-    try {
-      if (shareWithAll) {
-        const additionalSecrets: Record<string, string> = {};
-        await Promise.all(
-          members.map(async (m) => {
-            additionalSecrets[m.userId] = await encryptMessage(resource.secretPayload, [m.publicKey]);
-          })
-        );
-        await apiClient.updateResource(resource.id, { additionalSecrets, sharingMode: "AUTO" });
-      } else if (selectedUserIds.size > 0) {
-        const additionalSecrets: Record<string, string> = {};
-        await Promise.all(
-          members.filter((m) => selectedUserIds.has(m.userId)).map(async (m) => {
-            additionalSecrets[m.userId] = await encryptMessage(resource.secretPayload, [m.publicKey]);
-          })
-        );
-        await apiClient.updateResource(resource.id, { additionalSecrets, sharingMode: "RESTRICTED" });
-      } else {
-        await apiClient.updateResource(resource.id, { sharingMode: "RESTRICTED" });
-      }
-      onDone();
-    } catch (err) {
-      console.error("[OwnerShareDialog] failed:", err);
-      setError(formatApiError(err));
-    } finally { setLoading(false); }
-  }
-
-  function toggleUser(userId: string) {
-    setSelectedUserIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(userId)) next.delete(userId);
-      else next.add(userId);
-      return next;
-    });
-  }
-
-  return (
-    <Dialog title={`Share "${resource.name}"`} onClose={onClose}>
-      <div className="space-y-4">
-        <p className="text-sm text-[#8ba3b8]">As the owner, you can choose who has access to this resource.</p>
-
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={shareWithAll}
-            onChange={(e) => setShareWithAll(e.target.checked)}
-            className="h-4 w-4 rounded border-[#2a4055] bg-[#0f1f2e]"
-          />
-          <span className="text-sm text-[#c4d4e0]">Share with all organization members</span>
-        </label>
-
-        {!shareWithAll && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase text-[#8ba3b8]">Select specific members</p>
-            {members.length === 0 ? (
-              <p className="text-sm text-[#8ba3b8]">No other members in the organization.</p>
-            ) : (
-              <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-[#2a4055] p-2">
-                {members.map((m) => (
-                  <label key={m.userId} className="flex items-center gap-2 cursor-pointer rounded-md px-2 py-1.5 hover:bg-[#213548]">
-                    <input
-                      type="checkbox"
-                      checked={selectedUserIds.has(m.userId)}
-                      onChange={() => toggleUser(m.userId)}
-                      className="h-4 w-4 rounded border-[#2a4055] bg-[#0f1f2e]"
-                    />
-                    <span className="text-sm text-[#c4d4e0]">{m.email}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-            {!shareWithAll && selectedUserIds.size === 0 && (
-              <p className="text-xs text-[#8ba3b8]">No one selected — this resource will be private to you only.</p>
-            )}
-          </div>
-        )}
-
-        {error && <ErrorMsg msg={error} />}
-        <div className="flex gap-2 pt-2">
-          <button onClick={handleSave} disabled={loading} className={primaryBtnClass}>
-            {loading ? "Saving…" : "Save Sharing"}
-          </button>
-          <button onClick={onClose} className={secondaryBtnClass}>Skip for now</button>
-        </div>
-      </div>
-    </Dialog>
-  );
-}
-
-function ReUnlockDialog({ onClose, onUnlocked }: { onClose: () => void; onUnlocked: () => void; }) {
-  const email = getStoredEmail();
-  const [passphrase, setPassphrase] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const unlock = useSessionStore((s) => s.unlock);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email) {
-      setError("No cached email found. Please log in again.");
-      return;
-    }
-    setLoading(true); setError(null);
-    try {
-      const challenge = await apiClient.verify(email);
-      const privateKey = await decryptWithPassphrase(challenge.encryptedPrivateKey, passphrase);
-      unlock(privateKey, email);
-      onUnlocked();
-    } catch (err) {
-      console.error("[ReUnlockDialog] failed:", err);
-      if (err instanceof ApiError && (err.status === 401 || err.status === 404)) {
-        clearStoredSession();
-        setAccessToken(null);
-        setError("Your session has expired. Redirecting to login…");
-        setTimeout(() => onClose(), 1500);
-      } else {
-        setError("Wrong passphrase or corrupted key.");
-      }
-    } finally { setLoading(false); }
-  }
-
-  return (
-    <Dialog title="Unlock your vault" onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-sm text-[#8ba3b8]">Your session is locked. Enter your master passphrase to continue.</p>
-        <Field label="Email"><input type="email" value={email || ""} readOnly className={`${inputClass} opacity-60`} /></Field>
-        <Field label="Master passphrase" required><input type="password" required value={passphrase} onChange={(e) => setPassphrase(e.target.value)} autoFocus className={inputClass} /></Field>
-        {error && <ErrorMsg msg={error} />}
-        <div className="flex gap-2 pt-2"><button type="submit" disabled={loading} className={primaryBtnClass}>{loading ? "Unlocking…" : "Unlock"}</button><button type="button" onClick={onClose} className={secondaryBtnClass}>Log in again</button></div>
       </form>
     </Dialog>
   );
@@ -1878,29 +1633,6 @@ function PermissionsDialog({ resource, onClose }: { resource: ResourceListItem; 
       </div>
     </Dialog>
   );
-}
-
-const inputClass = "w-full rounded-lg border border-[#2a4055] bg-[#1a3349] px-3 py-2 text-sm focus:border-brand-500 focus:outline-none";
-const primaryBtnClass = "rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50";
-const secondaryBtnClass = "rounded-lg border border-[#2a4055] px-4 py-2 text-sm font-medium text-[#e2e8f0] hover:bg-[#213548]";
-
-function Dialog({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void; }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-xl border border-[#2a4055] bg-[#1a3349] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold">{title}</h2><button onClick={onClose} className="text-[#8ba3b8] hover:text-[#c4d4e0]"><X className="h-5 w-5" /></button></div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode; }) {
-  return <div><label className="mb-1 block text-sm text-[#c4d4e0]">{label}{required && <span className="text-[#f89c11]"> *</span>}</label>{children}</div>;
-}
-
-function ErrorMsg({ msg }: { msg: string }) {
-  return <p className="flex items-center gap-2 text-sm text-[#f89c11]"><AlertCircle className="h-4 w-4" />{msg}</p>;
 }
 
 function SecretField({ label, value, masked, copied, onCopy, onToggleReveal }: { label: string; value: string; masked?: boolean; copied: boolean; onCopy: () => void; onToggleReveal?: () => void; }) {

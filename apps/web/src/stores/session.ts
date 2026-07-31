@@ -3,6 +3,7 @@ import { create } from "zustand";
 const AUTO_LOCK_MS = 15 * 60 * 1000; // 15 minutes
 const SS_EMAIL_KEY = "cp_email";
 const SAVED_EMAILS_KEY = "cp_saved_emails";
+const CALLBACK_URL_KEY = "cp_callback_url";
 const MAX_SAVED_EMAILS = 5;
 
 export function getSavedEmails(): string[] {
@@ -69,6 +70,22 @@ export function clearStoredSession(): void {
   if (typeof window === "undefined") return;
   window.sessionStorage.removeItem("cp_at");
   window.sessionStorage.removeItem(SS_EMAIL_KEY);
+  window.sessionStorage.removeItem(CALLBACK_URL_KEY);
+}
+
+export function getCallbackUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.sessionStorage.getItem(CALLBACK_URL_KEY);
+}
+
+export function setCallbackUrl(url: string): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(CALLBACK_URL_KEY, url);
+}
+
+export function clearCallbackUrl(): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(CALLBACK_URL_KEY);
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({

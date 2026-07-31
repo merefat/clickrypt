@@ -36,7 +36,12 @@ export class SetupService {
       include: { organization: { select: { id: true, name: true, mode: true } } },
     });
 
-    if (!installation || !installation.initializedAt) {
+    if (
+      !installation ||
+      !installation.initializedAt ||
+      !installation.organizationId ||
+      !installation.organization
+    ) {
       return { initialized: false };
     }
 
@@ -48,17 +53,13 @@ export class SetupService {
   }
 
   async configureSystem(dto: ConfigureSystemDto) {
-    const initialized = await this.prisma.installation.findFirst({
-      where: { initializedAt: { not: null } },
-    });
-    if (initialized) {
-      throw new ConflictException("System is already configured");
-    }
-
     /* eslint-disable @typescript-eslint/no-explicit-any */
     const existing = await this.prisma.installation.findFirst({
       include: { organization: true },
     });
+    if (existing && !existing.organization) {
+      await this.prisma.installation.delete({ where: { id: existing.id } });
+    }
     if (existing && existing.organization) {
       const org = await this.prisma.organization.update({
         where: { id: existing.organizationId! },
@@ -98,29 +99,35 @@ export class SetupService {
     });
     if (initializedInstallation) {
       if (!initializedInstallation.organizationId || !initializedInstallation.organization) {
-        throw new ConflictException("Installation has already been initialized");
+        // Stale installation left by an incomplete or partial cleanup; remove it.
+        await this.prisma.installation.delete({
+          where: { id: initializedInstallation.id },
+        });
+      } else {
+        const owner = await this.prisma.user.findFirst({
+          where: { orgId: initializedInstallation.organizationId, email, orgRole: "OWNER" },
+        });
+        if (owner) {
+          return {
+            org: {
+              id: initializedInstallation.organization.id,
+              name: initializedInstallation.organization.name,
+              mode: initializedInstallation.organization.mode,
+            },
+            user: {
+              id: owner.id,
+              email: owner.email,
+              firstName: owner.firstName,
+              lastName: owner.lastName,
+              orgRole: owner.orgRole,
+              status: owner.status,
+            },
+          };
+        }
+        throw new ConflictException(
+          "An owner already exists for this installation. Please sign in.",
+        );
       }
-      const owner = await this.prisma.user.findFirst({
-        where: { orgId: initializedInstallation.organizationId, email, orgRole: "OWNER" },
-      });
-      if (owner) {
-        return {
-          org: {
-            id: initializedInstallation.organization.id,
-            name: initializedInstallation.organization.name,
-            mode: initializedInstallation.organization.mode,
-          },
-          user: {
-            id: owner.id,
-            email: owner.email,
-            firstName: owner.firstName,
-            lastName: owner.lastName,
-            orgRole: owner.orgRole,
-            status: owner.status,
-          },
-        };
-      }
-      throw new ConflictException("Installation has already been initialized");
     }
 
     const blobResult = encryptedBlobSchema.safeParse(dto.encryptedPrivateKey);

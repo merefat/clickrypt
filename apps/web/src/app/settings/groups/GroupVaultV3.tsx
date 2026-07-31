@@ -9,33 +9,35 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Clock,
   Copy,
   Eye,
   EyeOff,
+  ExternalLink,
   Folder,
   FolderPlus,
-  Key,
   Loader2,
   Lock,
+  MoreVertical,
   Pencil,
   Plus,
   Search,
   Star,
+  StickyNote,
   Trash2,
   Users,
   X,
 } from "lucide-react";
 import {
-  generateGroupKey,
-  encryptGroupKey,
-  encryptWithGroupKey,
-  decryptGroupKey,
-  decryptWithGroupKey,
+  encryptMessage,
+  decryptMessage,
   getPublicKeyFromPrivateKey,
 } from "@clickrypt/crypto";
 import { apiClient, ApiError, getAccessToken, type Folder, type ResourceListItem, type Tag } from "@/lib/api/client";
 import { useSync } from "@/lib/api/sync";
 import { useSessionStore } from "@/stores/session";
+import { useSessionRestore } from "@/hooks/useSessionRestore";
+import { SortableFolderTree } from "@/components/SortableFolderTree";
 
 function formatApiError(err: unknown): string {
   if (err instanceof ApiError) return err.message || "Request failed";
@@ -61,9 +63,6 @@ export default function GroupVaultV3() {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
-
-  const [groupKey, setGroupKey] = useState<string | null>(null);
-  const [keyError, setKeyError] = useState<string | null>(null);
 
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -94,24 +93,39 @@ export default function GroupVaultV3() {
   const [formNotes, setFormNotes] = useState("");
   const [formFolderId, setFormFolderId] = useState("");
 
-  const clipboardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, string>>({});
+  const [decryptingPasswordId, setDecryptingPasswordId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [movingResource, setMovingResource] = useState<ResourceListItem | null>(null);
+  const [moveResourceTarget, setMoveResourceTarget] = useState("");
 
-  useEffect(() => { if (!unlocked) { router.push("/login"); } }, [unlocked, router]);
+  const clipboardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [syncingAll, setSyncingAll] = useState(false);
+
+  const { status: restoreStatus } = useSessionRestore();
+  useEffect(() => { if (restoreStatus === "unauthenticated") { router.push("/login"); } }, [restoreStatus, router]);
   useEffect(() => { loadGroups(); loadTags(); }, []);
   useEffect(() => {
     if (!selectedGroup) return;
     setSelectedFolderId(null);
-    setGroupKey(null);
-    setKeyError(null);
     setDecryptedSecret(null);
     setEditingResource(null);
     loadGroupFolders(selectedGroup.id);
     loadGroupResources(selectedGroup.id, null);
     // Sync members for existing groups (admins can call this; fails silently for regular users)
     apiClient.syncGroupMembers(selectedGroup.id).catch(() => {});
-    ensureGroupKey(selectedGroup);
-  }, [selectedGroup?.id, privateKey, userId]);
+  }, [selectedGroup?.id]);
   useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), 2000); return () => clearTimeout(t); } }, [toast]);
+  useEffect(() => {
+    if (!selectedGroup) return;
+    loadGroupResources(selectedGroup.id, selectedFolderId);
+  }, [selectedFolderId]);
+  useEffect(() => {
+    if (!openMenuId) return;
+    const handler = () => setOpenMenuId(null);
+    window.addEventListener("click", handler);
+    return () => window.removeEventListener("click", handler);
+  }, [openMenuId]);
 
   const { isConnected: syncConnected } = useSync({
     token: getAccessToken(),
@@ -153,66 +167,6 @@ export default function GroupVaultV3() {
       setFavoriteIds(new Set(data.filter((r: any) => r.isFavorite).map((r: any) => r.id)));
     } catch (err) { setError(formatApiError(err)); }
   }
-  async function ensureGroupKey(group: any) {
-    if (!privateKey || !userId) return;
-    try {
-      setKeyError(null);
-      const { encryptedGroupKey, keyExists } = await apiClient.getGroupKey(group.id);
-      if (encryptedGroupKey) {
-        const key = await decryptGroupKey(encryptedGroupKey, privateKey);
-        setGroupKey(key);
-        // Redistribute key to any org members who don't have it yet
-        try {
-          const recipients = await apiClient.getGroupRecipients(group.id);
-          const missingKey = recipients.filter((r: any) => r.publicKey && !r.hasGroupKey);
-          if (missingKey.length > 0) {
-            const wrapped = await encryptGroupKey(key, missingKey.map((r: any) => ({ userId: r.userId, publicKey: r.publicKey })));
-            for (const r of missingKey) {
-              if (wrapped[r.userId]) {
-                await apiClient.setGroupKey(group.id, r.userId, wrapped[r.userId]);
-              }
-            }
-          }
-        } catch (err) {
-          console.error("[ensureGroupKey] Failed to redistribute key:", err);
-        }
-        return;
-      }
-      if (!keyExists) {
-        // No key exists yet — any org member can generate and distribute
-        const key = await generateGroupKey();
-        const publicKey = await getPublicKeyFromPrivateKey(privateKey);
-        // Fetch all org members with their public keys
-        const recipients = await apiClient.getGroupRecipients(group.id);
-        const recipientsWithKeys = recipients.filter((r: any) => r.publicKey);
-        if (recipientsWithKeys.length === 0) {
-          // Fallback: just encrypt to self
-          const wrapped = await encryptGroupKey(key, [{ userId, publicKey }]);
-          await apiClient.setGroupKey(group.id, userId, wrapped[userId], key);
-        } else {
-          // Encrypt group key to all org members
-          const wrapped = await encryptGroupKey(key, recipientsWithKeys.map((r: any) => ({ userId: r.userId, publicKey: r.publicKey })));
-          // Send rawGroupKey with the first setGroupKey call so backend stores it for auto-distribution
-          let rawKeySent = false;
-          for (const r of recipientsWithKeys) {
-            if (wrapped[(r as any).userId]) {
-              await apiClient.setGroupKey(group.id, (r as any).userId, wrapped[(r as any).userId], rawKeySent ? undefined : key);
-              rawKeySent = true;
-            }
-          }
-        }
-        setGroupKey(key);
-        return;
-      }
-      // Key exists but backend should have auto-encrypted it for us
-      // If we still get null, the raw key wasn't stored (pre-fix group)
-      setKeyError("Group key is being distributed. Please try again in a moment.");
-    } catch (err) {
-      console.error("[ensureGroupKey] Could not decrypt group key:", err);
-      setKeyError("Could not decrypt group key.");
-    }
-  }
-
   async function handleCreateGroup(e: React.FormEvent) {
     e.preventDefault(); if (!newGroupName.trim()) return;
     setBusy(true);
@@ -274,31 +228,56 @@ export default function GroupVaultV3() {
     setShowResourceForm(true);
   }
   async function openEditResource(resource: ResourceListItem) {
-    if (!groupKey || !selectedGroup) return;
+    if (!privateKey || !selectedGroup) return;
     setEditingResource(resource);
     setFormName(resource.name); setFormUri(resource.uri ?? ""); setFormFolderId(resource.folder?.id ?? "");
     setRevealPassword(false);
     try {
       const { encryptedData } = await apiClient.getSecret(resource.id);
-      const { iv, ciphertext } = JSON.parse(encryptedData);
-      const secret = JSON.parse(await decryptWithGroupKey({ iv, ciphertext }, groupKey));
+      const result = await decryptMessage(encryptedData, privateKey);
+      const secret = JSON.parse(result.plaintext);
       setDecryptedSecret(secret);
       setFormUsername(secret.username ?? ""); setFormPassword(secret.password ?? ""); setFormNotes(secret.notes ?? "");
       setShowResourceForm(true);
     } catch { setError("Failed to decrypt password"); }
   }
   async function handleSaveResource(e: React.FormEvent) {
-    e.preventDefault(); if (!selectedGroup || !groupKey) return;
+    e.preventDefault(); if (!selectedGroup || !privateKey) return;
     setBusy(true);
     try {
       const payload = JSON.stringify({ username: formUsername, password: formPassword, notes: formNotes });
-      const { iv, ciphertext } = await encryptWithGroupKey(payload, groupKey);
-      const groupEncryptedData = JSON.stringify({ iv, ciphertext });
+      const publicKey = await getPublicKeyFromPrivateKey(privateKey);
+      const encryptedData = await encryptMessage(payload, [publicKey]);
+      // Encrypt for ALL org members with public keys (not just group members)
+      let recipients;
+      try {
+        recipients = await apiClient.getOrgMemberKeys();
+      } catch (recipientsErr) {
+        throw new Error("Failed to fetch org member keys. Cannot encrypt password for the organization.");
+      }
+      const otherMembers = recipients.filter((r: any) => r.userId !== userId);
+      const membersWithKeys = otherMembers.filter((r: any) => r.publicKey);
+      if (otherMembers.length > 0 && membersWithKeys.length === 0) {
+        console.warn("[GroupVault] No other org members have set up their encryption keys yet — password will only be visible to you until they set up their vault.");
+      }
+      if (otherMembers.length > 0 && membersWithKeys.length < otherMembers.length) {
+        console.warn(`[GroupVault] ${otherMembers.length - membersWithKeys.length} org member(s) missing GPG keys — password will not be encrypted for them`);
+      }
+      const additionalSecrets: Record<string, string> = {};
+      await Promise.all(
+        membersWithKeys
+          .map(async (r: any) => {
+            additionalSecrets[r.userId] = await encryptMessage(payload, [r.publicKey]);
+          })
+      );
       if (editingResource) {
         const current = decryptedSecret || {};
         const secretChanged = formUsername !== (current.username ?? "") || formPassword !== (current.password ?? "") || formNotes !== (current.notes ?? "");
         const update: any = { name: formName.trim(), uri: formUri.trim() || undefined, folderId: formFolderId || undefined, metadata: { username: formUsername } };
-        if (secretChanged) update.groupEncryptedData = groupEncryptedData;
+        if (secretChanged) {
+          update.encryptedData = encryptedData;
+          update.additionalSecrets = additionalSecrets;
+        }
         await apiClient.updateResource(editingResource.id, update);
         setToast("Password updated");
       } else {
@@ -307,7 +286,8 @@ export default function GroupVaultV3() {
           uri: formUri.trim() || undefined,
           groupId: selectedGroup.id,
           folderId: formFolderId || undefined,
-          groupEncryptedData,
+          encryptedData,
+          additionalSecrets,
           resourceType: "password",
           metadata: { username: formUsername },
         });
@@ -320,12 +300,12 @@ export default function GroupVaultV3() {
     } catch (err) { setError(formatApiError(err)); } finally { setBusy(false); }
   }
   async function handleReveal(resource: ResourceListItem) {
-    if (!groupKey) return;
+    if (!privateKey) return;
     setRevealPassword(false);
     try {
       const { encryptedData } = await apiClient.getSecret(resource.id);
-      const { iv, ciphertext } = JSON.parse(encryptedData);
-      const secret = JSON.parse(await decryptWithGroupKey({ iv, ciphertext }, groupKey));
+      const result = await decryptMessage(encryptedData, privateKey);
+      const secret = JSON.parse(result.plaintext);
       setDecryptedSecret(secret);
       setEditingResource(resource);
     } catch { setError("Failed to reveal password"); }
@@ -342,11 +322,71 @@ export default function GroupVaultV3() {
       if (selectedGroup) await loadGroupResources(selectedGroup.id, selectedFolderId);
     } catch {}
   }
+  async function handleRevealPassword(resource: ResourceListItem, e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!privateKey) return;
+    if (revealedPasswords[resource.id]) {
+      setRevealedPasswords(prev => { const n = { ...prev }; delete n[resource.id]; return n; });
+      return;
+    }
+    setDecryptingPasswordId(resource.id);
+    try {
+      const { encryptedData } = await apiClient.getSecret(resource.id);
+      const result = await decryptMessage(encryptedData, privateKey);
+      const secret = JSON.parse(result.plaintext);
+      setRevealedPasswords(prev => ({ ...prev, [resource.id]: secret.password ?? "" }));
+    } catch { setToast("Failed to decrypt password"); }
+    finally { setDecryptingPasswordId(null); }
+  }
+  async function handleMoveResource() {
+    if (!movingResource || !selectedGroup) return;
+    setBusy(true);
+    try {
+      const target = moveResourceTarget === "" ? undefined : moveResourceTarget;
+      await apiClient.updateResource(movingResource.id, { folderId: target });
+      setMovingResource(null); setMoveResourceTarget("");
+      await loadGroupResources(selectedGroup.id, selectedFolderId);
+      setToast("Resource moved");
+    } catch (err) { setError(formatApiError(err)); } finally { setBusy(false); }
+  }
   async function confirmDeleteResource() {
     if (!resourceToDelete || !selectedGroup) return;
     setBusy(true);
     try { await apiClient.deleteResource(resourceToDelete.id); setResourceToDelete(null); await loadGroupResources(selectedGroup.id, selectedFolderId); setToast("Password deleted"); }
     catch (err) { setError(formatApiError(err)); } finally { setBusy(false); }
+  }
+  async function handleSyncAll() {
+    if (!selectedGroup || !privateKey) return;
+    setSyncingAll(true);
+    setError(null);
+    try {
+      const allResources = await apiClient.listGroupResources(selectedGroup.id);
+      if (allResources.length === 0) { setToast("No resources to sync"); return; }
+      const recipients = await apiClient.getOrgMemberKeys();
+      const otherMembers = recipients.filter((r: any) => r.userId !== userId);
+      const membersWithKeys = otherMembers.filter((r: any) => r.publicKey);
+      if (membersWithKeys.length === 0) { setError("No other org members have encryption keys set up."); return; }
+      let synced = 0;
+      for (const resource of allResources) {
+        try {
+          const { encryptedData } = await apiClient.getSecret(resource.id);
+          const decrypted = await decryptMessage(encryptedData, privateKey);
+          const payload = decrypted.plaintext;
+          const additionalSecrets: Record<string, string> = {};
+          await Promise.all(
+            membersWithKeys.map(async (r: any) => {
+              additionalSecrets[r.userId] = await encryptMessage(payload, [r.publicKey]);
+            })
+          );
+          await apiClient.updateResource(resource.id, { additionalSecrets });
+          synced++;
+        } catch (err) {
+          console.warn(`[SyncAll] Failed to sync resource ${resource.id}:`, err);
+        }
+      }
+      setToast(`Synced ${synced} of ${allResources.length} passwords to all org members`);
+      await loadGroupResources(selectedGroup.id, selectedFolderId);
+    } catch (err) { setError(formatApiError(err)); } finally { setSyncingAll(false); }
   }
 
   function toggleExpandFolder(id: string) { setExpandedFolders(p => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; }); }
@@ -363,35 +403,38 @@ export default function GroupVaultV3() {
     if (showFavoritesOnly) list = list.filter(r => favoriteIds.has(r.id));
     return list;
   }, [resources, search, selectedTag, showFavoritesOnly, favoriteIds]);
-  const rootFolders = useMemo(() => folders.filter(f => !f.parentFolderId), [folders]);
+  async function handleReorderFolder(id: string, parentFolderId: string | null, sortOrder: number) {
+    if (!selectedGroup) return;
+    setFolders((prev) => {
+      const updated = prev.map((f) =>
+        f.id === id ? { ...f, parentFolderId, sortOrder } : f
+      );
+      let idx = 0;
+      return updated.map((f) => {
+        if (f.id === id) return { ...f, sortOrder };
+        if ((f.parentFolderId ?? null) === (parentFolderId ?? null) && f.id !== id) {
+          if (idx === sortOrder) idx++;
+          return { ...f, sortOrder: idx++ };
+        }
+        return f;
+      });
+    });
+    try {
+      await apiClient.reorderFolder(id, { parentFolderId, sortOrder });
+    } catch (err) {
+      console.error("[GroupVault] reorderFolder failed:", err);
+      if (selectedGroup) loadGroupFolders(selectedGroup.id);
+    }
+  }
 
-  function renderFolderNode(folder: Folder, depth: number) {
-    const children = folders.filter(f => f.parentFolderId === folder.id);
-    const expanded = expandedFolders.has(folder.id);
-    const selected = selectedFolderId === folder.id;
+  function renderGroupFolderActions(folder: Folder) {
     return (
-      <div key={folder.id}>
-        <div className={`group flex items-center justify-between rounded-md py-1.5 pl-1 pr-1 ${selected ? "bg-[#213548] text-white" : "text-[#8ba3b8] hover:bg-[#213548]/50"}`} style={{ paddingLeft: `${4 + depth * 12}px` }}>
-          <div className="flex flex-1 items-center overflow-hidden">
-            {children.length > 0 ? (
-              <button onClick={() => toggleExpandFolder(folder.id)} className="shrink-0 px-1 text-[#8ba3b8] hover:text-white">
-                <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? "" : "-rotate-90"}`} />
-              </button>
-            ) : <span className="w-5 shrink-0" />}
-            <button onClick={() => setSelectedFolderId(folder.id)} className="flex flex-1 items-center gap-2 overflow-hidden text-left text-sm">
-              <Folder className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">{folder.name}</span>
-            </button>
-          </div>
-          <div className="flex shrink-0 items-center opacity-0 group-hover:opacity-100">
-            <button onClick={() => openFolderForm(folder.id)} className="px-1.5 py-1 text-[#8ba3b8] hover:text-white" title="New subfolder"><FolderPlus className="h-3 w-3" /></button>
-            <button onClick={() => { setRenamingFolder(folder.id); setRenameName(folder.name); }} className="px-1.5 py-1 text-[#8ba3b8] hover:text-white" title="Rename"><Pencil className="h-3 w-3" /></button>
-            <button onClick={() => { setMovingFolder(folder.id); setMoveTarget(""); }} className="px-1.5 py-1 text-[#8ba3b8] hover:text-white" title="Move"><ChevronRight className="h-3 w-3" /></button>
-            <button onClick={() => handleDeleteFolder(folder.id)} className="px-1.5 py-1 text-[#8ba3b8] hover:text-[#f89c11]" title="Delete"><Trash2 className="h-3 w-3" /></button>
-          </div>
-        </div>
-        {expanded && <div className="pl-2">{children.map(c => renderFolderNode(c, depth + 1))}</div>}
-      </div>
+      <>
+        <button onClick={() => openFolderForm(folder.id)} className="px-1.5 py-1 text-[#8ba3b8] hover:text-white" title="New subfolder"><FolderPlus className="h-3 w-3" /></button>
+        <button onClick={() => { setRenamingFolder(folder.id); setRenameName(folder.name); }} className="px-1.5 py-1 text-[#8ba3b8] hover:text-white" title="Rename"><Pencil className="h-3 w-3" /></button>
+        <button onClick={() => { setMovingFolder(folder.id); setMoveTarget(""); }} className="px-1.5 py-1 text-[#8ba3b8] hover:text-white" title="Move"><ChevronRight className="h-3 w-3" /></button>
+        <button onClick={() => handleDeleteFolder(folder.id)} className="px-1.5 py-1 text-[#8ba3b8] hover:text-[#f89c11]" title="Delete"><Trash2 className="h-3 w-3" /></button>
+      </>
     );
   }
 
@@ -426,20 +469,29 @@ export default function GroupVaultV3() {
                 </div>
                 <button onClick={() => setSelectedGroup(null)} className="rounded-lg border border-[#2a4055] px-2 py-1 text-xs text-[#c4d4e0] hover:bg-[#213548]">Back</button>
               </div>
-              {keyError && <div className="mb-3 rounded-lg border border-[#1ebbd4] bg-[#1ebbd4]/10 px-3 py-2 text-xs text-[#1ebbd4]"><Key className="mr-1 inline h-3 w-3" />{keyError}</div>}
               <div className="mb-2 flex items-center justify-between">
                 <h3 className="text-xs font-semibold uppercase text-[#8ba3b8]">Folders</h3>
                 <button onClick={() => openFolderForm(null)} className="text-[#8ba3b8] hover:text-white" title="New folder"><Plus className="h-3.5 w-3.5" /></button>
               </div>
-              <button onClick={() => setSelectedFolderId(null)} className={`mb-1 w-full rounded-md px-3 py-1.5 text-left text-sm ${selectedFolderId === null ? "bg-[#213548] text-white" : "text-[#8ba3b8] hover:bg-[#213548]/50"}`}>Group root</button>
-              <div className="space-y-0.5">{rootFolders.map(f => renderFolderNode(f, 0))}</div>
+              <button onClick={() => setSelectedFolderId(null)} className={`mb-1 w-full rounded-md px-3 py-1.5 text-left text-sm ${selectedFolderId === null ? "bg-[#213548] text-white" : "text-[#8ba3b8] hover:bg-[#213548]/50"}`}>All Items</button>
+              <div className="space-y-0.5">
+                <SortableFolderTree
+                  folders={folders}
+                  selectedFolderId={selectedFolderId}
+                  onSelectFolder={setSelectedFolderId}
+                  onReorder={handleReorderFolder}
+                  expandedFolders={expandedFolders}
+                  onToggleExpand={toggleExpandFolder}
+                  actionButtons={renderGroupFolderActions}
+                />
+              </div>
             </div>
           </aside>
 
           <main className="flex-1 space-y-4">
             <div className="flex flex-col gap-3 rounded-xl border border-[#2a4055] bg-[#1a3349]/50 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold">{currentFolder ? currentFolder.name : "All resources"}</h2>
+                <h2 className="text-lg font-semibold">{currentFolder ? currentFolder.name : "All Items"}</h2>
                 {currentFolder && (
                   <div className="mt-1 flex items-center gap-1 text-xs text-[#8ba3b8]">
                     <button onClick={() => setSelectedFolderId(null)} className="hover:text-white">Group</button>
@@ -448,8 +500,9 @@ export default function GroupVaultV3() {
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <button onClick={openCreateResource} disabled={!groupKey} className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50"><Plus className="h-3.5 w-3.5" /> New Password</button>
+                <button onClick={openCreateResource} className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700"><Plus className="h-3.5 w-3.5" /> New Password</button>
                 <button onClick={() => openFolderForm(selectedFolderId)} className="flex items-center gap-1.5 rounded-lg border border-[#2a4055] px-3 py-2 text-xs font-semibold text-[#c4d4e0] hover:bg-[#213548]"><FolderPlus className="h-3.5 w-3.5" /> New Folder</button>
+                <button onClick={handleSyncAll} disabled={syncingAll || busy || resources.length === 0} className="flex items-center gap-1.5 rounded-lg border border-[#1ebbd4] px-3 py-2 text-xs font-semibold text-[#1ebbd4] hover:bg-[#1ebbd4]/20 disabled:opacity-50">{syncingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />} {syncingAll ? "Syncing…" : "Sync All"}</button>
                 {selectedGroup.myRole === "OWNER" && <button onClick={() => handleDeleteGroup(selectedGroup.id)} disabled={busy} className="flex items-center gap-1.5 rounded-lg border border-[#f89c11] px-3 py-2 text-xs font-semibold text-[#f89c11] hover:bg-[#f89c11]/20 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" /> Delete Group</button>}
               </div>
             </div>
@@ -466,36 +519,134 @@ export default function GroupVaultV3() {
             {filteredResources.length === 0 ? (
               <div className="rounded-xl border border-[#2a4055] bg-[#1a3349]/50 p-12 text-center"><p className="text-[#8ba3b8]">{resources.length === 0 ? "No passwords in this location yet." : "No passwords match your filters."}</p></div>
             ) : (
-              <div className="space-y-2">
-                {filteredResources.map(r => (
-                  <div key={r.id} className="rounded-xl border border-[#2a4055] bg-[#1a3349]/50 p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#213548]"><Lock className="h-4 w-4 text-[#8ba3b8]" /></div>
-                        <div>
-                          <p className="font-medium text-white">{r.name}</p>
-                          <p className="text-xs text-[#8ba3b8]">{(r.metadata as Record<string, string>)?.username ?? "—"} {r.uri && <>· {r.uri}</>}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button onClick={(e) => handleToggleFavorite(r.id, e)} className={`p-1 ${favoriteIds.has(r.id) ? "text-[#f89c11]" : "text-[#5a7a95] hover:text-[#8ba3b8]"}`}><Star className="h-4 w-4" fill={favoriteIds.has(r.id) ? "currentColor" : "none"} /></button>
-                        <button onClick={() => handleReveal(r)} className="rounded-lg bg-brand-600 px-2 py-1 text-xs font-semibold text-white hover:bg-brand-700"><Eye className="mr-1 inline h-3 w-3" /> Reveal</button>
-                        <button onClick={() => { setResourceToDelete(r); }} className="rounded-lg border border-[#f89c11] px-2 py-1 text-xs font-semibold text-[#f89c11] hover:bg-[#f89c11]/20"><Trash2 className="mr-1 inline h-3 w-3" /> Delete</button>
-                      </div>
-                    </div>
-                    {editingResource?.id === r.id && decryptedSecret && (
-                      <div className="mt-4 space-y-3 border-t border-[#2a4055] pt-4">
-                        <SecretField label="Username" value={decryptedSecret.username ?? ""} copied={copiedField === "username"} onCopy={() => handleCopy("username", decryptedSecret.username ?? "")} />
-                        <SecretField label="Password" value={decryptedSecret.password ?? ""} masked={!revealPassword} copied={copiedField === "password"} onCopy={() => handleCopy("password", decryptedSecret.password ?? "")} onToggleReveal={() => setRevealPassword(v => !v)} />
-                        {decryptedSecret.notes && <div><label className="mb-1 block text-xs text-[#8ba3b8]">Notes</label><p className="whitespace-pre-wrap rounded-md bg-[#213548]/50 p-3 text-sm text-[#c4d4e0]">{decryptedSecret.notes}</p></div>}
-                        <div className="flex gap-2">
-                          <button onClick={() => openEditResource(r)} className={secondaryBtnClass}><Pencil className="mr-1.5 inline h-3.5 w-3.5" /> Edit</button>
-                          <button onClick={() => { setEditingResource(null); setDecryptedSecret(null); }} className={secondaryBtnClass}>Close</button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div className="overflow-x-auto rounded-xl border border-[#2a4055]">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-[#2a4055] bg-[#1a3349]/80 text-xs uppercase text-[#8ba3b8]">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">Name</th>
+                      <th className="px-4 py-3 font-semibold">Source</th>
+                      <th className="px-4 py-3 font-semibold">Location</th>
+                      <th className="px-4 py-3 font-semibold">Type</th>
+                      <th className="px-4 py-3 font-semibold">Username</th>
+                      <th className="px-4 py-3 font-semibold">Password</th>
+                      <th className="px-4 py-3 font-semibold">URI</th>
+                      <th className="px-4 py-3 font-semibold">Modified</th>
+                      <th className="px-4 py-3 text-center font-semibold">★</th>
+                      <th className="px-4 py-3 text-center font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredResources.map((r, i) => (
+                      <tr
+                        key={r.id}
+                        onClick={() => handleReveal(r)}
+                        className={`cursor-pointer border-b border-[#2a4055]/50 hover:bg-[#213548]/40 ${i % 2 === 0 ? "bg-[#1a3349]/30" : ""}`}
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#213548]">
+                              {r.resourceType === "totp" ? (
+                                <Clock className="h-3 w-3 text-[#1ebbd4]" />
+                              ) : r.resourceType === "note" ? (
+                                <StickyNote className="h-3 w-3 text-[#1ebbd4]" />
+                              ) : (
+                                <Lock className="h-3 w-3 text-[#8ba3b8]" />
+                              )}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="font-medium text-white">{r.name}</span>
+                              <span
+                                className={`w-fit rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${
+                                  r.source === "group"
+                                    ? "bg-purple-900/50 text-purple-200"
+                                    : "bg-blue-900/50 text-blue-200"
+                                }`}
+                              >
+                                {r.source === "group" ? "Group" : "Workplace"}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="rounded bg-[#213548] px-2 py-0.5 text-xs text-[#c4d4e0]">
+                            {r.source === "group" ? (r.groupName ?? "Group") : "My Workplace"}
+                          </span>
+                        </td>
+                        <td className="max-w-[200px] truncate px-4 py-3 text-[#8ba3b8]">
+                          {r.folderPath ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-[#8ba3b8]">
+                          {r.resourceType === "totp" ? "TOTP" : r.resourceType === "note" ? "Note" : "Password"}
+                        </td>
+                        <td className="px-4 py-3 text-[#8ba3b8]">{(r.metadata as Record<string, string>)?.username ?? "—"}</td>
+                        <td className="px-4 py-3">
+                          {r.resourceType === "note" ? (
+                            <span className="flex items-center gap-1 text-xs text-[#8ba3b8]">
+                              <StickyNote className="h-3.5 w-3.5" />
+                              Encrypted note
+                            </span>
+                          ) : decryptingPasswordId === r.id ? (
+                            <span className="text-xs text-[#8ba3b8]">Decrypting…</span>
+                          ) : revealedPasswords[r.id] ? (
+                            <div className="flex items-center gap-2">
+                              <code className="text-sm text-[#c4d4e0]">{revealedPasswords[r.id]}</code>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigator.clipboard.writeText(revealedPasswords[r.id]);
+                                  setToast("Password copied");
+                                }}
+                                className="rounded p-1 text-[#8ba3b8] hover:text-[#c4d4e0]"
+                                title="Copy password"
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => handleRevealPassword(r, e)}
+                                className="rounded p-1 text-[#8ba3b8] hover:text-[#c4d4e0]"
+                                title="Hide password"
+                              >
+                                <EyeOff className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={(e) => handleRevealPassword(r, e)}
+                              className="flex items-center gap-1 text-[#8ba3b8] hover:text-[#c4d4e0]"
+                              title="Click to reveal password"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              <span className="text-xs">••••••••</span>
+                            </button>
+                          )}
+                        </td>
+                        <td className="max-w-[200px] truncate px-4 py-3 text-[#8ba3b8]">
+                          {r.uri ? (
+                            <a href={r.uri} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 hover:text-[#c4d4e0]">
+                              {r.uri}
+                              <ExternalLink className="h-3 w-3 shrink-0" />
+                            </a>
+                          ) : "—"}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-[#8ba3b8]">{new Date(r.updatedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</td>
+                        <td className="px-4 py-3 text-center">
+                          <button onClick={(e) => handleToggleFavorite(r.id, e)} className={`p-1 ${favoriteIds.has(r.id) ? "text-[#f89c11]" : "text-[#5a7a95] hover:text-[#8ba3b8]"}`}>
+                            <Star className="h-4 w-4" fill={favoriteIds.has(r.id) ? "currentColor" : "none"} />
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setResourceToDelete(r); }}
+                            className="p-1 text-[#8ba3b8] hover:text-[#f89c11]"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </main>
@@ -548,8 +699,8 @@ export default function GroupVaultV3() {
           <form onSubmit={handleSaveResource} className="space-y-4">
             <Field label="Name" required><input type="text" required value={formName} onChange={e => setFormName(e.target.value)} className={inputClass} /></Field>
             <Field label="URI"><input type="url" value={formUri} onChange={e => setFormUri(e.target.value)} className={inputClass} /></Field>
-            <Field label="Username"><input type="text" value={formUsername} onChange={e => setFormUsername(e.target.value)} className={inputClass} /></Field>
-            <Field label="Password" required><input type="password" required value={formPassword} onChange={e => setFormPassword(e.target.value)} className={inputClass} /></Field>
+            <Field label="Username"><input type="text" value={formUsername} onChange={e => setFormUsername(e.target.value)} className={inputClass} autoComplete="off" name="new-group-username" /></Field>
+            <Field label="Password" required><input type="password" required value={formPassword} onChange={e => setFormPassword(e.target.value)} className={inputClass} autoComplete="new-password" name="new-group-password" /></Field>
             <Field label="Notes"><textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} className={`${inputClass} min-h-[60px] resize-y`} /></Field>
             {folders.length > 0 && (
               <Field label="Folder">
@@ -561,6 +712,20 @@ export default function GroupVaultV3() {
             )}
             <div className="flex gap-2 pt-2"><button type="submit" disabled={busy} className={primaryBtnClass}>{busy ? "Saving…" : editingResource ? "Save Changes" : "Save Password"}</button><button type="button" onClick={() => { setShowResourceForm(false); setEditingResource(null); setDecryptedSecret(null); }} className={secondaryBtnClass}>Cancel</button></div>
           </form>
+        </Dialog>
+      )}
+
+      {movingResource && (
+        <Dialog title="Move Resource" onClose={() => { setMovingResource(null); setMoveResourceTarget(""); }}>
+          <div className="space-y-4">
+            <Field label="Destination">
+              <select value={moveResourceTarget} onChange={e => setMoveResourceTarget(e.target.value)} className={inputClass}>
+                <option value="">— Group root —</option>
+                {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </Field>
+            <div className="flex gap-2 pt-2"><button onClick={handleMoveResource} disabled={busy} className={primaryBtnClass}>{busy ? "Moving…" : "Move"}</button><button onClick={() => { setMovingResource(null); setMoveResourceTarget(""); }} className={secondaryBtnClass}>Cancel</button></div>
+          </div>
         </Dialog>
       )}
 

@@ -6,7 +6,6 @@ import {
   IsString,
   IsUUID,
   MaxLength,
-  ValidateIf,
 } from "class-validator";
 
 export class CreateResourceDto {
@@ -33,20 +32,11 @@ export class CreateResourceDto {
   groupId?: string;
 
   @ApiProperty({
-    description: "OpenPGP-encrypted secret ciphertext (armored) — required unless creating a group resource",
+    description: "OpenPGP-encrypted secret ciphertext (armored) for the caller",
   })
-  @ValidateIf((o: CreateResourceDto) => !o.groupId)
   @IsString()
   @IsNotEmpty()
-  encryptedData?: string;
-
-  @ApiPropertyOptional({
-    description: "AES-GCM payload encrypted with group key (JSON string) — required for group resources",
-  })
-  @ValidateIf((o: CreateResourceDto) => !!o.groupId)
-  @IsString()
-  @IsNotEmpty()
-  groupEncryptedData?: string;
+  encryptedData!: string;
 
   @ApiPropertyOptional({
     description: "Additional metadata JSON (username, notes, etc.)",

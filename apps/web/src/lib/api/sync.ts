@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import type { ResourceListItem, Folder } from "./client";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4001";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8081";
 
 interface SyncEvent {
   type: string;

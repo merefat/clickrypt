@@ -36,6 +36,13 @@ export class ResourcesService {
     orgId: string,
     dto: CreateResourceDto
   ) {
+    console.log("[ResourcesService.create] userId=%s orgId=%s dto=%o", userId, orgId, dto);
+    if (!userId || !orgId) {
+      throw new BadRequestException("Missing authenticated user context");
+    }
+    if (!dto.encryptedData || typeof dto.encryptedData !== "string") {
+      throw new BadRequestException("A valid encrypted secret is required");
+    }
     const resourceType = await this.prisma.resourceType.findUnique({
       where: { name: dto.resourceType || "password" },
     });
@@ -84,7 +91,36 @@ export class ResourcesService {
       ? (creatorRole === "OWNER" && dto.sharingMode === "AUTO" ? "AUTO" as const : "RESTRICTED" as const)
       : (creatorRole === "OWNER" && dto.sharingMode === "RESTRICTED" ? "RESTRICTED" as const : "AUTO" as const);
 
-    let folderGroupId: string | null = null;
+    const parentFolder = dto.folderId
+      ? await this.prisma.folder.findUnique({ where: { id: dto.folderId }, select: { orgId: true, groupId: true } })
+      : null;
+    if (dto.folderId && (!parentFolder || parentFolder.orgId !== orgId)) {
+      throw new BadRequestException("Folder does not exist or does not belong to this organization");
+    }
+    const folderGroupId = parentFolder?.groupId ?? null;
+    const targetGroupId = dto.groupId ?? folderGroupId ?? null;
+    const workspaceType = targetGroupId ? ("GROUP" as const) : ("PRIVATE" as const);
+    const groupMembers =
+      workspaceType === "GROUP"
+        ? await this.prisma.groupUser.findMany({
+            where: { groupId: targetGroupId! },
+            select: { userId: true },
+          })
+        : [];
+
+    if (dto.additionalSecrets && (workspaceType === "PRIVATE" || workspaceType === "GROUP")) {
+      const recipientIds = Object.keys(dto.additionalSecrets).filter((id) => id !== userId);
+      if (recipientIds.length > 0) {
+        const validCount = await this.prisma.user.count({
+          where: { id: { in: recipientIds }, orgId },
+        });
+        if (validCount !== recipientIds.length) {
+          throw new BadRequestException(
+            "One or more additional secret recipients are not members of this organization"
+          );
+        }
+      }
+    }
 
     /* eslint-disable @typescript-eslint/no-explicit-any */
     const resource = await this.prisma.$transaction(async (tx: any) => {
@@ -94,26 +130,40 @@ export class ResourcesService {
           folderId: dto.folderId ?? null,
           groupId: dto.groupId ?? null,
           resourceTypeId: resourceType.id,
+          workspaceType,
           name: dto.name,
           uri: dto.uri ?? null,
           metadataJson: dto.metadata ?? {},
           sharingMode,
+          ownerId: userId,
           createdBy: userId,
           modifiedBy: userId,
         },
       });
 
-      // Group resources use a single group-key ciphertext
-      if (dto.groupId) {
-        await tx.permission.create({
+      // Group resources use per-user OpenPGP ciphertexts
+      // Only create Secret rows for the creator + members that have encrypted data.
+      // Members without keys are skipped — they can be synced later via syncSecrets.
+      if (workspaceType === "GROUP") {
+        // Creator always gets a Secret row
+        await tx.secret.create({
           data: {
-            aroType: "GROUP",
-            aroId: dto.groupId,
-            acoType: "RESOURCE",
-            acoId: created.id,
-            level: "READ",
+            resourceId: created.id,
+            userId,
+            encryptedData: dto.encryptedData!,
           },
         });
+        // Create Secret rows for members that have entries in additionalSecrets
+        for (const [memberUserId, encData] of Object.entries(dto.additionalSecrets ?? {})) {
+          if (memberUserId === userId) continue;
+          await tx.secret.create({
+            data: {
+              resourceId: created.id,
+              userId: memberUserId,
+              encryptedData: encData,
+            },
+          });
+        }
         await tx.permission.create({
           data: {
             aroType: "USER",
@@ -123,13 +173,6 @@ export class ResourcesService {
             level: "OWNER",
           },
         });
-        await tx.groupSecret.create({
-          data: {
-            resourceId: created.id,
-            encryptedData: dto.groupEncryptedData!,
-          },
-        });
-        folderGroupId = dto.groupId;
       } else {
         await tx.secret.create({
           data: {
@@ -147,13 +190,6 @@ export class ResourcesService {
             level: "OWNER",
           },
         });
-
-        folderGroupId = dto.folderId
-          ? (await tx.folder.findUnique({
-              where: { id: dto.folderId },
-              select: { groupId: true },
-            }))?.groupId ?? null
-          : null;
 
         // Auto-share to additional recipients for non-group resources
         if (dto.additionalSecrets && !folderGroupId) {
@@ -192,49 +228,38 @@ export class ResourcesService {
       metadata: { name: dto.name },
     });
 
-    const dtoResult = this.toResourceDto(resource);
-    const recipientIds = folderGroupId
-      ? [...new Set([...(await this.permissions.getGroupMemberIds(folderGroupId)), userId])]
+    let groupName: string | null = null;
+    if (targetGroupId) {
+      const grp = await this.prisma.group.findUnique({
+        where: { id: targetGroupId },
+        select: { name: true },
+      });
+      groupName = grp?.name ?? null;
+    }
+    const dtoResult = this.toResourceDto(resource, targetGroupId, groupName);
+    const recipientIds = targetGroupId
+      ? [...new Set([...(await this.permissions.getGroupMemberIds(targetGroupId as string)), userId])]
       : [userId, ...Object.keys(dto.additionalSecrets ?? {})];
     this.sync.emitToUsers(recipientIds, {
       type: "resource:create",
       entityType: "resource",
       entityId: resource.id,
-      data: folderGroupId ? { ...dtoResult, groupId: folderGroupId } : { ...dtoResult },
+      data: { ...dtoResult },
     });
 
     return dtoResult;
   }
 
   async listForUser(userId: string, orgId: string, filters?: { q?: string; folderId?: string; tagId?: string; favorite?: boolean }) {
-    // Both ORGANIZATION and SELF_HOSTED modes now use permission-based access
-    // Resources are only visible if explicitly shared with the user
-    const perms = await this.prisma.permission.findMany({
+    // Visibility is gated on per-user Secret rows
+    const secrets = await this.prisma.secret.findMany({
       where: {
-        aroType: "USER",
-        aroId: userId,
-        acoType: "RESOURCE",
+        userId,
+        resource: { orgId, workspaceType: "PRIVATE" },
       },
-      select: { acoId: true },
+      select: { resourceId: true },
     });
-    let resourceIds = perms.map((p) => p.acoId);
-
-    // Also include resources via group permissions
-    const groupIds = await this.prisma.groupUser.findMany({
-      where: { userId },
-      select: { groupId: true },
-    });
-    if (groupIds.length > 0) {
-      const groupPerms = await this.prisma.permission.findMany({
-        where: {
-          aroType: "GROUP",
-          aroId: { in: groupIds.map((g) => g.groupId) },
-          acoType: "RESOURCE",
-        },
-        select: { acoId: true },
-      });
-      resourceIds = [...new Set([...resourceIds, ...groupPerms.map((p) => p.acoId)])];
-    }
+    let resourceIds = secrets.map((s) => s.resourceId);
 
     if (resourceIds.length === 0) return [];
 
@@ -251,13 +276,7 @@ export class ResourcesService {
     const andConditions: any[] = [
       { orgId },
       { id: { in: resourceIds } },
-      { groupId: null },
-      {
-        OR: [
-          { folderId: null },
-          { folder: { groupId: null } },
-        ],
-      },
+      { workspaceType: "PRIVATE" },
     ];
 
     if (filters?.q) {
@@ -277,40 +296,92 @@ export class ResourcesService {
       andConditions.push({ tags: { some: { tagId: filters.tagId } } });
     }
 
-    const resources = await this.prisma.resource.findMany({
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const resources: any[] = await this.prisma.resource.findMany({
       where: { AND: andConditions },
       include: {
         tags: { include: { tag: true } },
-        folder: { select: { id: true, name: true } },
+        folder: { select: { id: true, name: true, parentFolderId: true, groupId: true } },
+        group: { select: { id: true, name: true } },
         favorites: { where: { userId }, select: { resourceId: true } },
         resourceType: { select: { name: true } },
         creator: { select: { id: true, email: true, firstName: true, lastName: true } },
         modifier: { select: { id: true, email: true, firstName: true, lastName: true } },
       },
       orderBy: { updatedAt: "desc" },
-    });
+    } as any);
+    /* eslint-enable @typescript-eslint/no-explicit-any */
 
-    return resources.map((r) => ({
-      id: r.id,
-      name: r.name,
-      uri: r.uri,
-      folder: r.folder
-        ? { id: r.folder.id, name: r.folder.name }
-        : null,
-      tags: r.tags.map((rt) => ({
-        id: rt.tag.id,
-        name: rt.tag.name,
-        color: rt.tag.color,
-      })),
-      metadata: r.metadataJson,
-      resourceType: r.resourceType.name,
-      sharingMode: r.sharingMode,
-      isFavorite: r.favorites.length > 0,
-      createdBy: r.creator ? { email: r.creator.email, name: `${r.creator.firstName} ${r.creator.lastName}` } : null,
-      modifiedBy: r.modifier ? { email: r.modifier.email, name: `${r.modifier.firstName} ${r.modifier.lastName}` } : null,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
-    }));
+    const groupIds = new Set<string>();
+    for (const r of resources) {
+      if (r.groupId) groupIds.add(r.groupId);
+      if (r.folder?.groupId) groupIds.add(r.folder.groupId);
+    }
+
+    const allFolders = (await this.prisma.folder.findMany({
+      where: { orgId },
+      select: { id: true, name: true, parentFolderId: true, groupId: true },
+    } as any)) as any[];
+
+    const groups =
+      groupIds.size > 0
+        ? (await this.prisma.group.findMany({
+            where: { id: { in: [...groupIds] }, orgId },
+            select: { id: true, name: true },
+          } as any)) as any[]
+        : [];
+
+    const folderMap: Record<string, any> = Object.fromEntries(allFolders.map((f: any) => [f.id, f]));
+    const groupMap: Record<string, any> = Object.fromEntries(groups.map((g: any) => [g.id, g]));
+
+    const buildPath = (folderId: string | null): string | null => {
+      const parts: string[] = [];
+      const seen = new Set<string>();
+      let current = folderId ? folderMap[folderId] : null;
+      while (current) {
+        if (seen.has(current.id)) break;
+        seen.add(current.id);
+        parts.unshift(current.name);
+        current = current.parentFolderId ? folderMap[current.parentFolderId] : null;
+      }
+      return parts.length ? parts.join(" / ") : null;
+    };
+
+    return resources.map((r: any) => {
+      const groupId = r.groupId || r.folder?.groupId || null;
+      const group = groupId ? groupMap[groupId] : null;
+      const folder = r.folder ? { id: r.folder.id, name: r.folder.name } : null;
+      const folderPath = buildPath(r.folderId);
+      const source = group ? "group" : "workplace";
+      const location =
+        source === "group"
+          ? `${group?.name ?? "Group"}${folderPath ? " / " + folderPath : ""}`
+          : (folderPath ?? null);
+
+      return {
+        id: r.id,
+        name: r.name,
+        uri: r.uri,
+        folder,
+        tags: r.tags.map((rt: any) => ({
+          id: rt.tag.id,
+          name: rt.tag.name,
+          color: rt.tag.color,
+        })),
+        metadata: r.metadataJson,
+        resourceType: r.resourceType.name,
+        sharingMode: r.sharingMode,
+        isFavorite: r.favorites.length > 0,
+        createdBy: r.creator ? { email: r.creator.email, name: `${r.creator.firstName} ${r.creator.lastName}` } : null,
+        modifiedBy: r.modifier ? { email: r.modifier.email, name: `${r.modifier.firstName} ${r.modifier.lastName}` } : null,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+        source,
+        groupId,
+        groupName: group?.name ?? null,
+        folderPath: location,
+      };
+    });
   }
 
   async listAll(
@@ -318,43 +389,14 @@ export class ResourcesService {
     orgId: string,
     filters?: { q?: string; folderId?: string; tagId?: string; favorite?: boolean }
   ) {
-    const [userPerms, memberships] = await Promise.all([
-      this.prisma.permission.findMany({
-        where: { aroType: "USER", aroId: userId, acoType: "RESOURCE" },
-        select: { acoId: true },
-      }),
-      this.prisma.groupUser.findMany({
-        where: { userId },
-        select: { groupId: true },
-      }),
-    ]);
-
-    let resourceIds = userPerms.map((p) => p.acoId);
-
-    if (memberships.length > 0) {
-      const groupPerms = await this.prisma.permission.findMany({
-        where: {
-          aroType: "GROUP",
-          aroId: { in: memberships.map((m) => m.groupId) },
-          acoType: "RESOURCE",
-        },
-        select: { acoId: true },
-      });
-      resourceIds = [...new Set([...resourceIds, ...groupPerms.map((p) => p.acoId)])];
-    }
-
-    // Also include ALL group resources in the org (any org member can see group passwords)
-    const groupResources = await this.prisma.resource.findMany({
+    const secrets = await this.prisma.secret.findMany({
       where: {
-        orgId,
-        OR: [
-          { groupId: { not: null } },
-          { folder: { groupId: { not: null } } },
-        ],
+        userId,
+        resource: { orgId },
       },
-      select: { id: true },
-    } as any);
-    resourceIds = [...new Set([...resourceIds, ...groupResources.map((r: any) => r.id)])];
+      select: { resourceId: true },
+    });
+    let resourceIds = [...new Set(secrets.map((s) => s.resourceId))];
 
     if (resourceIds.length === 0) return [];
 
@@ -485,16 +527,55 @@ export class ResourcesService {
       throw new NotFoundException("Group not found");
     }
 
-    // Any org member can list group resources — no membership check needed
+    // Auto-sync: ensure all active org members are in this group (best-effort, no role check)
+    const activeMembers = await this.prisma.organizationMembership.findMany({
+      where: { organizationId: orgId, status: "ACTIVE" },
+      select: { userId: true },
+    });
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    await this.prisma.groupUser.createMany({
+      data: activeMembers.map((m) => ({ groupId, userId: m.userId, role: "USER" as const })),
+      skipDuplicates: true,
+    } as any);
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+
+    // Find all resource IDs belonging to this group (direct or via folder)
+    const directResources = await this.prisma.resource.findMany({
+      where: { orgId, workspaceType: "GROUP", groupId },
+      select: { id: true },
+    });
+    const groupFolders = await this.prisma.folder.findMany({
+      where: { orgId, groupId },
+      select: { id: true },
+    });
+    const folderResources = groupFolders.length > 0
+      ? await this.prisma.resource.findMany({
+          where: { orgId, workspaceType: "GROUP", folderId: { in: groupFolders.map((f) => f.id) } },
+          select: { id: true },
+        })
+      : [];
+    const allGroupResourceIds = new Set([
+      ...directResources.map((r) => r.id),
+      ...folderResources.map((r) => r.id),
+    ]);
+
+    if (allGroupResourceIds.size === 0) return [];
+
+    // Gate visibility on per-user Secret rows
+    const secrets = await this.prisma.secret.findMany({
+      where: {
+        userId,
+        resourceId: { in: [...allGroupResourceIds] },
+      },
+      select: { resourceId: true },
+    });
+    const resourceIds = secrets.map((s) => s.resourceId);
+    if (resourceIds.length === 0) return [];
 
     const andConditions: any[] = [
       { orgId },
-      {
-        OR: [
-          { groupId },
-          { folder: { groupId } },
-        ],
-      },
+      { id: { in: resourceIds } },
+      { workspaceType: "GROUP" },
     ];
 
     if (filters?.folderId !== undefined) {
@@ -514,40 +595,70 @@ export class ResourcesService {
       andConditions.push({ tags: { some: { tagId: filters.tagId } } });
     }
 
-    const resources = await this.prisma.resource.findMany({
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const resources: any[] = await this.prisma.resource.findMany({
       where: { AND: andConditions },
       include: {
         tags: { include: { tag: true } },
-        folder: { select: { id: true, name: true } },
+        folder: { select: { id: true, name: true, parentFolderId: true } },
         favorites: { where: { userId }, select: { resourceId: true } },
         resourceType: { select: { name: true } },
         creator: { select: { id: true, email: true, firstName: true, lastName: true } },
         modifier: { select: { id: true, email: true, firstName: true, lastName: true } },
       },
       orderBy: { updatedAt: "desc" },
-    });
+    } as any);
+    /* eslint-enable @typescript-eslint/no-explicit-any */
 
-    return resources.map((r) => ({
-      id: r.id,
-      name: r.name,
-      uri: r.uri,
-      folder: r.folder
-        ? { id: r.folder.id, name: r.folder.name }
-        : null,
-      tags: r.tags.map((rt) => ({
-        id: rt.tag.id,
-        name: rt.tag.name,
-        color: rt.tag.color,
-      })),
-      metadata: r.metadataJson,
-      resourceType: r.resourceType.name,
-      sharingMode: r.sharingMode,
-      isFavorite: r.favorites.length > 0,
-      createdBy: r.creator ? { email: r.creator.email, name: `${r.creator.firstName} ${r.creator.lastName}` } : null,
-      modifiedBy: r.modifier ? { email: r.modifier.email, name: `${r.modifier.firstName} ${r.modifier.lastName}` } : null,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
-    }));
+    const allFolders = (await this.prisma.folder.findMany({
+      where: { orgId },
+      select: { id: true, name: true, parentFolderId: true, groupId: true },
+    } as any)) as any[];
+
+    const folderMap: Record<string, any> = Object.fromEntries(allFolders.map((f: any) => [f.id, f]));
+
+    const buildPath = (folderId: string | null): string | null => {
+      const parts: string[] = [];
+      const seen = new Set<string>();
+      let current = folderId ? folderMap[folderId] : null;
+      while (current) {
+        if (seen.has(current.id)) break;
+        seen.add(current.id);
+        parts.unshift(current.name);
+        current = current.parentFolderId ? folderMap[current.parentFolderId] : null;
+      }
+      return parts.length ? parts.join(" / ") : null;
+    };
+
+    return resources.map((r: any) => {
+      const folder = r.folder ? { id: r.folder.id, name: r.folder.name } : null;
+      const folderPath = buildPath(r.folderId);
+      const location = `${group.name}${folderPath ? " / " + folderPath : ""}`;
+
+      return {
+        id: r.id,
+        name: r.name,
+        uri: r.uri,
+        folder,
+        tags: r.tags.map((rt: any) => ({
+          id: rt.tag.id,
+          name: rt.tag.name,
+          color: rt.tag.color,
+        })),
+        metadata: r.metadataJson,
+        resourceType: r.resourceType.name,
+        sharingMode: r.sharingMode,
+        isFavorite: r.favorites.length > 0,
+        createdBy: r.creator ? { email: r.creator.email, name: `${r.creator.firstName} ${r.creator.lastName}` } : null,
+        modifiedBy: r.modifier ? { email: r.modifier.email, name: `${r.modifier.firstName} ${r.modifier.lastName}` } : null,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+        source: "group",
+        groupId,
+        groupName: group.name,
+        folderPath: location,
+      };
+    });
   }
 
   async getOne(userId: string, resourceId: string) {
@@ -567,13 +678,12 @@ export class ResourcesService {
       throw new NotFoundException("Resource not found");
     }
 
-    // For group resources, any org member can access — skip permission check
-    const isGroupResource = resource.groupId || resource.folder?.groupId;
-    if (!isGroupResource) {
-      const perm = await this.permissions.resolveForResource(userId, resourceId);
-      if (!perm) {
-        throw new NotFoundException("Resource not found");
-      }
+    // Gate access on per-user Secret row
+    const secret = await this.prisma.secret.findUnique({
+      where: { resourceId_userId: { resourceId, userId } },
+    });
+    if (!secret) {
+      throw new NotFoundException("Resource not found");
     }
 
     return {
@@ -600,32 +710,10 @@ export class ResourcesService {
   async getSecret(userId: string, resourceId: string) {
     const resource = await this.prisma.resource.findUnique({
       where: { id: resourceId },
-      select: {
-        groupId: true,
-        folder: { select: { groupId: true } },
-      },
-    } as any);
+      select: { workspaceType: true },
+    });
     if (!resource) {
       throw new NotFoundException("Resource not found");
-    }
-
-    const isGroupResource = (resource as any).groupId || (resource as any).folder?.groupId;
-
-    // For group resources, any org member can access — skip permission check
-    if (!isGroupResource) {
-      const perm = await this.permissions.resolveForResource(userId, resourceId);
-      if (!perm) {
-        throw new NotFoundException("Resource not found");
-      }
-    }
-    if (isGroupResource) {
-      const groupSecret = await this.prisma.groupSecret.findUnique({
-        where: { resourceId },
-      });
-      if (!groupSecret) {
-        throw new NotFoundException("No secret found for this group resource");
-      }
-      return { encryptedData: groupSecret.encryptedData };
     }
 
     const secret = await this.prisma.secret.findUnique({
@@ -645,7 +733,7 @@ export class ResourcesService {
   ) {
     const existing = await this.prisma.resource.findUnique({
       where: { id: resourceId },
-      select: { orgId: true, groupId: true, folder: { select: { groupId: true } } },
+      select: { orgId: true, groupId: true, workspaceType: true, ownerId: true, folder: { select: { groupId: true } } },
     } as any);
     if (!existing) {
       throw new NotFoundException("Resource not found");
@@ -653,8 +741,8 @@ export class ResourcesService {
 
     const targetGroupId = (existing as any).groupId ?? (existing as any).folder?.groupId ?? null;
 
-    // For group resources, any org member can update — skip permission check
-    if (!targetGroupId) {
+    // Permission check: owner or UPDATE permission for private resources
+    if (existing.ownerId !== userId) {
       const perm = await this.permissions.resolveForResource(userId, resourceId);
       if (!perm) {
         throw new NotFoundException("Resource not found");
@@ -690,25 +778,23 @@ export class ResourcesService {
         },
       });
 
+      // Update caller's own secret
       if (dto.encryptedData) {
-        await tx.secret.update({
+        await tx.secret.upsert({
           where: { resourceId_userId: { resourceId, userId } },
-          data: { encryptedData: dto.encryptedData },
+          update: { encryptedData: dto.encryptedData },
+          create: {
+            resourceId,
+            userId,
+            encryptedData: dto.encryptedData,
+          },
         });
       }
 
-      if (dto.groupEncryptedData) {
-        await tx.groupSecret.upsert({
-          where: { resourceId },
-          update: { encryptedData: dto.groupEncryptedData },
-          create: { resourceId, encryptedData: dto.groupEncryptedData },
-        });
-      }
-
-      // Update auto-shared secrets if additionalSecrets provided
+      // Update per-user secrets for all additional recipients
       if (dto.additionalSecrets) {
         for (const [memberUserId, encData] of Object.entries(dto.additionalSecrets)) {
-          if (memberUserId === userId) continue;
+          if (memberUserId === userId && dto.encryptedData) continue;
           await tx.secret.upsert({
             where: { resourceId_userId: { resourceId, userId: memberUserId } },
             update: { encryptedData: encData },
@@ -716,24 +802,6 @@ export class ResourcesService {
               resourceId,
               userId: memberUserId,
               encryptedData: encData,
-            },
-          });
-          await tx.permission.upsert({
-            where: {
-              aroType_aroId_acoType_acoId: {
-                aroType: "USER",
-                aroId: memberUserId,
-                acoType: "RESOURCE",
-                acoId: resourceId,
-              },
-            },
-            update: {},
-            create: {
-              aroType: "USER",
-              aroId: memberUserId,
-              acoType: "RESOURCE",
-              acoId: resourceId,
-              level: "READ",
             },
           });
         }
@@ -765,8 +833,8 @@ export class ResourcesService {
   async delete(userId: string, resourceId: string, orgRole?: string) {
     const resource = await this.prisma.resource.findUnique({
       where: { id: resourceId },
-      select: { id: true, orgId: true, createdBy: true, groupId: true, folder: { select: { groupId: true } } },
-    });
+      select: { id: true, orgId: true, createdBy: true, ownerId: true, groupId: true, workspaceType: true, folder: { select: { groupId: true } } },
+    } as any);
     if (!resource) {
       throw new NotFoundException("Resource not found");
     }
@@ -774,18 +842,19 @@ export class ResourcesService {
     const targetGroupId = resource.groupId ?? (resource as any).folder?.groupId ?? null;
     const recipientIds = await this.permissions.getResourceUserIds(resourceId);
 
-    // Allow deletion if user is org OWNER/ADMIN, is the creator, or has OWNER permission
+    // Allow deletion if user is org OWNER/ADMIN, is the owner/creator, or has OWNER permission
     const isOrgOwnerOrAdmin = orgRole === "OWNER" || orgRole === "ADMIN";
+    const isOwner = resource.ownerId === userId;
     const isCreator = resource.createdBy === userId;
     const perm = await this.permissions.resolveForResource(userId, resourceId);
 
-    if (!perm && !isOrgOwnerOrAdmin && !isCreator) {
+    if (!perm && !isOrgOwnerOrAdmin && !isOwner && !isCreator) {
       throw new NotFoundException("Resource not found");
     }
 
     const hasOwnerPermission = perm && this.permissions.hasAtLeast(perm, "OWNER");
 
-    if (!isOrgOwnerOrAdmin && !isCreator && !hasOwnerPermission) {
+    if (!isOrgOwnerOrAdmin && !isOwner && !isCreator && !hasOwnerPermission) {
       throw new ForbiddenException("You need OWNER permission to delete");
     }
 
@@ -1110,53 +1179,49 @@ export class ResourcesService {
     return this.listForUser(userId, orgId, { favorite: true });
   }
 
-  async exportForUser(userId: string, orgId: string) {
-    const items = await this.listAll(userId, orgId);
+  async exportForUser(
+    userId: string,
+    orgId: string,
+    scope?: { mode: "all" | "workplace" | "groups"; groupIds?: string[] }
+  ) {
+    const mode = scope?.mode ?? "all";
+
+    let items: any[];
+    if (mode === "workplace") {
+      items = await this.listForUser(userId, orgId);
+    } else if (mode === "groups" && scope?.groupIds?.length) {
+      const groupResults: any[] = [];
+      for (const groupId of scope.groupIds) {
+        const groupItems = await this.listForGroup(userId, orgId, groupId);
+        groupResults.push(...groupItems);
+      }
+      // Deduplicate by resource id (a resource could appear via multiple groups)
+      const seen = new Set<string>();
+      items = groupResults.filter((item: any) => {
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      });
+    } else {
+      items = await this.listAll(userId, orgId);
+    }
 
     /* eslint-disable @typescript-eslint/no-explicit-any */
     const results: any[] = [];
 
     for (const item of items) {
-      const resource = await this.prisma.resource.findUnique({
-        where: { id: item.id },
-        select: {
-          groupId: true,
-          folder: { select: { groupId: true } },
-          resourceType: { select: { name: true } },
-        },
+      const secret = await this.prisma.secret.findUnique({
+        where: { resourceId_userId: { resourceId: item.id, userId } },
       });
-
-      if (!resource) continue;
-
-      const isGroupResource = resource.groupId || resource.folder?.groupId;
-
-      let encryptedData: string | null = null;
-      let groupId: string | null = null;
-
-      if (isGroupResource) {
-        groupId = resource.groupId ?? resource.folder?.groupId ?? null;
-        const groupSecret = await this.prisma.groupSecret.findUnique({
-          where: { resourceId: item.id },
-        });
-        if (groupSecret) {
-          encryptedData = groupSecret.encryptedData;
-        }
-      } else {
-        const secret = await this.prisma.secret.findUnique({
-          where: { resourceId_userId: { resourceId: item.id, userId } },
-        });
-        if (secret) {
-          encryptedData = secret.encryptedData;
-        }
-      }
+      if (!secret) continue;
 
       results.push({
         id: item.id,
         name: item.name,
         uri: item.uri,
-        resourceType: resource.resourceType?.name ?? "password",
-        encryptedData,
-        groupId,
+        resourceType: item.resourceType,
+        encryptedData: secret.encryptedData,
+        groupId: item.groupId ?? null,
         folderId: item.folder?.id ?? null,
         metadata: item.metadata ?? {},
       });
@@ -1172,13 +1237,17 @@ export class ResourcesService {
     uri: string | null;
     createdAt: Date;
     updatedAt: Date;
-  }) {
+  }, groupId?: string | null, groupName?: string | null) {
+    const source = groupId ? "group" : "workplace";
     return {
       id: r.id,
       name: r.name,
       uri: r.uri,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
+      source,
+      groupId: groupId ?? null,
+      groupName: groupName ?? null,
     };
   }
 }

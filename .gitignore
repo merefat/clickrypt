@@ -1,9 +1,36 @@
+# Dependencies
 node_modules/
+.pnpm-store/
+
+# Local env files (keep templates)
+.env
+.env.local
+.env.*.local
+**/.env
+!.env.example
+
+# Build outputs
 dist/
 .next/
 .next-dev/
-coverage/
 *.tsbuildinfo
-.turbo/
+packages/*/dist/
+apps/*/dist/
+
+# Logs
 *.log
-.env.local
+dev.log
+test-auth.log
+logs/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Backups / temp
+backups/
+tmp/
+*.tmp

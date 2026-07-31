@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Lock, AlertCircle, Loader2, CheckCircle2, Eye, EyeOff } from "lucide-react";
@@ -10,12 +10,24 @@ import {
   createRecoveryKit,
   type EncryptedBlob,
 } from "@clickrypt/crypto";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, getAccessToken } from "@/lib/api/client";
 
 type Step = "email" | "form" | "generating" | "downloading" | "done";
 
 export default function SetupPage() {
   const router = useRouter();
+
+  useEffect(() => {
+    const token = getAccessToken();
+    if (token) return;
+    apiClient
+      .getSetupStatus()
+      .then((status) => {
+        if (status.initialized) router.replace("/login");
+      })
+      .catch(() => {});
+  }, [router]);
+
   const [step, setStep] = useState<Step>("email");
   const [error, setError] = useState<string | null>(null);
   const [recoveryKit, setRecoveryKit] = useState<string | null>(null);
