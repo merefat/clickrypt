@@ -108,7 +108,7 @@ export class ResourcesService {
           })
         : [];
 
-    if (dto.additionalSecrets && (workspaceType === "PRIVATE" || workspaceType === "GROUP")) {
+    if (dto.additionalSecrets && workspaceType === "GROUP") {
       const recipientIds = Object.keys(dto.additionalSecrets).filter((id) => id !== userId);
       if (recipientIds.length > 0) {
         const validCount = await this.prisma.user.count({
@@ -191,28 +191,7 @@ export class ResourcesService {
           },
         });
 
-        // Auto-share to additional recipients for non-group resources
-        if (dto.additionalSecrets && !folderGroupId) {
-          for (const [memberUserId, encData] of Object.entries(dto.additionalSecrets)) {
-            if (memberUserId === userId) continue;
-            await tx.secret.create({
-              data: {
-                resourceId: created.id,
-                userId: memberUserId,
-                encryptedData: encData,
-              },
-            });
-            await tx.permission.create({
-              data: {
-                aroType: "USER",
-                aroId: memberUserId,
-                acoType: "RESOURCE",
-                acoId: created.id,
-                level: "READ",
-              },
-            });
-          }
-        }
+        // Private resources are only visible to the owner unless explicitly shared later.
       }
 
       return created;
@@ -239,7 +218,7 @@ export class ResourcesService {
     const dtoResult = this.toResourceDto(resource, targetGroupId, groupName);
     const recipientIds = targetGroupId
       ? [...new Set([...(await this.permissions.getGroupMemberIds(targetGroupId as string)), userId])]
-      : [userId, ...Object.keys(dto.additionalSecrets ?? {})];
+      : [userId];
     this.sync.emitToUsers(recipientIds, {
       type: "resource:create",
       entityType: "resource",
@@ -318,8 +297,19 @@ export class ResourcesService {
       if (r.folder?.groupId) groupIds.add(r.folder.groupId);
     }
 
+    const userGroupIds = (await this.prisma.groupUser.findMany({
+      where: { userId },
+      select: { groupId: true },
+    } as any)).map((g: any) => g.groupId);
+
     const allFolders = (await this.prisma.folder.findMany({
-      where: { orgId },
+      where: {
+        orgId,
+        OR: [
+          { groupId: { in: userGroupIds } },
+          { groupId: null, createdBy: userId },
+        ],
+      },
       select: { id: true, name: true, parentFolderId: true, groupId: true },
     } as any)) as any[];
 
@@ -448,8 +438,19 @@ export class ResourcesService {
       if (r.folder?.groupId) groupIds.add(r.folder.groupId);
     }
 
+    const userGroupIds = (await this.prisma.groupUser.findMany({
+      where: { userId },
+      select: { groupId: true },
+    } as any)).map((g: any) => g.groupId);
+
     const allFolders = (await this.prisma.folder.findMany({
-      where: { orgId },
+      where: {
+        orgId,
+        OR: [
+          { groupId: { in: userGroupIds } },
+          { groupId: null, createdBy: userId },
+        ],
+      },
       select: { id: true, name: true, parentFolderId: true, groupId: true },
     } as any)) as any[];
 
@@ -611,7 +612,7 @@ export class ResourcesService {
     /* eslint-enable @typescript-eslint/no-explicit-any */
 
     const allFolders = (await this.prisma.folder.findMany({
-      where: { orgId },
+      where: { orgId, groupId },
       select: { id: true, name: true, parentFolderId: true, groupId: true },
     } as any)) as any[];
 
@@ -791,8 +792,8 @@ export class ResourcesService {
         });
       }
 
-      // Update per-user secrets for all additional recipients
-      if (dto.additionalSecrets) {
+      // Update per-user secrets for all additional recipients (group resources only)
+      if (dto.additionalSecrets && existing.workspaceType !== "PRIVATE") {
         for (const [memberUserId, encData] of Object.entries(dto.additionalSecrets)) {
           if (memberUserId === userId && dto.encryptedData) continue;
           await tx.secret.upsert({

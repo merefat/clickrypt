@@ -977,10 +977,8 @@ function CreateDialog({ folders, privateKey, defaultFolderId, orgRole, onClose, 
       const secretPayload = JSON.stringify({ username, password, notes });
       const publicKey = await getPublicKeyFromPrivateKeyLocal(privateKey);
       const encryptedData = await encryptMessage(secretPayload, [publicKey]);
-      const currentUserId = useSessionStore.getState().userId;
-      const isOwner = orgRole === "OWNER";
-      const additionalSecrets = isOwner ? {} : await encryptForAllOrgMembers(secretPayload, publicKey, currentUserId);
-      const sharingMode = isOwner ? "RESTRICTED" as const : "AUTO" as const;
+      const additionalSecrets: Record<string, string> = {};
+      const sharingMode = "RESTRICTED" as const;
       await apiClient.createResource({ name, uri: uri || undefined, folderId: folderId || undefined, encryptedData, metadata: { username }, additionalSecrets, sharingMode });
       onCreated();
     } catch (err) {
@@ -1056,10 +1054,8 @@ function CreateTotpDialog({ folders, privateKey, defaultFolderId, orgRole, onClo
       const secretPayload = JSON.stringify({ totpSecret });
       const publicKey = await getPublicKeyFromPrivateKeyLocal(privateKey);
       const encryptedData = await encryptMessage(secretPayload, [publicKey]);
-      const currentUserId = useSessionStore.getState().userId;
-      const isOwner = orgRole === "OWNER";
-      const additionalSecrets = isOwner ? {} : await encryptForAllOrgMembers(secretPayload, publicKey, currentUserId);
-      const sharingMode = isOwner ? "RESTRICTED" as const : "AUTO" as const;
+      const additionalSecrets: Record<string, string> = {};
+      const sharingMode = "RESTRICTED" as const;
       await apiClient.createResource({ name, encryptedData, metadata: { issuer }, resourceType: "totp", folderId: folderId || undefined, additionalSecrets, sharingMode });
       onCreated();
     } catch (err) {
@@ -1100,10 +1096,8 @@ function CreateNoteDialog({ folders, privateKey, defaultFolderId, orgRole, onClo
       const secretPayload = JSON.stringify({ note });
       const publicKey = await getPublicKeyFromPrivateKeyLocal(privateKey);
       const encryptedData = await encryptMessage(secretPayload, [publicKey]);
-      const currentUserId = useSessionStore.getState().userId;
-      const isOwner = orgRole === "OWNER";
-      const additionalSecrets = isOwner ? {} : await encryptForAllOrgMembers(secretPayload, publicKey, currentUserId);
-      const sharingMode = isOwner ? "RESTRICTED" as const : "AUTO" as const;
+      const additionalSecrets: Record<string, string> = {};
+      const sharingMode = "RESTRICTED" as const;
       await apiClient.createResource({ name, encryptedData, resourceType: "note", folderId: folderId || undefined, additionalSecrets, sharingMode });
       onCreated();
     } catch (err) {
@@ -1149,8 +1143,10 @@ function EditDialog({ resource, decryptedSecret, folders, privateKey, onClose, o
           const secretPayload = JSON.stringify({ note: noteContent });
           const publicKey = await getPublicKeyFromPrivateKeyLocal(privateKey);
           updateData.encryptedData = await encryptMessage(secretPayload, [publicKey]);
-          const currentUserId = useSessionStore.getState().userId;
-          updateData.additionalSecrets = await encryptForAllOrgMembers(secretPayload, publicKey, currentUserId);
+          if (resource.source !== "workplace") {
+            const currentUserId = useSessionStore.getState().userId;
+            updateData.additionalSecrets = await encryptForAllOrgMembers(secretPayload, publicKey, currentUserId);
+          }
         }
         await apiClient.updateResource(resource.id, updateData);
       } else {
@@ -1160,8 +1156,10 @@ function EditDialog({ resource, decryptedSecret, folders, privateKey, onClose, o
           const secretPayload = JSON.stringify({ username, password, notes });
           const publicKey = await getPublicKeyFromPrivateKeyLocal(privateKey);
           updateData.encryptedData = await encryptMessage(secretPayload, [publicKey]);
-          const currentUserId = useSessionStore.getState().userId;
-          updateData.additionalSecrets = await encryptForAllOrgMembers(secretPayload, publicKey, currentUserId);
+          if (resource.source !== "workplace") {
+            const currentUserId = useSessionStore.getState().userId;
+            updateData.additionalSecrets = await encryptForAllOrgMembers(secretPayload, publicKey, currentUserId);
+          }
         }
         await apiClient.updateResource(resource.id, updateData);
       }
