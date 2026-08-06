@@ -26,6 +26,11 @@ export class PermissionsService {
     // Owner always has OWNER
     if (resource.ownerId === userId) return "OWNER";
 
+    // Private resources are only visible to the owner
+    if (resource.workspaceType === "PRIVATE") {
+      return null;
+    }
+
     // Group resources are visible to anyone with a per-user Secret row
     if (resource.workspaceType === "GROUP") {
       const secret = await this.prisma.secret.findUnique({

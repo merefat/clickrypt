@@ -878,7 +878,7 @@ export default function VaultPage() {
             {selectedResource.uri && <div><label className="mb-1 block text-xs text-[#8ba3b8]">URI</label><p className="text-sm text-[#c4d4e0]">{selectedResource.uri}</p></div>}
             <div className="grid grid-cols-3 gap-2 border-t border-[#2a4055] pt-4">
               {secretAccessible && <button onClick={() => setDialogMode("edit")} className={`${secondaryBtnClass} flex items-center justify-center gap-1.5`}><Pencil className="h-3.5 w-3.5" />Edit</button>}
-              {secretAccessible && <button onClick={() => setDialogMode("share")} className={`${secondaryBtnClass} flex items-center justify-center gap-1.5`}><Share2 className="h-3.5 w-3.5" />Share</button>}
+              {secretAccessible && selectedResource.source !== "workplace" && <button onClick={() => setDialogMode("share")} className={`${secondaryBtnClass} flex items-center justify-center gap-1.5`}><Share2 className="h-3.5 w-3.5" />Share</button>}
               {secretAccessible && <button onClick={() => setDialogMode("permissions")} className={`${secondaryBtnClass} flex items-center justify-center gap-1.5`}>Permissions</button>}
               <button onClick={() => setDialogMode("info")} className={`${secondaryBtnClass} flex items-center justify-center gap-1.5`}><Info className="h-3.5 w-3.5" />Info</button>
               {secretAccessible && <button onClick={handleDelete} className="flex items-center justify-center gap-1.5 rounded-lg border border-[#f89c11] px-3 py-2 text-sm text-[#f89c11] hover:bg-[#f89c11]/20"><Trash2 className="h-3.5 w-3.5" />Delete</button>}

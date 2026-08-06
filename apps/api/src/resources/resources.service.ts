@@ -204,7 +204,7 @@ export class ResourcesService {
       action: "resource.create",
       entityType: "resource",
       entityId: resource.id,
-      metadata: { name: dto.name },
+      metadata: resource.workspaceType === "PRIVATE" ? {} : { name: dto.name },
     });
 
     let groupName: string | null = null;
@@ -256,6 +256,7 @@ export class ResourcesService {
       { orgId },
       { id: { in: resourceIds } },
       { workspaceType: "PRIVATE" },
+      { ownerId: userId },
     ];
 
     if (filters?.q) {
@@ -399,7 +400,16 @@ export class ResourcesService {
       if (resourceIds.length === 0) return [];
     }
 
-    const andConditions: any[] = [{ orgId }, { id: { in: resourceIds } }];
+    const andConditions: any[] = [
+      { orgId },
+      { id: { in: resourceIds } },
+      {
+        OR: [
+          { workspaceType: "GROUP" },
+          { workspaceType: "PRIVATE", ownerId: userId },
+        ],
+      },
+    ];
 
     if (filters?.q) {
       andConditions.push({
@@ -679,7 +689,10 @@ export class ResourcesService {
       throw new NotFoundException("Resource not found");
     }
 
-    // Gate access on per-user Secret row
+    // Gate access on per-user Secret row and owner for private resources
+    if (resource.workspaceType === "PRIVATE" && resource.ownerId !== userId) {
+      throw new NotFoundException("Resource not found");
+    }
     const secret = await this.prisma.secret.findUnique({
       where: { resourceId_userId: { resourceId, userId } },
     });
@@ -711,10 +724,13 @@ export class ResourcesService {
   async getSecret(userId: string, resourceId: string) {
     const resource = await this.prisma.resource.findUnique({
       where: { id: resourceId },
-      select: { workspaceType: true },
+      select: { ownerId: true, workspaceType: true },
     });
     if (!resource) {
       throw new NotFoundException("Resource not found");
+    }
+    if (resource.workspaceType === "PRIVATE" && resource.ownerId !== userId) {
+      throw new NotFoundException("No secret found for this user");
     }
 
     const secret = await this.prisma.secret.findUnique({
@@ -816,7 +832,7 @@ export class ResourcesService {
       action: "resource.update",
       entityType: "resource",
       entityId: resourceId,
-      metadata: { name: dto.name },
+      metadata: existing.workspaceType === "PRIVATE" ? {} : { name: dto.name },
     });
 
     const updated = await this.getOne(userId, resourceId);
@@ -928,10 +944,13 @@ export class ResourcesService {
   ) {
     const resource = await this.prisma.resource.findUnique({
       where: { id: resourceId },
-      select: { orgId: true, name: true },
+      select: { orgId: true, name: true, workspaceType: true },
     });
     if (!resource) {
       throw new NotFoundException("Resource not found");
+    }
+    if (resource.workspaceType === "PRIVATE") {
+      throw new ForbiddenException("My Workplace resources cannot be shared");
     }
 
     const perm = await this.permissions.resolveForResource(userId, resourceId);
