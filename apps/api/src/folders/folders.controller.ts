@@ -119,4 +119,13 @@ export class FoldersController {
   ) {
     await this.foldersService.revokeGroupShare(user.id, user.orgId, id, groupId);
   }
+
+  @Get(":id/descendant-count")
+  @ApiOperation({ summary: "Count resources in a folder and its descendants" })
+  countResources(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id", ParseUUIDPipe) id: string
+  ) {
+    return this.foldersService.countResourcesInFolderSubtree(user.id, user.orgId, id);
+  }
 }

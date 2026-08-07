@@ -413,4 +413,33 @@ export class FoldersService {
       where: { aroType: "GROUP", aroId: groupId, acoType: "FOLDER", acoId: id },
     });
   }
+
+  private async getDescendantFolderIds(id: string): Promise<string[]> {
+    const result: string[] = [];
+    const queue = [id];
+    while (queue.length) {
+      const current = queue.shift()!;
+      const children = await this.prisma.folder.findMany({
+        where: { parentFolderId: current },
+        select: { id: true },
+      });
+      for (const child of children) {
+        result.push(child.id);
+        queue.push(child.id);
+      }
+    }
+    return result;
+  }
+
+  async countResourcesInFolderSubtree(userId: string, orgId: string, id: string) {
+    const folder = await this.prisma.folder.findFirst({ where: { id, orgId } });
+    if (!folder) throw new NotFoundException("Folder not found");
+    const perm = await this.permissions.resolveForFolder(userId, id);
+    if (!perm) throw new NotFoundException("Folder not found");
+    const descendants = await this.getDescendantFolderIds(id);
+    const count = await this.prisma.resource.count({
+      where: { folderId: { in: [id, ...descendants] } },
+    });
+    return { count };
+  }
 }

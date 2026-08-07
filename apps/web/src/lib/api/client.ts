@@ -308,6 +308,9 @@ export const apiClient = {
   revokeFolderGroupShare: (id: string, groupId: string) =>
     api(`/folders/${id}/share/group/${groupId}`, { method: "DELETE" }),
 
+  getFolderDescendantCount: (id: string) =>
+    api<{ count: number }>(`/folders/${id}/descendant-count`),
+
   // ── Tags ───────────────────────────────────────────────────────────
 
   listTags: () => api<Tag[]>("/tags"),
@@ -638,6 +641,7 @@ export interface Folder {
   groupId: string | null;
   sortOrder: number;
   myPermission?: "READ" | "UPDATE" | "OWNER" | null;
+  descendantCount?: number;
   createdAt: string;
 }
 
