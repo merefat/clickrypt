@@ -266,6 +266,7 @@ export default function VaultApp({
   const [activity, setActivity] = useState<ResourceActivityItem[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentInput, setCommentInput] = useState("");
+  const [descriptionDraft, setDescriptionDraft] = useState("");
   const [sections, setSections] = useState({
     password: true,
     note: true,
@@ -366,6 +367,29 @@ export default function VaultApp({
     }
     loadComments(selectedResource.id);
   }, [selectedResource]);
+
+  useEffect(() => {
+    setDescriptionDraft((selectedResource?.metadata?.description as string) ?? "");
+  }, [selectedResource]);
+
+  const saveDescription = async () => {
+    if (!selectedResource) return;
+    const metadata = { ...(selectedResource.metadata ?? {}), description: descriptionDraft };
+    await apiClient.updateResource(selectedResource.id, { metadata });
+    onRefresh();
+  };
+
+  const attachTag = async (tagId: string) => {
+    if (!selectedResource) return;
+    await apiClient.attachTag(selectedResource.id, tagId);
+    onRefresh();
+  };
+
+  const detachTag = async (tagId: string) => {
+    if (!selectedResource) return;
+    await apiClient.detachTag(selectedResource.id, tagId);
+    onRefresh();
+  };
 
   const folderMenu = useMemo(() => {
     if (contextMenu?.type !== "folder") return [];
@@ -759,19 +783,59 @@ export default function VaultApp({
                     </Section>
 
                     <Section title="Description" icon={FileText} open={sections.description} onToggle={() => setSections((s) => ({ ...s, description: !s.description }))}>
-                      <p className="text-[13px] text-slate-500">No description provided.</p>
+                      <div className="space-y-2">
+                        <textarea
+                          value={descriptionDraft}
+                          onChange={(e) => setDescriptionDraft(e.target.value)}
+                          disabled={!canEditResource}
+                          placeholder="Add a description…"
+                          className="min-h-[80px] w-full rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-[13px] text-slate-200 placeholder:text-slate-600 focus:border-indigo-500 focus:outline-none disabled:opacity-50"
+                        />
+                        {canEditResource && (
+                          <button
+                            onClick={saveDescription}
+                            className="rounded-lg bg-indigo-500 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-indigo-400 transition-colors"
+                          >
+                            Save
+                          </button>
+                        )}
+                      </div>
                     </Section>
 
                     <Section title="Tags" icon={TagIcon} open={sections.tags} onToggle={() => setSections((s) => ({ ...s, tags: !s.tags }))}>
-                      {selectedResource.tags.length === 0 ? (
-                        <p className="text-[13px] text-slate-500">No tags on this resource.</p>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {selectedResource.tags.map((t) => (
-                            <span key={t.id} className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-300">{t.name}</span>
-                          ))}
-                        </div>
-                      )}
+                      <div className="space-y-2">
+                        {canEditResource && tags.length > 0 && (
+                          <select
+                            onChange={(e) => { if (e.target.value) { attachTag(e.target.value); e.target.value = ""; } }}
+                            className="w-full rounded-lg border border-slate-700 bg-slate-900/70 px-2 py-1.5 text-[13px] text-slate-200 focus:border-indigo-500 focus:outline-none"
+                            defaultValue=""
+                          >
+                            <option value="" disabled>Add a tag…</option>
+                            {tags
+                              .filter((t) => !selectedResource.tags.some((rt) => rt.id === t.id))
+                              .map((t) => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                              ))}
+                          </select>
+                        )}
+                        {selectedResource.tags.length === 0 ? (
+                          <p className="text-[13px] text-slate-500">No tags on this resource.</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {selectedResource.tags.map((t) => (
+                              <button
+                                key={t.id}
+                                disabled={!canEditResource}
+                                onClick={() => detachTag(t.id)}
+                                className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-300 hover:bg-red-500/20 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                title={canEditResource ? "Click to remove" : undefined}
+                              >
+                                {t.name} {canEditResource && "×"}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </Section>
 
                     <Section title="Comments" icon={MessageSquare} open={sections.comments} onToggle={() => setSections((s) => ({ ...s, comments: !s.comments }))}>
