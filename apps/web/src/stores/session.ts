@@ -36,8 +36,6 @@ interface SessionState {
   email: string | null;
   /** Whether the vault is unlocked. */
   unlocked: boolean;
-  /** Lock timer ID for auto-lock. */
-  lockTimer: ReturnType<typeof setTimeout> | null;
   /** Deployment mode: "self-hosted" or "organization". */
   deploymentMode: "self-hosted" | "organization";
   /** Current user's org role. */
@@ -88,11 +86,14 @@ export function clearCallbackUrl(): void {
   window.sessionStorage.removeItem(CALLBACK_URL_KEY);
 }
 
+// Module-scoped timer so that reseting the lock timer does not
+// trigger a Zustand state update and re-render the whole app.
+let lockTimerId: ReturnType<typeof setTimeout> | null = null;
+
 export const useSessionStore = create<SessionState>((set, get) => ({
   privateKey: null,
   email: null,
   unlocked: false,
-  lockTimer: null,
   deploymentMode: "organization",
   orgRole: null,
   userId: null,
@@ -107,33 +108,32 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setAvatar: (avatar) => set({ avatarBase64: avatar }),
 
   unlock: (privateKey, email) => {
-    const existing = get().lockTimer;
-    if (existing) clearTimeout(existing);
-    const timer = setTimeout(() => get().lock(), AUTO_LOCK_MS);
+    if (lockTimerId) clearTimeout(lockTimerId);
+    lockTimerId = setTimeout(() => get().lock(), AUTO_LOCK_MS);
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem(SS_EMAIL_KEY, email);
     }
     addSavedEmail(email);
-    set({ privateKey, email, unlocked: true, lockTimer: timer });
+    set({ privateKey, email, unlocked: true });
   },
 
   lock: () => {
-    const existing = get().lockTimer;
-    if (existing) clearTimeout(existing);
+    if (lockTimerId) clearTimeout(lockTimerId);
+    lockTimerId = null;
     if (typeof window !== "undefined") {
       window.sessionStorage.removeItem(SS_EMAIL_KEY);
     }
     // Zeroize the private key — overwrite with empty string first to be
     // slightly more aggressive about memory clearing before nulling.
-    set({ privateKey: null, unlocked: false, lockTimer: null });
+    set({ privateKey: null, unlocked: false });
   },
 
   resetLockTimer: () => {
-    const existing = get().lockTimer;
-    if (existing) clearTimeout(existing);
+    if (lockTimerId) clearTimeout(lockTimerId);
     if (get().unlocked) {
-      const timer = setTimeout(() => get().lock(), AUTO_LOCK_MS);
-      set({ lockTimer: timer });
+      lockTimerId = setTimeout(() => get().lock(), AUTO_LOCK_MS);
+    } else {
+      lockTimerId = null;
     }
   },
 }));

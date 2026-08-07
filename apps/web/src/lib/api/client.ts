@@ -58,7 +58,6 @@ export async function api<T = unknown>(
     defaultHeaders["Content-Type"] = "application/json";
   }
 
-  console.log("[api]", options.method || "GET", path, options.body);
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
     headers: { ...defaultHeaders, ...headers },
@@ -232,7 +231,6 @@ export const apiClient = {
     additionalSecrets?: Record<string, string>;
     sharingMode?: "AUTO" | "RESTRICTED";
   }) => {
-    console.log("[createResource] payload:", data);
     return api<ResourceListItem>("/resources", {
       method: "POST",
       body: JSON.stringify(data),
