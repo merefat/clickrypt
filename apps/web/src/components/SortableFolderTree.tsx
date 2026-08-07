@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useMemo, memo } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -33,6 +33,44 @@ interface SortableFolderTreeProps {
   actionButtons?: (folder: FolderType) => React.ReactNode;
 }
 
+function buildLookups(folders: FolderType[]) {
+  const byId = new Map<string, FolderType>();
+  const children = new Map<string | null, FolderType[]>();
+  children.set(null, []);
+
+  for (const folder of folders) {
+    byId.set(folder.id, folder);
+    const parentKey = folder.parentFolderId ?? null;
+    if (!children.has(parentKey)) {
+      children.set(parentKey, []);
+    }
+    children.get(parentKey)!.push(folder);
+  }
+
+  for (const list of children.values()) {
+    list.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }
+
+  return { byId, children };
+}
+
+function buildDescendantSet(
+  startId: string,
+  children: Map<string | null, FolderType[]>
+): Set<string> {
+  const result = new Set<string>();
+  const stack = [startId];
+  while (stack.length) {
+    const id = stack.pop()!;
+    const list = children.get(id) ?? [];
+    for (const child of list) {
+      result.add(child.id);
+      stack.push(child.id);
+    }
+  }
+  return result;
+}
+
 export function SortableFolderTree({
   folders,
   selectedFolderId,
@@ -55,28 +93,14 @@ export function SortableFolderTree({
     })
   );
 
-  const rootFolders = folders
-    .filter((f) => !f.parentFolderId)
-    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  const { byId, children } = useMemo(() => buildLookups(folders), [folders]);
 
-  const activeFolder = activeId ? folders.find((f) => f.id === activeId) ?? null : null;
+  const activeDescendantIds = useMemo(
+    () => (activeId ? buildDescendantSet(activeId, children) : new Set<string>()),
+    [activeId, children]
+  );
 
-  function getChildren(parentId: string): FolderType[] {
-    return folders
-      .filter((f) => f.parentFolderId === parentId)
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-  }
-
-  function isDescendant(ancestorId: string, candidateId: string): boolean {
-    let current: string | null = candidateId;
-    while (current) {
-      if (current === ancestorId) return true;
-      const folder = folders.find((f) => f.id === current);
-      if (!folder || !folder.parentFolderId) break;
-      current = folder.parentFolderId;
-    }
-    return false;
-  }
+  const activeFolder = activeId ? (byId.get(activeId) ?? null) : null;
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -131,9 +155,9 @@ export function SortableFolderTree({
       const draggedId = active.id as string;
       const targetId = over.id as string;
 
-      if (isDescendant(draggedId, targetId)) return;
+      if (activeDescendantIds.has(targetId)) return;
 
-      const targetFolder = folders.find((f) => f.id === targetId);
+      const targetFolder = byId.get(targetId);
       if (!targetFolder) return;
 
       const position = currentDropTarget?.position ?? null;
@@ -143,11 +167,11 @@ export function SortableFolderTree({
 
       if (position === "inside") {
         newParentId = targetId;
-        const siblings = getChildren(targetId).filter((f) => f.id !== draggedId);
+        const siblings = (children.get(targetId) ?? []).filter((f) => f.id !== draggedId);
         newSortOrder = siblings.length;
       } else {
-        newParentId = targetFolder.parentFolderId;
-        const siblings = getChildren(newParentId ?? "__root__").filter((f) => f.id !== draggedId);
+        newParentId = targetFolder.parentFolderId ?? null;
+        const siblings = (children.get(newParentId) ?? []).filter((f) => f.id !== draggedId);
         const targetIndex = siblings.findIndex((f) => f.id === targetId);
         if (targetIndex === -1) {
           newSortOrder = siblings.length;
@@ -160,8 +184,15 @@ export function SortableFolderTree({
 
       onReorder(draggedId, newParentId, newSortOrder);
     },
-    [folders, onReorder]
+    [activeDescendantIds, byId, children, onReorder]
   );
+
+  const handleDragCancel = useCallback(() => {
+    setActiveId(null);
+    setDropTarget(null);
+    dropTargetRef.current = null;
+    pointerOffsetRef.current = null;
+  }, []);
 
   const setItemRef = useCallback((id: string, el: HTMLDivElement | null) => {
     if (el) {
@@ -171,38 +202,50 @@ export function SortableFolderTree({
     }
   }, []);
 
-  function renderFolderGroup(parentId: string | null, depth: number): React.ReactNode {
-    const siblings = parentId
-      ? getChildren(parentId)
-      : rootFolders;
+  const renderFolderGroup = useCallback(
+    function renderFolderGroup(parentId: string | null, depth: number): React.ReactNode {
+      const siblings = children.get(parentId) ?? [];
+      if (siblings.length === 0) return null;
 
-    if (siblings.length === 0) return null;
-
-    return (
-      <SortableContext items={siblings.map((f) => f.id)} strategy={verticalListSortingStrategy}>
-        {siblings.map((folder) => (
-          <SortableFolderItem
-            key={folder.id}
-            folder={folder}
-            depth={depth}
-            isSelected={selectedFolderId === folder.id}
-            isExpanded={expandedFolders.has(folder.id)}
-            onSelect={onSelectFolder}
-            onToggleExpand={onToggleExpand}
-            actionButtons={actionButtons}
-            dropTarget={dropTarget}
-            isDragging={activeId === folder.id}
-            isDescendantOfActive={activeId ? isDescendant(activeId, folder.id) : false}
-            setItemRef={setItemRef}
-          >
-            {expandedFolders.has(folder.id) && (
-              <div className="pl-2">{renderFolderGroup(folder.id, depth + 1)}</div>
-            )}
-          </SortableFolderItem>
-        ))}
-      </SortableContext>
-    );
-  }
+      return (
+        <SortableContext items={siblings.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+          {siblings.map((folder) => (
+            <MemoizedSortableFolderItem
+              key={folder.id}
+              folder={folder}
+              depth={depth}
+              isSelected={selectedFolderId === folder.id}
+              isExpanded={expandedFolders.has(folder.id)}
+              onSelect={onSelectFolder}
+              onToggleExpand={onToggleExpand}
+              actionButtons={actionButtons}
+              dropTargetId={dropTarget?.id ?? null}
+              dropTargetPosition={dropTarget?.position ?? null}
+              isDragging={activeId === folder.id}
+              isDescendantOfActive={activeDescendantIds.has(folder.id)}
+              setItemRef={setItemRef}
+            >
+              {expandedFolders.has(folder.id) && (
+                <div className="pl-2">{renderFolderGroup(folder.id, depth + 1)}</div>
+              )}
+            </MemoizedSortableFolderItem>
+          ))}
+        </SortableContext>
+      );
+    },
+    [
+      children,
+      selectedFolderId,
+      expandedFolders,
+      onSelectFolder,
+      onToggleExpand,
+      actionButtons,
+      dropTarget,
+      activeId,
+      activeDescendantIds,
+      setItemRef,
+    ]
+  );
 
   return (
     <DndContext
@@ -211,12 +254,7 @@ export function SortableFolderTree({
       onDragStart={handleDragStart}
       onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => {
-        setActiveId(null);
-        setDropTarget(null);
-        dropTargetRef.current = null;
-        pointerOffsetRef.current = null;
-      }}
+      onDragCancel={handleDragCancel}
     >
       <div ref={containerRef}>
         {renderFolderGroup(null, 0)}
@@ -241,7 +279,8 @@ interface SortableFolderItemProps {
   onSelect: (id: string) => void;
   onToggleExpand: (id: string) => void;
   actionButtons?: (folder: FolderType) => React.ReactNode;
-  dropTarget: { id: string; position: DropPosition } | null;
+  dropTargetId: string | null;
+  dropTargetPosition: DropPosition;
   isDragging: boolean;
   isDescendantOfActive: boolean;
   setItemRef: (id: string, el: HTMLDivElement | null) => void;
@@ -256,7 +295,8 @@ function SortableFolderItem({
   onSelect,
   onToggleExpand,
   actionButtons,
-  dropTarget,
+  dropTargetId,
+  dropTargetPosition,
   isDragging,
   isDescendantOfActive,
   setItemRef,
@@ -272,13 +312,16 @@ function SortableFolderItem({
 
   const hasChildren = React.Children.count(children) > 0;
 
-  const handleRef = useCallback((node: HTMLDivElement | null) => {
-    setNodeRef(node);
-    setItemRef(folder.id, node);
-  }, [setNodeRef, setItemRef, folder.id]);
+  const handleRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      setNodeRef(node);
+      setItemRef(folder.id, node);
+    },
+    [setNodeRef, setItemRef, folder.id]
+  );
 
-  const isDropTarget = dropTarget?.id === folder.id;
-  const dropPosition = isDropTarget ? dropTarget!.position : null;
+  const isDropTarget = dropTargetId === folder.id;
+  const dropPosition = isDropTarget ? dropTargetPosition : null;
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -343,3 +386,5 @@ function SortableFolderItem({
     </div>
   );
 }
+
+const MemoizedSortableFolderItem = memo(SortableFolderItem);

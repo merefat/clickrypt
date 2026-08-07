@@ -18,7 +18,7 @@ export class FoldersService {
     private readonly permissions: PermissionsService
   ) {}
 
-  async create(userId: string, orgId: string, dto: CreateFolderDto) {
+  async create(userId: string, orgId: string, dto: CreateFolderDto, userRole?: string) {
     // Validate groupId if provided and check membership/org-role access
     if (dto.groupId) {
       const group = await this.prisma.group.findFirst({
@@ -47,14 +47,24 @@ export class FoldersService {
       }
     }
 
+    if (!dto.groupId && userRole !== "OWNER") {
+      throw new ForbiddenException("Only the organization owner can create My Workspace folders");
+    }
+
+    const workspaceType = dto.groupId ? ("GROUP" as const) : ("PRIVATE" as const);
+
     // Validate parent folder if provided
     if (dto.parentFolderId) {
       const parent = await this.prisma.folder.findFirst({
         where: { id: dto.parentFolderId, orgId },
-        select: { id: true, groupId: true },
+        select: { id: true, groupId: true, workspaceType: true },
       });
       if (!parent) {
         throw new NotFoundException("Parent folder not found");
+      }
+
+      if (parent.workspaceType !== workspaceType) {
+        throw new BadRequestException("Parent folder must be in the same workspace");
       }
 
       // If creating a group-scoped folder, parent must be in the same group
@@ -74,7 +84,8 @@ export class FoldersService {
         orgId,
         groupId: dto.groupId ?? null,
         parentFolderId: dto.parentFolderId ?? null,
-        ...(dto.groupId ? {} : { createdBy: userId }),
+        workspaceType,
+        ...(workspaceType === "PRIVATE" ? { ownerId: userId } : {}),
       },
     });
 
@@ -86,6 +97,8 @@ export class FoldersService {
           parentFolderId: dto.parentFolderId ?? null,
           groupId: dto.groupId ?? null,
           createdBy: userId,
+          ownerId: workspaceType === "PRIVATE" ? userId : null,
+          workspaceType,
           sortOrder: siblingCount,
         },
       });
@@ -107,10 +120,12 @@ export class FoldersService {
     const where: Record<string, unknown> = { orgId };
     if (groupId) {
       where.groupId = groupId;
+      where.workspaceType = "GROUP";
     } else {
       where.groupId = null;
-      // Non-group folders are always private to their creator, regardless of role
-      where.createdBy = userId;
+      where.workspaceType = "PRIVATE";
+      // Non-group folders are always private to their owner, regardless of role
+      where.ownerId = userId;
     }
 
     const folders = await this.prisma.folder.findMany({
@@ -138,7 +153,7 @@ export class FoldersService {
     return this.list(orgId, userId, groupId);
   }
 
-  async update(userId: string, orgId: string, id: string, dto: UpdateFolderDto) {
+  async update(userId: string, orgId: string, id: string, dto: UpdateFolderDto, userRole?: string) {
     const folder = await this.prisma.folder.findFirst({
       where: { id, orgId },
     });
@@ -146,8 +161,8 @@ export class FoldersService {
       throw new NotFoundException("Folder not found");
     }
 
-    // Non-group folders are private to their creator
-    if (!folder.groupId && folder.createdBy !== userId) {
+    // Non-group folders are private to the organization owner
+    if (folder.workspaceType === "PRIVATE" && (userRole !== "OWNER" || (folder.ownerId ?? folder.createdBy) !== userId)) {
       throw new ForbiddenException("You do not own this folder");
     }
 
@@ -204,7 +219,7 @@ export class FoldersService {
     return false;
   }
 
-  async reorder(userId: string, orgId: string, id: string, dto: ReorderFolderDto) {
+  async reorder(userId: string, orgId: string, id: string, dto: ReorderFolderDto, userRole?: string) {
     const folder = await this.prisma.folder.findFirst({
       where: { id, orgId },
     });
@@ -212,8 +227,8 @@ export class FoldersService {
       throw new NotFoundException("Folder not found");
     }
 
-    // Non-group folders are private to their creator
-    if (!folder.groupId && folder.createdBy !== userId) {
+    // Non-group folders are private to the organization owner
+    if (folder.workspaceType === "PRIVATE" && (userRole !== "OWNER" || (folder.ownerId ?? folder.createdBy) !== userId)) {
       throw new ForbiddenException("You do not own this folder");
     }
 
@@ -246,7 +261,8 @@ export class FoldersService {
         groupId: folder.groupId,
         parentFolderId: newParentId,
         id: { not: id },
-        ...(folder.groupId ? {} : { createdBy: userId }),
+        workspaceType: folder.workspaceType,
+        ...(folder.workspaceType === "PRIVATE" ? { ownerId: userId } : {}),
       },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
@@ -279,7 +295,7 @@ export class FoldersService {
     return updated;
   }
 
-  async delete(userId: string, orgId: string, id: string) {
+  async delete(userId: string, orgId: string, id: string, userRole?: string) {
     const folder = await this.prisma.folder.findFirst({
       where: { id, orgId },
     });
@@ -287,8 +303,8 @@ export class FoldersService {
       throw new NotFoundException("Folder not found");
     }
 
-    // Non-group folders are private to their creator
-    if (!folder.groupId && folder.createdBy !== userId) {
+    // Non-group folders are private to the organization owner
+    if (folder.workspaceType === "PRIVATE" && (userRole !== "OWNER" || (folder.ownerId ?? folder.createdBy) !== userId)) {
       throw new ForbiddenException("You do not own this folder");
     }
 

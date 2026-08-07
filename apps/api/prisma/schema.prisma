@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ── Enums ────────────────────────────────────────────────────────────
@@ -146,6 +147,7 @@ model User {
   modifiedResources Resource[]        @relation("ResourceModifier")
   ownedResources    Resource[]        @relation("ResourceOwner")
   createdFolders    Folder[]          @relation("FolderCreator")
+  ownedFolders      Folder[]          @relation("FolderOwner")
   sharesGiven       ShareHistory[]    @relation("SharedBy")
   sharesReceived    ShareHistory[]    @relation("SharedWith")
   auditLogs         AuditLog[]
@@ -213,14 +215,16 @@ model GroupUser {
 // ── Vault ────────────────────────────────────────────────────────────
 
 model Folder {
-  id             String   @id @default(uuid())
-  orgId          String   @map("org_id")
-  groupId        String?  @map("group_id")
-  parentFolderId String?  @map("parent_folder_id")
-  createdBy      String?  @map("created_by")
+  id             String        @id @default(uuid())
+  orgId          String        @map("org_id")
+  groupId        String?       @map("group_id")
+  parentFolderId String?       @map("parent_folder_id")
+  createdBy      String?       @map("created_by")
+  ownerId        String?       @map("owner_id")
+  workspaceType  WorkspaceType @default(PRIVATE) @map("workspace_type")
   name           String
-  sortOrder      Int      @default(0) @map("sort_order")
-  createdAt      DateTime @default(now()) @map("created_at")
+  sortOrder      Int           @default(0) @map("sort_order")
+  createdAt      DateTime      @default(now()) @map("created_at")
 
   org       Organization @relation(fields: [orgId], references: [id])
   group     Group?       @relation("GroupFolders", fields: [groupId], references: [id])
@@ -228,9 +232,13 @@ model Folder {
   children  Folder[]     @relation("FolderTree")
   resources Resource[]
   creator   User?        @relation("FolderCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  owner     User?        @relation("FolderOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
   @@index([orgId])
   @@index([groupId])
+  @@index([ownerId])
+  @@index([orgId, ownerId])
+  @@index([orgId, workspaceType, ownerId])
   @@index([orgId, createdBy])
   @@unique([orgId, groupId, parentFolderId, name])
   @@map("folders")
@@ -277,6 +285,9 @@ model Resource {
 
   @@index([orgId, folderId])
   @@index([orgId, groupId])
+  @@index([orgId, ownerId])
+  @@index([orgId, workspaceType])
+  @@index([orgId, workspaceType, ownerId])
   @@map("resources")
 }
 
@@ -293,6 +304,8 @@ model Secret {
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([resourceId, userId])
+  @@index([userId])
+  @@index([userId, resourceId])
   @@map("secrets")
 }
 

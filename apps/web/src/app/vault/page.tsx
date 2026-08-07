@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -206,7 +206,8 @@ export default function VaultPage() {
       // Private key is memory-only and is lost on unload.
       // Do NOT call lock() here — it wipes cp_email from sessionStorage,
       // which breaks session restoration on reload.
-      useSessionStore.setState({ privateKey: null, unlocked: false, lockTimer: null });
+      useSessionStore.setState({ privateKey: null, unlocked: false });
+      useSessionStore.getState().resetLockTimer();
     };
     document.addEventListener("mousemove", handleActivity);
     document.addEventListener("keydown", handleActivity);
@@ -236,14 +237,14 @@ export default function VaultPage() {
     toastTimer.current = setTimeout(() => setToast(null), 2000);
   }
 
-  function toggleExpandFolder(folderId: string) {
+  const toggleExpandFolder = useCallback((folderId: string) => {
     setExpandedFolders((prev) => {
       const next = new Set(prev);
       if (next.has(folderId)) next.delete(folderId);
       else next.add(folderId);
       return next;
     });
-  }
+  }, []);
 
   async function handleLogout() {
     try { await apiClient.logout(); } catch {}
@@ -405,18 +406,21 @@ export default function VaultPage() {
     setError(null);
   }
 
-  let filtered = resources;
-  if (selectedFolder) filtered = filtered.filter((r) => r.folder?.id === selectedFolder);
-  if (selectedTag) filtered = filtered.filter((r) => r.tags.some((t) => t.id === selectedTag));
-  if (showFavoritesOnly) filtered = filtered.filter((r) => favoriteIds.has(r.id));
-  if (debouncedSearch) {
-    const q = debouncedSearch.toLowerCase();
-    filtered = filtered.filter(
-      (r) => r.name.toLowerCase().includes(q) || (r.uri?.toLowerCase().includes(q) ?? false)
-    );
-  }
+  const filtered = useMemo(() => {
+    let filtered = resources;
+    if (selectedFolder) filtered = filtered.filter((r) => r.folder?.id === selectedFolder);
+    if (selectedTag) filtered = filtered.filter((r) => r.tags.some((t) => t.id === selectedTag));
+    if (showFavoritesOnly) filtered = filtered.filter((r) => favoriteIds.has(r.id));
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      filtered = filtered.filter(
+        (r) => r.name.toLowerCase().includes(q) || (r.uri?.toLowerCase().includes(q) ?? false)
+      );
+    }
+    return filtered;
+  }, [resources, selectedFolder, selectedTag, showFavoritesOnly, favoriteIds, debouncedSearch]);
 
-  async function handleReorderFolder(id: string, parentFolderId: string | null, sortOrder: number) {
+  const handleReorderFolder = useCallback(async (id: string, parentFolderId: string | null, sortOrder: number) => {
     setFolders((prev) => {
       const updated = prev.map((f) =>
         f.id === id ? { ...f, parentFolderId, sortOrder } : f
@@ -440,9 +444,9 @@ export default function VaultPage() {
       console.error("[Vault] reorderFolder failed:", err);
       loadData();
     }
-  }
+  }, [loadData]);
 
-  function renderFolderActions(folder: Folder) {
+  const renderFolderActions = useCallback((folder: Folder) => {
     return (
       <>
         <button
@@ -452,16 +456,36 @@ export default function VaultPage() {
         >
           <Key className="h-3 w-3" />
         </button>
-        <button
-          onClick={() => { setCreateFolderParent(folder.id); setCreateFolderGroupId(folder.groupId ?? null); setShowCreateFolder(true); }}
-          className="px-1.5 py-1 text-[#8ba3b8] hover:text-white"
-          title="New subfolder"
-        >
-          <FolderPlus className="h-3 w-3" />
-        </button>
+        {orgRole === "OWNER" && (
+          <button
+            onClick={() => { setCreateFolderParent(folder.id); setCreateFolderGroupId(folder.groupId ?? null); setShowCreateFolder(true); }}
+            className="px-1.5 py-1 text-[#8ba3b8] hover:text-white"
+            title="New subfolder"
+          >
+            <FolderPlus className="h-3 w-3" />
+          </button>
+        )}
+        {orgRole === "OWNER" && (
+          <button
+            onClick={async () => {
+              if (!confirm(`Delete folder "${folder.name}"? This cannot be undone.`)) return;
+              try {
+                await apiClient.deleteFolder(folder.id);
+                setSelectedFolder((prev) => (prev === folder.id ? null : prev));
+                loadData();
+              } catch (err) {
+                setError(formatApiError(err));
+              }
+            }}
+            className="px-1.5 py-1 text-[#8ba3b8] hover:text-red-400"
+            title="Delete folder"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        )}
       </>
     );
-  }
+  }, [orgRole, loadData]);
 
   if (showReUnlock) {
     return (
@@ -532,12 +556,14 @@ export default function VaultPage() {
 
                 <div className="my-1 border-t border-[#2a4055]" />
 
-                <button
-                  onClick={() => { setCreateOpen(false); setShowCreateFolder(true); }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-white hover:bg-[#1ebbd4]"
-                >
-                  <FolderPlus className="h-4 w-4" /> Folder
-                </button>
+                {orgRole === "OWNER" && (
+                  <button
+                    onClick={() => { setCreateOpen(false); setShowCreateFolder(true); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-white hover:bg-[#1ebbd4]"
+                  >
+                    <FolderPlus className="h-4 w-4" /> Folder
+                  </button>
+                )}
                 <button
                   onClick={() => { setCreateOpen(false); router.push("/import"); }}
                   className="flex w-full items-center gap-2 px-3 py-2 text-sm text-white hover:bg-[#1ebbd4]"
@@ -578,27 +604,29 @@ export default function VaultPage() {
               <Star className="h-3.5 w-3.5" /> Favorites
             </button>
           </div>
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase text-[#8ba3b8]">My Workspace</h3>
-              <button
-                onClick={() => { setCreateFolderParent(null); setShowCreateFolder(true); }}
-                className="text-[#8ba3b8] hover:text-white"
-                title="New folder"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </button>
+          {orgRole === "OWNER" && (
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase text-[#8ba3b8]">My Workspace</h3>
+                <button
+                  onClick={() => { setCreateFolderParent(null); setShowCreateFolder(true); }}
+                  className="text-[#8ba3b8] hover:text-white"
+                  title="New folder"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <SortableFolderTree
+                folders={folders}
+                selectedFolderId={selectedFolder}
+                onSelectFolder={setSelectedFolder}
+                onReorder={handleReorderFolder}
+                expandedFolders={expandedFolders}
+                onToggleExpand={toggleExpandFolder}
+                actionButtons={renderFolderActions}
+              />
             </div>
-            <SortableFolderTree
-              folders={folders}
-              selectedFolderId={selectedFolder}
-              onSelectFolder={setSelectedFolder}
-              onReorder={handleReorderFolder}
-              expandedFolders={expandedFolders}
-              onToggleExpand={toggleExpandFolder}
-              actionButtons={renderFolderActions}
-            />
-          </div>
+          )}
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase text-[#8ba3b8]">Manage</h3>
             <button onClick={() => router.push("/settings/profile")} className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-[#8ba3b8] hover:bg-[#213548]/50">

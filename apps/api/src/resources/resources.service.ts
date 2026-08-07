@@ -92,10 +92,21 @@ export class ResourcesService {
       : (creatorRole === "OWNER" && dto.sharingMode === "RESTRICTED" ? "RESTRICTED" as const : "AUTO" as const);
 
     const parentFolder = dto.folderId
-      ? await this.prisma.folder.findUnique({ where: { id: dto.folderId }, select: { orgId: true, groupId: true } })
+      ? await this.prisma.folder.findUnique({ where: { id: dto.folderId }, select: { orgId: true, groupId: true, ownerId: true, workspaceType: true } })
       : null;
     if (dto.folderId && (!parentFolder || parentFolder.orgId !== orgId)) {
       throw new BadRequestException("Folder does not exist or does not belong to this organization");
+    }
+    if (dto.folderId) {
+      if (parentFolder!.groupId) {
+        if (parentFolder!.workspaceType !== "GROUP") {
+          throw new BadRequestException("Folder must be a group folder");
+        }
+      } else {
+        if (parentFolder!.workspaceType !== "PRIVATE" || parentFolder!.ownerId !== userId) {
+          throw new BadRequestException("Private folder does not belong to you");
+        }
+      }
     }
     const folderGroupId = parentFolder?.groupId ?? null;
     const targetGroupId = dto.groupId ?? folderGroupId ?? null;
@@ -230,34 +241,16 @@ export class ResourcesService {
   }
 
   async listForUser(userId: string, orgId: string, filters?: { q?: string; folderId?: string; tagId?: string; favorite?: boolean }) {
-    // Visibility is gated on per-user Secret rows
-    const secrets = await this.prisma.secret.findMany({
-      where: {
-        userId,
-        resource: { orgId, workspaceType: "PRIVATE" },
-      },
-      select: { resourceId: true },
-    });
-    let resourceIds = secrets.map((s) => s.resourceId);
-
-    if (resourceIds.length === 0) return [];
-
-    // Filter by favorites if requested
-    if (filters?.favorite) {
-      const favs = await this.prisma.userFavorite.findMany({
-        where: { userId, resourceId: { in: resourceIds } },
-        select: { resourceId: true },
-      });
-      resourceIds = favs.map((f) => f.resourceId);
-      if (resourceIds.length === 0) return [];
-    }
-
     const andConditions: any[] = [
       { orgId },
-      { id: { in: resourceIds } },
       { workspaceType: "PRIVATE" },
       { ownerId: userId },
+      { secrets: { some: { userId } } },
     ];
+
+    if (filters?.favorite) {
+      andConditions.push({ favorites: { some: { userId } } });
+    }
 
     if (filters?.q) {
       andConditions.push({
@@ -307,8 +300,8 @@ export class ResourcesService {
       where: {
         orgId,
         OR: [
-          { groupId: { in: userGroupIds } },
-          { groupId: null, createdBy: userId },
+          { workspaceType: "GROUP", groupId: { in: userGroupIds } },
+          { workspaceType: "PRIVATE", groupId: null, ownerId: userId },
         ],
       },
       select: { id: true, name: true, parentFolderId: true, groupId: true },
@@ -380,29 +373,9 @@ export class ResourcesService {
     orgId: string,
     filters?: { q?: string; folderId?: string; tagId?: string; favorite?: boolean }
   ) {
-    const secrets = await this.prisma.secret.findMany({
-      where: {
-        userId,
-        resource: { orgId },
-      },
-      select: { resourceId: true },
-    });
-    let resourceIds = [...new Set(secrets.map((s) => s.resourceId))];
-
-    if (resourceIds.length === 0) return [];
-
-    if (filters?.favorite) {
-      const favs = await this.prisma.userFavorite.findMany({
-        where: { userId, resourceId: { in: resourceIds } },
-        select: { resourceId: true },
-      });
-      resourceIds = favs.map((f) => f.resourceId);
-      if (resourceIds.length === 0) return [];
-    }
-
     const andConditions: any[] = [
       { orgId },
-      { id: { in: resourceIds } },
+      { secrets: { some: { userId } } },
       {
         OR: [
           { workspaceType: "GROUP" },
@@ -410,6 +383,10 @@ export class ResourcesService {
         ],
       },
     ];
+
+    if (filters?.favorite) {
+      andConditions.push({ favorites: { some: { userId } } });
+    }
 
     if (filters?.q) {
       andConditions.push({
@@ -457,8 +434,8 @@ export class ResourcesService {
       where: {
         orgId,
         OR: [
-          { groupId: { in: userGroupIds } },
-          { groupId: null, createdBy: userId },
+          { workspaceType: "GROUP", groupId: { in: userGroupIds } },
+          { workspaceType: "PRIVATE", groupId: null, ownerId: userId },
         ],
       },
       select: { id: true, name: true, parentFolderId: true, groupId: true },
@@ -556,7 +533,7 @@ export class ResourcesService {
       select: { id: true },
     });
     const groupFolders = await this.prisma.folder.findMany({
-      where: { orgId, groupId },
+      where: { orgId, groupId, workspaceType: "GROUP" },
       select: { id: true },
     });
     const folderResources = groupFolders.length > 0
@@ -622,7 +599,7 @@ export class ResourcesService {
     /* eslint-enable @typescript-eslint/no-explicit-any */
 
     const allFolders = (await this.prisma.folder.findMany({
-      where: { orgId, groupId },
+      where: { orgId, groupId, workspaceType: "GROUP" },
       select: { id: true, name: true, parentFolderId: true, groupId: true },
     } as any)) as any[];
 

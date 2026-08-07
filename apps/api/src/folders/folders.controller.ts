@@ -29,7 +29,7 @@ export class FoldersController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateFolderDto
   ) {
-    return this.foldersService.create(user.id, user.orgId, dto);
+    return this.foldersService.create(user.id, user.orgId, dto, user.orgRole);
   }
 
   @Get()
@@ -54,7 +54,7 @@ export class FoldersController {
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: UpdateFolderDto
   ) {
-    return this.foldersService.update(user.id, user.orgId, id, dto);
+    return this.foldersService.update(user.id, user.orgId, id, dto, user.orgRole);
   }
 
   @Put(":id/reorder")
@@ -64,7 +64,7 @@ export class FoldersController {
     @Param("id", ParseUUIDPipe) id: string,
     @Body() dto: ReorderFolderDto
   ) {
-    return this.foldersService.reorder(user.id, user.orgId, id, dto);
+    return this.foldersService.reorder(user.id, user.orgId, id, dto, user.orgRole);
   }
 
   @Delete(":id")
@@ -74,6 +74,6 @@ export class FoldersController {
     @CurrentUser() user: AuthenticatedUser,
     @Param("id", ParseUUIDPipe) id: string
   ) {
-    await this.foldersService.delete(user.id, user.orgId, id);
+    await this.foldersService.delete(user.id, user.orgId, id, user.orgRole);
   }
 }

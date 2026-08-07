@@ -34,3 +34,18 @@ Thumbs.db
 backups/
 tmp/
 *.tmp
+
+# Allow the API env file to be edited (do not commit secrets)
+!apps/api/.env
+
+# Allow the API env file to be edited (do not commit secrets)
+!apps/api/.env
+
+# Allow the API env file to be edited (do not commit secrets)
+!apps/api/.env
+
+# Allow the API env file to be edited (do not commit secrets)
+!apps/api/.env
+
+# Allow the API env file to be edited (do not commit secrets)
+!apps/api/.env
