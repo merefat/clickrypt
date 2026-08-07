@@ -251,9 +251,9 @@ export default function GroupVaultV3() {
       // Encrypt for ALL org members with public keys (not just group members)
       let recipients;
       try {
-        recipients = await apiClient.getOrgMemberKeys();
+        recipients = await apiClient.getGroupRecipients(selectedGroup.id);
       } catch (recipientsErr) {
-        throw new Error("Failed to fetch org member keys. Cannot encrypt password for the organization.");
+        throw new Error("Failed to fetch group member keys. Cannot encrypt password for the group.");
       }
       const otherMembers = recipients.filter((r: any) => r.userId !== userId);
       const membersWithKeys = otherMembers.filter((r: any) => r.publicKey);
@@ -362,7 +362,7 @@ export default function GroupVaultV3() {
     try {
       const allResources = await apiClient.listGroupResources(selectedGroup.id);
       if (allResources.length === 0) { setToast("No resources to sync"); return; }
-      const recipients = await apiClient.getOrgMemberKeys();
+      const recipients = await apiClient.getGroupRecipients(selectedGroup.id);
       const otherMembers = recipients.filter((r: any) => r.userId !== userId);
       const membersWithKeys = otherMembers.filter((r: any) => r.publicKey);
       if (membersWithKeys.length === 0) { setError("No other org members have encryption keys set up."); return; }

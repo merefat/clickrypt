@@ -118,6 +118,7 @@ export class ResourcesService {
             select: { userId: true },
           })
         : [];
+    const groupMemberIds = new Set(groupMembers.map((m: any) => m.userId));
 
     if (dto.additionalSecrets && workspaceType === "GROUP") {
       const recipientIds = Object.keys(dto.additionalSecrets).filter((id) => id !== userId);
@@ -164,9 +165,9 @@ export class ResourcesService {
             encryptedData: dto.encryptedData!,
           },
         });
-        // Create Secret rows for members that have entries in additionalSecrets
+        // Create Secret rows for group members that have entries in additionalSecrets
         for (const [memberUserId, encData] of Object.entries(dto.additionalSecrets ?? {})) {
-          if (memberUserId === userId) continue;
+          if (memberUserId === userId || !groupMemberIds.has(memberUserId)) continue;
           await tx.secret.create({
             data: {
               resourceId: created.id,
@@ -182,6 +183,16 @@ export class ResourcesService {
             acoType: "RESOURCE",
             acoId: created.id,
             level: "OWNER",
+          },
+        });
+        // Group resources are open to every member of the group
+        await tx.permission.create({
+          data: {
+            aroType: "GROUP",
+            aroId: targetGroupId,
+            acoType: "RESOURCE",
+            acoId: created.id,
+            level: "READ",
           },
         });
       } else {
@@ -375,11 +386,11 @@ export class ResourcesService {
   ) {
     const andConditions: any[] = [
       { orgId },
-      { secrets: { some: { userId } } },
       {
         OR: [
-          { workspaceType: "GROUP" },
-          { workspaceType: "PRIVATE", ownerId: userId },
+          { workspaceType: "PRIVATE", ownerId: userId, secrets: { some: { userId } } },
+          { workspaceType: "GROUP", group: { members: { some: { userId } } } },
+          { workspaceType: "GROUP", folder: { group: { members: { some: { userId } } } } },
         ],
       },
     ];
@@ -549,20 +560,10 @@ export class ResourcesService {
 
     if (allGroupResourceIds.size === 0) return [];
 
-    // Gate visibility on per-user Secret rows
-    const secrets = await this.prisma.secret.findMany({
-      where: {
-        userId,
-        resourceId: { in: [...allGroupResourceIds] },
-      },
-      select: { resourceId: true },
-    });
-    const resourceIds = secrets.map((s) => s.resourceId);
-    if (resourceIds.length === 0) return [];
-
+    // Group members can see every resource in their group; decryption is gated by getSecret
     const andConditions: any[] = [
       { orgId },
-      { id: { in: resourceIds } },
+      { id: { in: [...allGroupResourceIds] } },
       { workspaceType: "GROUP" },
     ];
 
@@ -666,14 +667,9 @@ export class ResourcesService {
       throw new NotFoundException("Resource not found");
     }
 
-    // Gate access on per-user Secret row and owner for private resources
-    if (resource.workspaceType === "PRIVATE" && resource.ownerId !== userId) {
-      throw new NotFoundException("Resource not found");
-    }
-    const secret = await this.prisma.secret.findUnique({
-      where: { resourceId_userId: { resourceId, userId } },
-    });
-    if (!secret) {
+    // Gate access on resolved permissions (group members can view metadata)
+    const perm = await this.permissions.resolveForResource(userId, resource.id);
+    if (!perm) {
       throw new NotFoundException("Resource not found");
     }
 
@@ -706,7 +702,9 @@ export class ResourcesService {
     if (!resource) {
       throw new NotFoundException("Resource not found");
     }
-    if (resource.workspaceType === "PRIVATE" && resource.ownerId !== userId) {
+
+    const perm = await this.permissions.resolveForResource(userId, resourceId);
+    if (!perm) {
       throw new NotFoundException("No secret found for this user");
     }
 

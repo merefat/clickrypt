@@ -19,7 +19,7 @@ export class PermissionsService {
   ): Promise<PermissionLevel | null> {
     const resource = await this.prisma.resource.findUnique({
       where: { id: resourceId },
-      select: { ownerId: true, workspaceType: true },
+      select: { ownerId: true, workspaceType: true, groupId: true, folder: { select: { groupId: true } } },
     });
     if (!resource) return null;
 
@@ -31,12 +31,15 @@ export class PermissionsService {
       return null;
     }
 
-    // Group resources are visible to anyone with a per-user Secret row
+    // Group resources are visible to any member of the group
     if (resource.workspaceType === "GROUP") {
-      const secret = await this.prisma.secret.findUnique({
-        where: { resourceId_userId: { resourceId, userId } },
-      });
-      return secret ? "READ" : null;
+      const groupId = resource.groupId || (resource as any).folder?.groupId;
+      if (groupId) {
+        const isMember = await this.prisma.groupUser.count({
+          where: { groupId, userId },
+        });
+        if (isMember > 0) return "READ";
+      }
     }
 
     // Check direct user permission for private resources
