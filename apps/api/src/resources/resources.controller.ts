@@ -220,4 +220,13 @@ export class ResourcesController {
   ) {
     await this.resourcesService.revokeGroupShare(user.id, id, groupId);
   }
+
+  @Get(":id/activity")
+  @ApiOperation({ summary: "List activity for a resource" })
+  getActivity(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id", ParseUUIDPipe) id: string
+  ) {
+    return this.resourcesService.getActivity(user.id, id);
+  }
 }

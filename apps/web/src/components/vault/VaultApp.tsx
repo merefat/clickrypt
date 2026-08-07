@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   ChevronDown,
@@ -38,7 +38,7 @@ import { Section } from "./Section";
 import VaultContextMenu from "./VaultContextMenu";
 import MoveDialog from "./MoveDialog";
 import { apiClient } from "@/lib/api/client";
-import type { Folder, ResourceListItem, Tag as TagType } from "@/lib/api/client";
+import type { Folder, ResourceActivityItem, ResourceListItem, Tag as TagType } from "@/lib/api/client";
 
 const PALETTE = [
   { bg: "bg-indigo-500/15", text: "text-indigo-300", ring: "ring-indigo-500/20" },
@@ -263,6 +263,7 @@ export default function VaultApp({
   } | null>(null);
   const [moveTarget, setMoveTarget] = useState<{ type: "folder" | "resource"; target: Folder | ResourceListItem } | null>(null);
   const [tab, setTab] = useState<"details" | "activity">("details");
+  const [activity, setActivity] = useState<ResourceActivityItem[]>([]);
   const [sections, setSections] = useState({
     password: true,
     note: true,
@@ -335,6 +336,15 @@ export default function VaultApp({
     setMoveTarget(null);
     onRefresh();
   };
+
+  useEffect(() => {
+    if (!selectedResource || tab !== "activity") return;
+    let cancelled = false;
+    apiClient.getResourceActivity(selectedResource.id).then((data) => {
+      if (!cancelled) setActivity(data);
+    });
+    return () => { cancelled = true; };
+  }, [selectedResource, tab]);
 
   const folderMenu = useMemo(() => {
     if (contextMenu?.type !== "folder") return [];
@@ -749,21 +759,24 @@ export default function VaultApp({
                   </>
                 ) : (
                   <div className="py-5 space-y-4">
-                    {[
-                      { icon: Pencil, text: "Password updated", time: "2 weeks ago" },
-                      { icon: Share2, text: "Shared with Back End", time: "1 month ago" },
-                      { icon: Plus, text: "Resource created", time: "3 months ago" },
-                    ].map((a, i) => (
-                      <div key={i} className="flex items-start gap-3">
-                        <div className="w-6 h-6 rounded-full bg-slate-900 ring-1 ring-slate-800 flex items-center justify-center shrink-0 mt-0.5">
-                          <a.icon className="w-3 h-3 text-slate-500" />
+                    {activity.length === 0 ? (
+                      <p className="text-[13px] text-slate-500">No activity recorded yet.</p>
+                    ) : (
+                      activity.map((a) => (
+                        <div key={a.id} className="flex items-start gap-3">
+                          <div className="w-6 h-6 rounded-full bg-slate-900 ring-1 ring-slate-800 flex items-center justify-center shrink-0 mt-0.5">
+                            <Activity className="w-3 h-3 text-slate-500" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[13px] text-slate-300">{a.action}</p>
+                            <p className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5">
+                              <Clock className="w-3 h-3" />
+                              {new Date(a.createdAt).toLocaleString()}
+                            </p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-[13px] text-slate-300">{a.text}</p>
-                          <p className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5"><Clock className="w-3 h-3" />{a.time}</p>
-                        </div>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 )}
               </div>

@@ -257,6 +257,9 @@ export const apiClient = {
   listPermissions: (id: string) =>
     api<PermissionEntry[]>(`/resources/${id}/permissions`),
 
+  getResourceActivity: (id: string) =>
+    api<ResourceActivityItem[]>(`/resources/${id}/activity`),
+
   // ── Sharing ────────────────────────────────────────────────────────
 
   shareResource: (id: string, recipients?: ShareRecipient[], groupRecipients?: GroupShareRecipient[]) =>
@@ -660,6 +663,20 @@ export interface PermissionEntry {
   firstName: string | null;
   lastName: string | null;
   groupName: string | null;
+}
+
+export interface ResourceActivityItem {
+  id: string;
+  action: string;
+  user: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+    avatarBase64: string | null;
+  } | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface ShareRecipient {

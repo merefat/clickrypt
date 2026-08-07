@@ -1233,6 +1233,26 @@ export class ResourcesService {
     return results;
   }
 
+  async getActivity(userId: string, id: string) {
+    const perm = await this.permissions.resolveForResource(userId, id);
+    if (!perm) throw new NotFoundException("Resource not found");
+
+    const entries = await this.prisma.auditLog.findMany({
+      where: { entityType: "RESOURCE", entityId: id },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      include: { user: { select: { id: true, firstName: true, lastName: true, email: true, avatarBase64: true } } },
+    });
+
+    return entries.map((e) => ({
+      id: e.id,
+      action: e.action,
+      user: e.user,
+      metadata: e.metadataJson as Record<string, unknown>,
+      createdAt: e.createdAt,
+    }));
+  }
+
   private toResourceDto(r: {
     id: string;
     name: string;
