@@ -429,6 +429,29 @@ export default function VaultPage() {
     router.push("/export");
   }
 
+  async function handleDuplicate(resource: ResourceListItem) {
+    if (!privateKey) throw new Error("Session locked");
+    try {
+      const { encryptedData } = await apiClient.getSecret(resource.id);
+      const decrypted = await decryptMessage(encryptedData, privateKey);
+      const publicKey = getPublicKeyFromPrivateKey(privateKey);
+      const newEncryptedData = await encryptMessage(decrypted.plaintext, publicKey);
+      const created = await apiClient.createResource({
+        name: `${resource.name} (copy)`,
+        folderId: resource.folder?.id,
+        encryptedData: newEncryptedData,
+        resourceType: resource.resourceType,
+      });
+      setResources((prev) => [created, ...prev]);
+      showToast(`Duplicated "${resource.name}"`);
+      return created;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Duplicate failed";
+      showToast(message);
+      throw err;
+    }
+  }
+
   function closeDetail() {
     setSelectedResource(null);
     setDecryptedSecret(null);
@@ -583,6 +606,7 @@ export default function VaultPage() {
         onLock={handleLock}
         onLogout={handleLogout}
         onExport={handleExport}
+        onDuplicate={handleDuplicate}
         onRefresh={loadData}
         email={email}
         syncConnected={syncConnected}

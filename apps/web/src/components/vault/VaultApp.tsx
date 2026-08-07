@@ -252,6 +252,7 @@ interface VaultAppProps {
   onLogout: () => void;
   onRefresh: () => void;
   onExport: () => void;
+  onDuplicate: (resource: ResourceListItem) => Promise<ResourceListItem>;
   email: string | null;
   syncConnected: boolean;
 }
@@ -284,6 +285,7 @@ export default function VaultApp({
   onLogout,
   onRefresh,
   onExport,
+  onDuplicate,
   email,
   syncConnected,
 }: VaultAppProps) {
@@ -496,6 +498,7 @@ export default function VaultApp({
       { id: "edit", label: "Edit", icon: Pencil, disabled: !canEdit, onClick: () => { onSelectResource(r); onEdit(); closeContextMenu(); } },
       { id: "share", label: "Share", icon: Share2, disabled: !canOwn, onClick: () => { onSelectResource(r); onShare(); closeContextMenu(); } },
       { id: "move", label: "Move", icon: ExternalLink, disabled: !canEdit, onClick: () => { closeContextMenu(); setMoveTarget({ type: "resource", target: r }); } },
+      { id: "duplicate", label: "Duplicate", icon: Copy, disabled: !canEdit, onClick: async () => { closeContextMenu(); await onDuplicate(r); } },
       { id: "delete", label: "Delete", icon: Trash2, danger: true, disabled: !canOwn, onClick: async () => { closeContextMenu(); if (window.confirm(`Delete "${r.name}"?`)) { await apiClient.deleteResource(r.id); onSelectResource(null); onRefresh(); } } },
     ];
   }, [contextMenu, revealedPasswords]);
