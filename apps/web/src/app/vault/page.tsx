@@ -564,8 +564,16 @@ export default function VaultPage() {
           if (type === "folder") {
             setCreateFolderParent(folderId ?? selectedFolder);
             setShowCreateFolder(true);
-          } else {
+          } else if (type === "password") {
             setShowCreate(true);
+          } else if (type === "totp") {
+            setShowCreateTotp(true);
+          } else if (type === "note") {
+            setShowCreateNote(true);
+          } else if (type === "custom") {
+            setShowCreateCustom(true);
+          } else if (type === "pin") {
+            setShowCreatePin(true);
           }
         }}
         onEdit={() => setDialogMode("edit")}
@@ -596,6 +604,50 @@ export default function VaultPage() {
           groupId={createFolderGroupId}
           onClose={() => setShowCreateFolder(false)}
           onCreated={() => { setShowCreateFolder(false); loadData(); }}
+        />
+      )}
+
+      {showCreateTotp && (
+        <CreateTotpDialog
+          folders={folders}
+          privateKey={privateKey}
+          defaultFolderId={selectedFolder}
+          orgRole={orgRole}
+          onClose={() => setShowCreateTotp(false)}
+          onCreated={() => { setShowCreateTotp(false); refreshResources(); }}
+        />
+      )}
+
+      {showCreateNote && (
+        <CreateNoteDialog
+          folders={folders}
+          privateKey={privateKey}
+          defaultFolderId={selectedFolder}
+          orgRole={orgRole}
+          onClose={() => setShowCreateNote(false)}
+          onCreated={() => { setShowCreateNote(false); refreshResources(); }}
+        />
+      )}
+
+      {showCreateCustom && (
+        <CreateCustomFieldsDialog
+          folders={folders}
+          privateKey={privateKey}
+          defaultFolderId={selectedFolder}
+          orgRole={orgRole}
+          onClose={() => setShowCreateCustom(false)}
+          onCreated={() => { setShowCreateCustom(false); refreshResources(); }}
+        />
+      )}
+
+      {showCreatePin && (
+        <CreatePinDialog
+          folders={folders}
+          privateKey={privateKey}
+          defaultFolderId={selectedFolder}
+          orgRole={orgRole}
+          onClose={() => setShowCreatePin(false)}
+          onCreated={() => { setShowCreatePin(false); refreshResources(); }}
         />
       )}
 

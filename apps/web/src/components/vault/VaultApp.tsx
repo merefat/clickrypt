@@ -243,7 +243,7 @@ interface VaultAppProps {
   onQueryChange: (q: string) => void;
   favoriteIds: Set<string>;
   onToggleFavorite: (id: string, next: boolean) => Promise<void>;
-  onCreate: (type: "folder" | "password", folderId?: string | null) => void;
+  onCreate: (type: "folder" | "password" | "totp" | "note" | "custom" | "pin", folderId?: string | null) => void;
   onEdit: () => void;
   onShare: () => void;
   onDelete: () => void;
@@ -567,6 +567,30 @@ export default function VaultApp({
                     className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-indigo-500/20"
                   >
                     <KeyRound className="w-4 h-4" /> Password
+                  </button>
+                  <button
+                    onClick={() => { setCreateOpen(false); onCreate("totp"); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-indigo-500/20"
+                  >
+                    <Clock className="w-4 h-4" /> TOTP
+                  </button>
+                  <button
+                    onClick={() => { setCreateOpen(false); onCreate("note"); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-indigo-500/20"
+                  >
+                    <StickyNote className="w-4 h-4" /> Note
+                  </button>
+                  <button
+                    onClick={() => { setCreateOpen(false); onCreate("custom"); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-indigo-500/20"
+                  >
+                    <FileText className="w-4 h-4" /> Custom
+                  </button>
+                  <button
+                    onClick={() => { setCreateOpen(false); onCreate("pin"); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-indigo-500/20"
+                  >
+                    <Lock className="w-4 h-4" /> PIN
                   </button>
                   <button
                     onClick={() => { setCreateOpen(false); onCreate("folder"); }}
