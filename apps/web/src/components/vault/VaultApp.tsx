@@ -36,6 +36,7 @@ import { CopyButton } from "./CopyButton";
 import { SecretText } from "./SecretText";
 import { Section } from "./Section";
 import VaultContextMenu from "./VaultContextMenu";
+import MoveDialog from "./MoveDialog";
 import { apiClient } from "@/lib/api/client";
 import type { Folder, ResourceListItem, Tag as TagType } from "@/lib/api/client";
 
@@ -260,6 +261,7 @@ export default function VaultApp({
     type: "folder" | "resource";
     target: Folder | ResourceListItem;
   } | null>(null);
+  const [moveTarget, setMoveTarget] = useState<{ type: "folder" | "resource"; target: Folder | ResourceListItem } | null>(null);
   const [tab, setTab] = useState<"details" | "activity">("details");
   const [sections, setSections] = useState({
     password: true,
@@ -296,6 +298,23 @@ export default function VaultApp({
 
   const activeStyle = selectedResource ? rowStyle(selectedResource.id) : PALETTE[0];
 
+  function getDescendantFolderIds(folderId: string) {
+    const byParent = new Map<string | null, string[]>();
+    for (const f of folders) {
+      const key = f.parentFolderId ?? null;
+      if (!byParent.has(key)) byParent.set(key, []);
+      byParent.get(key)!.push(f.id);
+    }
+    const result: string[] = [];
+    const queue = [...(byParent.get(folderId) ?? [])];
+    while (queue.length) {
+      const current = queue.shift()!;
+      result.push(current);
+      queue.push(...(byParent.get(current) ?? []));
+    }
+    return result;
+  }
+
   const openContextMenu = (type: "folder" | "resource", target: Folder | ResourceListItem) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -303,6 +322,19 @@ export default function VaultApp({
   };
 
   const closeContextMenu = () => setContextMenu(null);
+
+  const handleMove = async (targetFolderId: string | null) => {
+    if (!moveTarget) return;
+    if (moveTarget.type === "folder") {
+      const f = moveTarget.target as Folder;
+      await apiClient.updateFolder(f.id, { parentFolderId: targetFolderId });
+    } else {
+      const r = moveTarget.target as ResourceListItem;
+      await apiClient.updateResource(r.id, { folderId: targetFolderId ?? undefined });
+    }
+    setMoveTarget(null);
+    onRefresh();
+  };
 
   const folderMenu = useMemo(() => {
     if (contextMenu?.type !== "folder") return [];
@@ -313,6 +345,7 @@ export default function VaultApp({
       { id: "open", label: "Open", icon: FolderOpen, onClick: () => { onSelectFolder(f.id); onSelectResource(null); closeContextMenu(); } },
       { id: "new-password", label: "New password", icon: KeyRound, onClick: () => { onCreate("password", f.id); closeContextMenu(); } },
       { id: "new-folder", label: "New subfolder", icon: FolderPlus, onClick: () => { onCreate("folder", f.id); closeContextMenu(); } },
+      { id: "move", label: "Move", icon: ExternalLink, disabled: !canEdit, onClick: () => { closeContextMenu(); setMoveTarget({ type: "folder", target: f }); } },
       { id: "rename", label: "Rename", icon: Pencil, disabled: !canEdit, onClick: async () => { closeContextMenu(); const name = window.prompt("Rename folder", f.name); if (name && name !== f.name) { await apiClient.updateFolder(f.id, { name }); onRefresh(); } } },
       { id: "delete", label: "Delete", icon: Trash2, danger: true, disabled: !canOwn, onClick: async () => { closeContextMenu(); if (window.confirm(`Delete folder "${f.name}" and its contents?`)) { await apiClient.deleteFolder(f.id); onSelectFolder(null); onRefresh(); } } },
     ];
@@ -332,6 +365,7 @@ export default function VaultApp({
       { id: "copy-uri", label: "Copy URI", icon: ExternalLink, onClick: () => { closeContextMenu(); if (r.uri) navigator.clipboard.writeText(r.uri); } },
       { id: "edit", label: "Edit", icon: Pencil, disabled: !canEdit, onClick: () => { onSelectResource(r); onEdit(); closeContextMenu(); } },
       { id: "share", label: "Share", icon: Share2, disabled: !canOwn, onClick: () => { onSelectResource(r); onShare(); closeContextMenu(); } },
+      { id: "move", label: "Move", icon: ExternalLink, disabled: !canEdit, onClick: () => { closeContextMenu(); setMoveTarget({ type: "resource", target: r }); } },
       { id: "delete", label: "Delete", icon: Trash2, danger: true, disabled: !canOwn, onClick: async () => { closeContextMenu(); if (window.confirm(`Delete "${r.name}"?`)) { await apiClient.deleteResource(r.id); onSelectResource(null); onRefresh(); } } },
     ];
   }, [contextMenu, revealedPasswords]);
@@ -749,6 +783,26 @@ export default function VaultApp({
       )}
       {contextMenu && contextMenu.type === "resource" && (
         <VaultContextMenu x={contextMenu.x} y={contextMenu.y} items={resourceMenu} onClose={closeContextMenu} />
+      )}
+      {moveTarget && moveTarget.type === "folder" && (
+        <MoveDialog
+          title={`Move folder "${(moveTarget.target as Folder).name}"`}
+          folders={folders}
+          currentId={(moveTarget.target as Folder).parentFolderId}
+          excludedIds={[(moveTarget.target as Folder).id, ...getDescendantFolderIds((moveTarget.target as Folder).id)]}
+          onClose={() => setMoveTarget(null)}
+          onMove={handleMove}
+        />
+      )}
+      {moveTarget && moveTarget.type === "resource" && (
+        <MoveDialog
+          title={`Move "${(moveTarget.target as ResourceListItem).name}"`}
+          folders={folders}
+          currentId={(moveTarget.target as ResourceListItem).folder?.id ?? null}
+          excludedIds={[(moveTarget.target as ResourceListItem).folder?.id ?? ""]}
+          onClose={() => setMoveTarget(null)}
+          onMove={handleMove}
+        />
       )}
     </div>
   );
