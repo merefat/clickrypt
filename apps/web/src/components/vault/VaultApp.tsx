@@ -462,7 +462,7 @@ export default function VaultApp({
 
       <div className="flex-1 flex min-h-0">
         {/* sidebar */}
-        <aside className="w-60 shrink-0 border-r border-slate-800 flex flex-col bg-slate-950/60">
+        <aside className="hidden md:flex w-60 shrink-0 border-r border-slate-800 flex-col bg-slate-950/60">
           <div className="p-3">
             <div className="relative">
               <button
@@ -674,13 +674,24 @@ export default function VaultApp({
                     </tr>
                   );
                 })}
+                {resources.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="py-12 text-center">
+                      <div className="flex flex-col items-center gap-2 text-slate-500">
+                        <Shield className="h-8 w-8" />
+                        <p className="text-[13px]">No passwords found.</p>
+                        <p className="text-[12px]">Create a password to get started.</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         </main>
 
         {/* detail panel */}
-        <aside className="w-80 shrink-0 border-l border-slate-800 flex flex-col bg-slate-950/60">
+        <aside className="hidden xl:flex w-80 shrink-0 border-l border-slate-800 flex-col bg-slate-950/60">
           {selectedResource ? (
             <>
               <div
