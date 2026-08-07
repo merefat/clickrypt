@@ -555,9 +555,10 @@ export default function VaultPage() {
         onQueryChange={setSearch}
         favoriteIds={favoriteIds}
         onToggleFavorite={handleToggleFavorite}
-        onCreate={(type) => {
+        onCreate={(type, folderId) => {
+          setSelectedFolder(folderId ?? selectedFolder);
           if (type === "folder") {
-            setCreateFolderParent(selectedFolder);
+            setCreateFolderParent(folderId ?? selectedFolder);
             setShowCreateFolder(true);
           } else {
             setShowCreate(true);
@@ -569,6 +570,7 @@ export default function VaultPage() {
         onInfo={() => setDialogMode("info")}
         onLock={handleLock}
         onLogout={handleLogout}
+        onRefresh={loadData}
         email={email}
         syncConnected={syncConnected}
       />

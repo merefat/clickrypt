@@ -13,6 +13,7 @@ import {
   FileText,
   Folder as FolderIcon,
   FolderOpen,
+  FolderPlus,
   Home,
   Info,
   KeyRound,
@@ -34,6 +35,8 @@ import {
 import { CopyButton } from "./CopyButton";
 import { SecretText } from "./SecretText";
 import { Section } from "./Section";
+import VaultContextMenu from "./VaultContextMenu";
+import { apiClient } from "@/lib/api/client";
 import type { Folder, ResourceListItem, Tag as TagType } from "@/lib/api/client";
 
 const PALETTE = [
@@ -47,12 +50,9 @@ const PALETTE = [
   { bg: "bg-fuchsia-500/15", text: "text-fuchsia-300", ring: "ring-fuchsia-500/20" },
 ];
 
-interface TreeNodeItem {
-  id: string;
-  label: string;
+interface TreeNodeItem extends Folder {
   icon: "home" | "folder";
   children: TreeNodeItem[];
-  myPermission?: "READ" | "UPDATE" | "OWNER" | null;
 }
 
 function buildTree(folders: Folder[]): TreeNodeItem[] {
@@ -60,11 +60,21 @@ function buildTree(folders: Folder[]): TreeNodeItem[] {
   const children = new Map<string | null, TreeNodeItem[]>();
   children.set(null, []);
 
-  const home: TreeNodeItem = { id: "home", label: "Home", icon: "home", children: [], myPermission: null };
+  const home: TreeNodeItem = {
+    id: "home",
+    name: "Home",
+    icon: "home",
+    children: [],
+    parentFolderId: null,
+    groupId: null,
+    sortOrder: 0,
+    createdAt: "",
+    myPermission: null,
+  };
   children.get(null)!.push(home);
 
   for (const f of folders) {
-    const node: TreeNodeItem = { id: f.id, label: f.name, icon: "folder", children: [], myPermission: f.myPermission };
+    const node: TreeNodeItem = { ...f, icon: "folder", children: [] };
     byId.set(f.id, node);
     const key = f.parentFolderId ?? null;
     if (!children.has(key)) children.set(key, []);
@@ -88,6 +98,7 @@ function TreeNode({
   toggle,
   activeId,
   onSelect,
+  onContextMenu,
 }: {
   node: TreeNodeItem;
   depth: number;
@@ -95,6 +106,7 @@ function TreeNode({
   toggle: (id: string) => void;
   activeId: string | null;
   onSelect: (id: string) => void;
+  onContextMenu?: (node: TreeNodeItem) => (e: React.MouseEvent) => void;
 }) {
   const hasChildren = node.children.length > 0;
   const open = !!openMap[node.id];
@@ -105,6 +117,7 @@ function TreeNode({
     <div>
       <button
         onClick={() => onSelect(node.id)}
+        onContextMenu={onContextMenu ? onContextMenu(node) : undefined}
         className={`group w-full flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-150
           ${isActive ? "bg-indigo-500/10 text-indigo-200" : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-100"}`}
         style={{ paddingLeft: 8 + depth * 14 }}
@@ -120,7 +133,7 @@ function TreeNode({
           <ChevronDown className="w-3 h-3" style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }} />
         </span>
         <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-indigo-300" : "text-slate-500 group-hover:text-slate-300"}`} />
-        <span className="truncate">{node.label}</span>
+        <span className="truncate">{node.name}</span>
         {isActive && <span className="ml-auto w-1 h-1 rounded-full bg-indigo-400" />}
       </button>
       {hasChildren && (
@@ -144,6 +157,7 @@ function TreeNode({
                 toggle={toggle}
                 activeId={activeId}
                 onSelect={onSelect}
+                onContextMenu={onContextMenu}
               />
             ))}
           </div>
@@ -190,13 +204,14 @@ interface VaultAppProps {
   onQueryChange: (q: string) => void;
   favoriteIds: Set<string>;
   onToggleFavorite: (id: string, e: React.MouseEvent) => void;
-  onCreate: (type: "folder" | "password") => void;
+  onCreate: (type: "folder" | "password", folderId?: string | null) => void;
   onEdit: () => void;
   onShare: () => void;
   onDelete: () => void;
   onInfo: () => void;
   onLock: () => void;
   onLogout: () => void;
+  onRefresh: () => void;
   email: string | null;
   syncConnected: boolean;
 }
@@ -227,6 +242,7 @@ export default function VaultApp({
   onInfo,
   onLock,
   onLogout,
+  onRefresh,
   email,
   syncConnected,
 }: VaultAppProps) {
@@ -238,6 +254,12 @@ export default function VaultApp({
     return initial;
   });
   const [createOpen, setCreateOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    type: "folder" | "resource";
+    target: Folder | ResourceListItem;
+  } | null>(null);
   const [tab, setTab] = useState<"details" | "activity">("details");
   const [sections, setSections] = useState({
     password: true,
@@ -273,6 +295,46 @@ export default function VaultApp({
   const canOwnResource = selectedResource?.myPermission === "OWNER";
 
   const activeStyle = selectedResource ? rowStyle(selectedResource.id) : PALETTE[0];
+
+  const openContextMenu = (type: "folder" | "resource", target: Folder | ResourceListItem) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, type, target });
+  };
+
+  const closeContextMenu = () => setContextMenu(null);
+
+  const folderMenu = useMemo(() => {
+    if (contextMenu?.type !== "folder") return [];
+    const f = contextMenu.target as Folder;
+    const canEdit = f.myPermission === "OWNER" || f.myPermission === "UPDATE";
+    const canOwn = f.myPermission === "OWNER";
+    return [
+      { id: "open", label: "Open", icon: FolderOpen, onClick: () => { onSelectFolder(f.id); onSelectResource(null); closeContextMenu(); } },
+      { id: "new-password", label: "New password", icon: KeyRound, onClick: () => { onCreate("password", f.id); closeContextMenu(); } },
+      { id: "new-folder", label: "New subfolder", icon: FolderPlus, onClick: () => { onCreate("folder", f.id); closeContextMenu(); } },
+      { id: "rename", label: "Rename", icon: Pencil, disabled: !canEdit, onClick: async () => { closeContextMenu(); const name = window.prompt("Rename folder", f.name); if (name && name !== f.name) { await apiClient.updateFolder(f.id, { name }); onRefresh(); } } },
+      { id: "delete", label: "Delete", icon: Trash2, danger: true, disabled: !canOwn, onClick: async () => { closeContextMenu(); if (window.confirm(`Delete folder "${f.name}" and its contents?`)) { await apiClient.deleteFolder(f.id); onSelectFolder(null); onRefresh(); } } },
+    ];
+  }, [contextMenu]);
+
+  const resourceMenu = useMemo(() => {
+    if (contextMenu?.type !== "resource") return [];
+    const r = contextMenu.target as ResourceListItem;
+    const canEdit = r.myPermission === "OWNER" || r.myPermission === "UPDATE";
+    const canOwn = r.myPermission === "OWNER";
+    const username = (r.metadata as Record<string, string>)?.username ?? "";
+    const password = revealedPasswords[r.id] ?? "";
+    return [
+      { id: "open", label: "Open", icon: FolderOpen, onClick: () => { onSelectResource(r); closeContextMenu(); } },
+      { id: "copy-username", label: "Copy username", icon: Copy, onClick: () => { closeContextMenu(); if (username) navigator.clipboard.writeText(username); } },
+      { id: "copy-password", label: "Copy password", icon: password ? Copy : Eye, onClick: () => { closeContextMenu(); if (password) navigator.clipboard.writeText(password); } },
+      { id: "copy-uri", label: "Copy URI", icon: ExternalLink, onClick: () => { closeContextMenu(); if (r.uri) navigator.clipboard.writeText(r.uri); } },
+      { id: "edit", label: "Edit", icon: Pencil, disabled: !canEdit, onClick: () => { onSelectResource(r); onEdit(); closeContextMenu(); } },
+      { id: "share", label: "Share", icon: Share2, disabled: !canOwn, onClick: () => { onSelectResource(r); onShare(); closeContextMenu(); } },
+      { id: "delete", label: "Delete", icon: Trash2, danger: true, disabled: !canOwn, onClick: async () => { closeContextMenu(); if (window.confirm(`Delete "${r.name}"?`)) { await apiClient.deleteResource(r.id); onSelectResource(null); onRefresh(); } } },
+    ];
+  }, [contextMenu, revealedPasswords]);
 
   return (
     <div className="w-full h-screen bg-slate-950 text-slate-200 flex flex-col overflow-hidden rounded-xl border border-slate-800" style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif" }}>
@@ -355,6 +417,7 @@ export default function VaultApp({
                     onSelectFolder(id === "home" ? null : id);
                     onSelectResource(null);
                   }}
+                  onContextMenu={(target) => openContextMenu("folder", target as Folder)}
                 />
               ))}
             </div>
@@ -453,6 +516,7 @@ export default function VaultApp({
                     <tr
                       key={r.id}
                       onClick={() => onSelectResource(r)}
+                      onContextMenu={openContextMenu("resource", r)}
                       className={`group border-b border-slate-900 cursor-pointer transition-colors
                         ${isActive ? "bg-indigo-500/10" : "hover:bg-slate-900/70"}`}
                       style={{ borderLeft: isActive ? "2px solid #6366f1" : "2px solid transparent" }}
@@ -680,6 +744,12 @@ export default function VaultApp({
           )}
         </aside>
       </div>
+      {contextMenu && contextMenu.type === "folder" && (
+        <VaultContextMenu x={contextMenu.x} y={contextMenu.y} items={folderMenu} onClose={closeContextMenu} />
+      )}
+      {contextMenu && contextMenu.type === "resource" && (
+        <VaultContextMenu x={contextMenu.x} y={contextMenu.y} items={resourceMenu} onClose={closeContextMenu} />
+      )}
     </div>
   );
 }
