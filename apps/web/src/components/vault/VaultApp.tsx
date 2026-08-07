@@ -39,6 +39,7 @@ import { SecretText } from "./SecretText";
 import { Section } from "./Section";
 import VaultContextMenu from "./VaultContextMenu";
 import MoveDialog from "./MoveDialog";
+import { InlineRenameField } from "./InlineRenameField";
 import { apiClient } from "@/lib/api/client";
 import type { Comment, Folder, ResourceActivityItem, ResourceListItem, Tag as TagType } from "@/lib/api/client";
 
@@ -102,6 +103,9 @@ function TreeNode({
   activeId,
   onSelect,
   onContextMenu,
+  renamingFolderId,
+  onRenameCommit,
+  onRenameCancel,
 }: {
   node: TreeNodeItem;
   depth: number;
@@ -110,35 +114,63 @@ function TreeNode({
   activeId: string | null;
   onSelect: (id: string) => void;
   onContextMenu?: (node: TreeNodeItem) => (e: React.MouseEvent) => void;
+  renamingFolderId: string | null;
+  onRenameCommit: (id: string, newName: string) => Promise<void>;
+  onRenameCancel: () => void;
 }) {
   const hasChildren = node.children.length > 0;
   const open = !!openMap[node.id];
   const Icon = node.icon === "home" ? Home : open ? FolderOpen : FolderIcon;
   const isActive = activeId === node.id;
+  const isRenaming = renamingFolderId === node.id;
+  const canRename = node.myPermission === "OWNER" || node.myPermission === "UPDATE";
+
+  const rowClasses = `group w-full flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-150
+    ${isActive ? "bg-indigo-500/10 text-indigo-200" : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-100"}`;
+  const iconColor = `w-3.5 h-3.5 shrink-0 ${isActive ? "text-indigo-300" : "text-slate-500 group-hover:text-slate-300"}`;
 
   return (
     <div>
-      <button
-        onClick={() => onSelect(node.id)}
-        onContextMenu={onContextMenu ? onContextMenu(node) : undefined}
-        className={`group w-full flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-150
-          ${isActive ? "bg-indigo-500/10 text-indigo-200" : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-100"}`}
-        style={{ paddingLeft: 8 + depth * 14 }}
-      >
-        <span
-          onClick={(e) => {
-            e.stopPropagation();
-            if (hasChildren) toggle(node.id);
-          }}
-          className={`relative flex items-center justify-center w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform duration-200 ${!hasChildren ? "opacity-0" : ""}`}
-          style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
+      {isRenaming ? (
+        <div
+          className={rowClasses}
+          style={{ paddingLeft: 8 + depth * 14 }}
         >
-          <ChevronDown className="w-3 h-3" style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }} />
-        </span>
-        <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-indigo-300" : "text-slate-500 group-hover:text-slate-300"}`} />
-        <span className="truncate">{node.name}</span>
-        {isActive && <span className="ml-auto w-1 h-1 rounded-full bg-indigo-400" />}
-      </button>
+          <span className="w-3.5 h-3.5 shrink-0" />
+          <Icon className={iconColor} />
+          <div className="min-w-0 flex-1">
+            <InlineRenameField
+              id={node.id}
+              initialName={node.name}
+              isEditing={true}
+              onCommit={onRenameCommit}
+              onCancel={onRenameCancel}
+              canRename={canRename}
+            />
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => onSelect(node.id)}
+          onContextMenu={onContextMenu ? onContextMenu(node) : undefined}
+          className={rowClasses}
+          style={{ paddingLeft: 8 + depth * 14 }}
+        >
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              if (hasChildren) toggle(node.id);
+            }}
+            className={`relative flex items-center justify-center w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform duration-200 ${!hasChildren ? "opacity-0" : ""}`}
+            style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
+          >
+            <ChevronDown className="w-3 h-3" style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }} />
+          </span>
+          <Icon className={iconColor} />
+          <span className="truncate">{node.name}</span>
+          {isActive && <span className="ml-auto w-1 h-1 rounded-full bg-indigo-400" />}
+        </button>
+      )}
       {hasChildren && (
         <div
           className="overflow-hidden transition-[grid-template-rows] duration-200 ease-out grid"
@@ -161,6 +193,9 @@ function TreeNode({
                 activeId={activeId}
                 onSelect={onSelect}
                 onContextMenu={onContextMenu}
+                renamingFolderId={renamingFolderId}
+                onRenameCommit={onRenameCommit}
+                onRenameCancel={onRenameCancel}
               />
             ))}
           </div>
@@ -261,6 +296,7 @@ export default function VaultApp({
   });
   const [createOpen, setCreateOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -358,6 +394,19 @@ export default function VaultApp({
     onRefresh();
   };
 
+  const handleRenameCommit = async (id: string, newName: string) => {
+    const folder = folders.find((f) => f.id === id);
+    if (!folder) throw new Error("Folder not found");
+    const parentId = folder.parentFolderId ?? null;
+    const siblings = folders.filter((f) => (f.parentFolderId ?? null) === parentId && f.id !== id);
+    if (siblings.some((f) => f.name === newName)) throw new Error("A sibling folder already has that name");
+    await apiClient.updateFolder(id, { name: newName });
+    setRenamingFolderId(null);
+    onRefresh();
+  };
+
+  const handleRenameCancel = () => setRenamingFolderId(null);
+
   useEffect(() => {
     if (!selectedResource || tab !== "activity") return;
     let cancelled = false;
@@ -419,7 +468,7 @@ export default function VaultApp({
       { id: "new-password", label: "New password", icon: KeyRound, onClick: () => { onCreate("password", f.id); closeContextMenu(); } },
       { id: "new-folder", label: "New subfolder", icon: FolderPlus, onClick: () => { onCreate("folder", f.id); closeContextMenu(); } },
       { id: "move", label: "Move", icon: ExternalLink, disabled: !canEdit, onClick: () => { closeContextMenu(); setMoveTarget({ type: "folder", target: f }); } },
-      { id: "rename", label: "Rename", icon: Pencil, disabled: !canEdit, onClick: async () => { closeContextMenu(); const name = window.prompt("Rename folder", f.name); if (name && name !== f.name) { await apiClient.updateFolder(f.id, { name }); onRefresh(); } } },
+      { id: "rename", label: "Rename", icon: Pencil, disabled: !canEdit, onClick: () => { closeContextMenu(); setRenamingFolderId(f.id); } },
       { id: "delete", label: "Delete", icon: Trash2, danger: true, disabled: !canOwn, onClick: async () => { closeContextMenu(); if (window.confirm(`Delete folder "${f.name}" and its contents?`)) { await apiClient.deleteFolder(f.id); onSelectFolder(null); onRefresh(); } } },
     ];
   }, [contextMenu]);
@@ -542,6 +591,9 @@ export default function VaultApp({
                     onSelectResource(null);
                   }}
                   onContextMenu={(target) => openContextMenu("folder", target as Folder)}
+                  renamingFolderId={renamingFolderId}
+                  onRenameCommit={handleRenameCommit}
+                  onRenameCancel={handleRenameCancel}
                 />
               ))}
             </div>
