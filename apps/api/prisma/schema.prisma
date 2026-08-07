@@ -156,6 +156,7 @@ model User {
   sentInvites       Invite[]          @relation("InviteInviter")
   acceptedInvites   Invite[]          @relation("InviteAccepted")
   memberships       OrganizationMembership[]
+  comments          Comment[]
 
   @@index([orgId])
   @@map("users")
@@ -282,6 +283,7 @@ model Resource {
   tags         ResourceTag[]
   shareHistory ShareHistory[]
   favorites    UserFavorite[]
+  comments     Comment[]
 
   @@index([orgId, folderId])
   @@index([orgId, groupId])
@@ -383,6 +385,22 @@ model AuditLog {
 
   @@index([orgId, createdAt])
   @@map("audit_logs")
+}
+
+model Comment {
+  id         String   @id @default(uuid())
+  resourceId String   @map("resource_id")
+  userId     String   @map("user_id")
+  content    String
+  editedAt   DateTime? @map("edited_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId, createdAt])
+  @@map("comments")
 }
 
 model Session {

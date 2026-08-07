@@ -260,6 +260,24 @@ export const apiClient = {
   getResourceActivity: (id: string) =>
     api<ResourceActivityItem[]>(`/resources/${id}/activity`),
 
+  listComments: (resourceId: string) =>
+    api<Comment[]>(`/resources/${resourceId}/comments`),
+
+  createComment: (resourceId: string, content: string) =>
+    api<Comment>(`/resources/${resourceId}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    }),
+
+  updateComment: (id: string, content: string) =>
+    api<Comment>(`/comments/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ content }),
+    }),
+
+  deleteComment: (id: string) =>
+    api(`/comments/${id}`, { method: "DELETE" }),
+
   // ── Sharing ────────────────────────────────────────────────────────
 
   shareResource: (id: string, recipients?: ShareRecipient[], groupRecipients?: GroupShareRecipient[]) =>
@@ -677,6 +695,23 @@ export interface ResourceActivityItem {
   } | null;
   metadata: Record<string, unknown>;
   createdAt: string;
+}
+
+export interface Comment {
+  id: string;
+  content: string;
+  resourceId: string;
+  userId: string;
+  user: {
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    avatarBase64: string | null;
+  };
+  editedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ShareRecipient {

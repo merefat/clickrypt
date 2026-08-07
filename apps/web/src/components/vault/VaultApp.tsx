@@ -38,7 +38,7 @@ import { Section } from "./Section";
 import VaultContextMenu from "./VaultContextMenu";
 import MoveDialog from "./MoveDialog";
 import { apiClient } from "@/lib/api/client";
-import type { Folder, ResourceActivityItem, ResourceListItem, Tag as TagType } from "@/lib/api/client";
+import type { Comment, Folder, ResourceActivityItem, ResourceListItem, Tag as TagType } from "@/lib/api/client";
 
 const PALETTE = [
   { bg: "bg-indigo-500/15", text: "text-indigo-300", ring: "ring-indigo-500/20" },
@@ -264,6 +264,8 @@ export default function VaultApp({
   const [moveTarget, setMoveTarget] = useState<{ type: "folder" | "resource"; target: Folder | ResourceListItem } | null>(null);
   const [tab, setTab] = useState<"details" | "activity">("details");
   const [activity, setActivity] = useState<ResourceActivityItem[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentInput, setCommentInput] = useState("");
   const [sections, setSections] = useState({
     password: true,
     note: true,
@@ -345,6 +347,25 @@ export default function VaultApp({
     });
     return () => { cancelled = true; };
   }, [selectedResource, tab]);
+
+  const loadComments = (resourceId: string) => {
+    apiClient.listComments(resourceId).then((data) => setComments(data));
+  };
+
+  const handlePostComment = async () => {
+    if (!selectedResource || !commentInput.trim()) return;
+    setCommentInput("");
+    await apiClient.createComment(selectedResource.id, commentInput.trim());
+    loadComments(selectedResource.id);
+  };
+
+  useEffect(() => {
+    if (!selectedResource) {
+      setComments([]);
+      return;
+    }
+    loadComments(selectedResource.id);
+  }, [selectedResource]);
 
   const folderMenu = useMemo(() => {
     if (contextMenu?.type !== "folder") return [];
@@ -754,7 +775,46 @@ export default function VaultApp({
                     </Section>
 
                     <Section title="Comments" icon={MessageSquare} open={sections.comments} onToggle={() => setSections((s) => ({ ...s, comments: !s.comments }))}>
-                      <p className="text-[13px] text-slate-500">No comments yet.</p>
+                      <div className="space-y-3">
+                        <div className="flex items-end gap-2">
+                          <input
+                            value={commentInput}
+                            onChange={(e) => setCommentInput(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handlePostComment()}
+                            placeholder="Add a comment…"
+                            className="flex-1 rounded-lg border border-slate-700 bg-slate-900/70 px-3 py-2 text-[13px] text-slate-200 placeholder:text-slate-600 focus:border-indigo-500 focus:outline-none"
+                          />
+                          <button
+                            onClick={handlePostComment}
+                            disabled={!commentInput.trim()}
+                            className="rounded-lg bg-indigo-500 px-3 py-2 text-[13px] font-medium text-white hover:bg-indigo-400 transition-colors disabled:opacity-50"
+                          >
+                            Post
+                          </button>
+                        </div>
+                        {comments.length === 0 ? (
+                          <p className="text-[13px] text-slate-500">No comments yet.</p>
+                        ) : (
+                          <div className="space-y-3">
+                            {comments.map((c) => (
+                              <div key={c.id} className="flex gap-2.5">
+                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[10px] font-medium text-slate-300">
+                                  {c.user.firstName?.[0] ?? c.user.email[0]}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[12px] font-medium text-slate-200">
+                                      {c.user.firstName} {c.user.lastName}
+                                    </span>
+                                    <span className="text-[11px] text-slate-500">{new Date(c.createdAt).toLocaleString()}</span>
+                                  </div>
+                                  <p className="whitespace-pre-wrap text-[13px] text-slate-300">{c.content}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </Section>
                   </>
                 ) : (

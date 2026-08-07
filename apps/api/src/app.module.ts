@@ -21,6 +21,7 @@ import { RedisModule } from "./redis/redis.module";
 import { ResourcesModule } from "./resources/resources.module";
 import { SetupModule } from "./setup/setup.module";
 import { SyncModule } from "./sync/sync.module";
+import { CommentsModule } from "./comments/comments.module";
 import { TagsModule } from "./tags/tags.module";
 import { UsersModule } from "./users/users.module";
 
@@ -49,6 +50,7 @@ import { UsersModule } from "./users/users.module";
     SetupModule,
     MembershipsModule,
     InvitationsModule,
+    CommentsModule,
     HealthModule,
   ],
 })
