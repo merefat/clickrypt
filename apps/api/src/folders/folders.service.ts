@@ -8,7 +8,7 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { SyncGateway } from "../sync/sync.gateway";
 import { PermissionsService } from "../permissions/permissions.service";
-import { CreateFolderDto, UpdateFolderDto, ReorderFolderDto } from "./dto/folder.dto";
+import { CreateFolderDto, UpdateFolderDto, ReorderFolderDto, ShareFolderDto } from "./dto/folder.dto";
 
 @Injectable()
 export class FoldersService {
@@ -105,7 +105,7 @@ export class FoldersService {
       const recipientIds = folder.groupId
         ? [...new Set([...(await this.permissions.getGroupMemberIds(folder.groupId)), userId])]
         : [userId];
-      this.sync.emitToUsers(recipientIds, { type: "folder:create", entityType: "folder", entityId: folder.id, data: { id: folder.id, name: folder.name, parentFolderId: folder.parentFolderId, groupId: folder.groupId, createdAt: folder.createdAt } });
+      this.sync.emitToUsers(recipientIds, { type: "folder:create", entityType: "folder", entityId: folder.id, data: { id: folder.id, name: folder.name, parentFolderId: folder.parentFolderId, groupId: folder.groupId, ownerId: folder.ownerId, createdAt: folder.createdAt } });
       return folder;
     } catch (err: unknown) {
       // Check for Prisma unique constraint violation (P2002)
@@ -132,14 +132,15 @@ export class FoldersService {
       where,
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
-    return folders.map((f) => ({
+    return await Promise.all(folders.map(async (f) => ({
       id: f.id,
       name: f.name,
       parentFolderId: f.parentFolderId,
       groupId: f.groupId,
       sortOrder: f.sortOrder,
       createdAt: f.createdAt,
-    }));
+      myPermission: await this.permissions.resolveForFolder(userId, f.id),
+    })));
   }
 
   async listByGroup(orgId: string, userId: string, groupId: string) {
@@ -161,9 +162,9 @@ export class FoldersService {
       throw new NotFoundException("Folder not found");
     }
 
-    // Non-group folders are private to the organization owner
-    if (folder.workspaceType === "PRIVATE" && (userRole !== "OWNER" || (folder.ownerId ?? folder.createdBy) !== userId)) {
-      throw new ForbiddenException("You do not own this folder");
+    const perm = await this.permissions.resolveForFolder(userId, id);
+    if (!perm || !this.permissions.hasAtLeast(perm, "UPDATE")) {
+      throw new ForbiddenException("You don't have permission to update this folder");
     }
 
     const data: any = {};
@@ -201,7 +202,7 @@ export class FoldersService {
     const updateRecipientIds = updated.groupId
       ? [...new Set([...(await this.permissions.getGroupMemberIds(updated.groupId)), userId])]
       : [userId];
-    this.sync.emitToUsers(updateRecipientIds, { type: "folder:update", entityType: "folder", entityId: id, data: { id: updated.id, name: updated.name, parentFolderId: updated.parentFolderId, groupId: updated.groupId, createdAt: updated.createdAt } });
+    this.sync.emitToUsers(updateRecipientIds, { type: "folder:update", entityType: "folder", entityId: id, data: { id: updated.id, name: updated.name, parentFolderId: updated.parentFolderId, groupId: updated.groupId, ownerId: updated.ownerId, createdAt: updated.createdAt } });
     return updated;
   }
 
@@ -227,15 +228,19 @@ export class FoldersService {
       throw new NotFoundException("Folder not found");
     }
 
-    // Non-group folders are private to the organization owner
-    if (folder.workspaceType === "PRIVATE" && (userRole !== "OWNER" || (folder.ownerId ?? folder.createdBy) !== userId)) {
-      throw new ForbiddenException("You do not own this folder");
+    const perm = await this.permissions.resolveForFolder(userId, id);
+    if (!perm || !this.permissions.hasAtLeast(perm, "UPDATE")) {
+      throw new ForbiddenException("You don't have permission to move this folder");
     }
 
     const newParentId = dto.parentFolderId ?? null;
 
     // Validate new parent if not root
     if (newParentId) {
+      const parentPerm = await this.permissions.resolveForFolder(userId, newParentId);
+      if (!parentPerm || !this.permissions.hasAtLeast(parentPerm, "UPDATE")) {
+        throw new ForbiddenException("You don't have permission to move items into this folder");
+      }
       if (newParentId === id) {
         throw new BadRequestException("A folder cannot be its own parent");
       }
@@ -291,7 +296,7 @@ export class FoldersService {
     const recipientIds = updated!.groupId
       ? [...new Set([...(await this.permissions.getGroupMemberIds(updated!.groupId!)), userId])]
       : [userId];
-    this.sync.emitToUsers(recipientIds, { type: "folder:update", entityType: "folder", entityId: id, data: { id: updated!.id, name: updated!.name, parentFolderId: updated!.parentFolderId, groupId: updated!.groupId, sortOrder: updated!.sortOrder, createdAt: updated!.createdAt } });
+    this.sync.emitToUsers(recipientIds, { type: "folder:update", entityType: "folder", entityId: id, data: { id: updated!.id, name: updated!.name, parentFolderId: updated!.parentFolderId, groupId: updated!.groupId, ownerId: updated!.ownerId, sortOrder: updated!.sortOrder, createdAt: updated!.createdAt } });
     return updated;
   }
 
@@ -303,9 +308,9 @@ export class FoldersService {
       throw new NotFoundException("Folder not found");
     }
 
-    // Non-group folders are private to the organization owner
-    if (folder.workspaceType === "PRIVATE" && (userRole !== "OWNER" || (folder.ownerId ?? folder.createdBy) !== userId)) {
-      throw new ForbiddenException("You do not own this folder");
+    const perm = await this.permissions.resolveForFolder(userId, id);
+    if (!perm || !this.permissions.hasAtLeast(perm, "OWNER")) {
+      throw new ForbiddenException("You don't have permission to delete this folder");
     }
 
     const deleteRecipientIds = folder.groupId
@@ -313,5 +318,99 @@ export class FoldersService {
       : [userId];
     await this.prisma.folder.delete({ where: { id } });
     this.sync.emitToUsers(deleteRecipientIds, { type: "folder:delete", entityType: "folder", entityId: id });
+  }
+
+  async share(userId: string, orgId: string, id: string, dto: ShareFolderDto) {
+    const folder = await this.prisma.folder.findFirst({ where: { id, orgId } });
+    if (!folder) throw new NotFoundException("Folder not found");
+    const perm = await this.permissions.resolveForFolder(userId, id);
+    if (!perm || !this.permissions.hasAtLeast(perm, "OWNER")) {
+      throw new ForbiddenException("Only owners can share this folder");
+    }
+
+    const recipients = (dto.recipients ?? []).filter((r) => r.permission === "OWNER" || r.permission === "UPDATE" || r.permission === "READ");
+    const groupRecipients = (dto.groupRecipients ?? []).filter((g) => g.permission === "UPDATE" || g.permission === "READ");
+
+    for (const r of recipients) {
+      await this.prisma.permission.upsert({
+        where: { aroType_aroId_acoType_acoId: { aroType: "USER", aroId: r.userId, acoType: "FOLDER", acoId: id } },
+        update: { level: r.permission as any },
+        create: { aroType: "USER", aroId: r.userId, acoType: "FOLDER", acoId: id, level: r.permission as any },
+      });
+    }
+
+    for (const g of groupRecipients) {
+      await this.prisma.permission.upsert({
+        where: { aroType_aroId_acoType_acoId: { aroType: "GROUP", aroId: g.groupId, acoType: "FOLDER", acoId: id } },
+        update: { level: g.permission as any },
+        create: { aroType: "GROUP", aroId: g.groupId, acoType: "FOLDER", acoId: id, level: g.permission as any },
+      });
+    }
+  }
+
+  async listPermissions(userId: string, orgId: string, id: string) {
+    const folder = await this.prisma.folder.findFirst({ where: { id, orgId } });
+    if (!folder) throw new NotFoundException("Folder not found");
+    const perm = await this.permissions.resolveForFolder(userId, id);
+    if (!perm) throw new NotFoundException("Folder not found");
+
+    const perms = await this.prisma.permission.findMany({ where: { acoType: "FOLDER", acoId: id } });
+    const userIds = perms.filter((p) => p.aroType === "USER").map((p) => p.aroId);
+    const groupIds = perms.filter((p) => p.aroType === "GROUP").map((p) => p.aroId);
+
+    const [users, groups] = await Promise.all([
+      userIds.length > 0
+        ? this.prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, email: true, firstName: true, lastName: true },
+          })
+        : Promise.resolve([] as any[]),
+      groupIds.length > 0
+        ? this.prisma.group.findMany({
+            where: { id: { in: groupIds } },
+            select: { id: true, name: true },
+          })
+        : Promise.resolve([] as any[]),
+    ]);
+
+    const userMap = Object.fromEntries(users.map((u) => [u.id, u]));
+    const groupMap = Object.fromEntries(groups.map((g) => [g.id, g]));
+
+    return perms.map((p) => ({
+      id: p.id,
+      aroType: p.aroType,
+      aroId: p.aroId,
+      acoType: p.acoType,
+      acoId: p.acoId,
+      level: p.level,
+      email: p.aroType === "USER" ? (userMap[p.aroId]?.email ?? null) : null,
+      firstName: p.aroType === "USER" ? (userMap[p.aroId]?.firstName ?? null) : null,
+      lastName: p.aroType === "USER" ? (userMap[p.aroId]?.lastName ?? null) : null,
+      groupName: p.aroType === "GROUP" ? (groupMap[p.aroId]?.name ?? null) : null,
+    }));
+  }
+
+  async revokeShare(userId: string, orgId: string, id: string, targetUserId: string) {
+    const folder = await this.prisma.folder.findFirst({ where: { id, orgId } });
+    if (!folder) throw new NotFoundException("Folder not found");
+    const perm = await this.permissions.resolveForFolder(userId, id);
+    if (!perm || !this.permissions.hasAtLeast(perm, "OWNER")) {
+      throw new ForbiddenException("Only owners can revoke sharing");
+    }
+    await this.prisma.permission.deleteMany({
+      where: { aroType: "USER", aroId: targetUserId, acoType: "FOLDER", acoId: id },
+    });
+  }
+
+  async revokeGroupShare(userId: string, orgId: string, id: string, groupId: string) {
+    const folder = await this.prisma.folder.findFirst({ where: { id, orgId } });
+    if (!folder) throw new NotFoundException("Folder not found");
+    const perm = await this.permissions.resolveForFolder(userId, id);
+    if (!perm || !this.permissions.hasAtLeast(perm, "OWNER")) {
+      throw new ForbiddenException("Only owners can revoke sharing");
+    }
+    await this.prisma.permission.deleteMany({
+      where: { aroType: "GROUP", aroId: groupId, acoType: "FOLDER", acoId: id },
+    });
   }
 }

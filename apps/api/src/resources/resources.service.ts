@@ -281,19 +281,25 @@ export class ResourcesService {
     }
 
     /* eslint-disable @typescript-eslint/no-explicit-any */
-    const resources: any[] = await this.prisma.resource.findMany({
-      where: { AND: andConditions },
-      include: {
-        tags: { include: { tag: true } },
-        folder: { select: { id: true, name: true, parentFolderId: true, groupId: true } },
-        group: { select: { id: true, name: true } },
-        favorites: { where: { userId }, select: { resourceId: true } },
-        resourceType: { select: { name: true } },
-        creator: { select: { id: true, email: true, firstName: true, lastName: true } },
-        modifier: { select: { id: true, email: true, firstName: true, lastName: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-    } as any);
+    const [resources, userGroupIds] = await Promise.all([
+      this.prisma.resource.findMany({
+        where: { AND: andConditions },
+        include: {
+          tags: { include: { tag: true } },
+          folder: { select: { id: true, name: true, parentFolderId: true, groupId: true } },
+          group: { select: { id: true, name: true } },
+          favorites: { where: { userId }, select: { resourceId: true } },
+          resourceType: { select: { name: true } },
+          creator: { select: { id: true, email: true, firstName: true, lastName: true } },
+          modifier: { select: { id: true, email: true, firstName: true, lastName: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+      } as any) as Promise<any[]>,
+      this.prisma.groupUser.findMany({
+        where: { userId },
+        select: { groupId: true },
+      } as any).then((rows: any[]) => rows.map((g: any) => g.groupId)),
+    ]);
     /* eslint-enable @typescript-eslint/no-explicit-any */
 
     const groupIds = new Set<string>();
@@ -302,29 +308,24 @@ export class ResourcesService {
       if (r.folder?.groupId) groupIds.add(r.folder.groupId);
     }
 
-    const userGroupIds = (await this.prisma.groupUser.findMany({
-      where: { userId },
-      select: { groupId: true },
-    } as any)).map((g: any) => g.groupId);
-
-    const allFolders = (await this.prisma.folder.findMany({
-      where: {
-        orgId,
-        OR: [
-          { workspaceType: "GROUP", groupId: { in: userGroupIds } },
-          { workspaceType: "PRIVATE", groupId: null, ownerId: userId },
-        ],
-      },
-      select: { id: true, name: true, parentFolderId: true, groupId: true },
-    } as any)) as any[];
-
-    const groups =
+    const [allFolders, groups] = await Promise.all([
+      this.prisma.folder.findMany({
+        where: {
+          orgId,
+          OR: [
+            { workspaceType: "GROUP", groupId: { in: userGroupIds } },
+            { workspaceType: "PRIVATE", groupId: null, ownerId: userId },
+          ],
+        },
+        select: { id: true, name: true, parentFolderId: true, groupId: true },
+      } as any) as Promise<any[]>,
       groupIds.size > 0
-        ? (await this.prisma.group.findMany({
+        ? (this.prisma.group.findMany({
             where: { id: { in: [...groupIds] }, orgId },
             select: { id: true, name: true },
-          } as any)) as any[]
-        : [];
+          } as any) as Promise<any[]>)
+        : Promise.resolve([] as any[]),
+    ]);
 
     const folderMap: Record<string, any> = Object.fromEntries(allFolders.map((f: any) => [f.id, f]));
     const groupMap: Record<string, any> = Object.fromEntries(groups.map((g: any) => [g.id, g]));
@@ -416,19 +417,25 @@ export class ResourcesService {
       andConditions.push({ tags: { some: { tagId: filters.tagId } } });
     }
 
-    const resources: any[] = await this.prisma.resource.findMany({
-      where: { AND: andConditions },
-      include: {
-        tags: { include: { tag: true } },
-        folder: { select: { id: true, name: true, parentFolderId: true, groupId: true } },
-        group: { select: { id: true, name: true } },
-        favorites: { where: { userId }, select: { resourceId: true } },
-        resourceType: { select: { name: true } },
-        creator: { select: { id: true, email: true, firstName: true, lastName: true } },
-        modifier: { select: { id: true, email: true, firstName: true, lastName: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-    } as any);
+    const [resources, userGroupIds] = await Promise.all([
+      this.prisma.resource.findMany({
+        where: { AND: andConditions },
+        include: {
+          tags: { include: { tag: true } },
+          folder: { select: { id: true, name: true, parentFolderId: true, groupId: true } },
+          group: { select: { id: true, name: true } },
+          favorites: { where: { userId }, select: { resourceId: true } },
+          resourceType: { select: { name: true } },
+          creator: { select: { id: true, email: true, firstName: true, lastName: true } },
+          modifier: { select: { id: true, email: true, firstName: true, lastName: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+      } as any) as Promise<any[]>,
+      this.prisma.groupUser.findMany({
+        where: { userId },
+        select: { groupId: true },
+      } as any).then((rows: any[]) => rows.map((g: any) => g.groupId)),
+    ]);
 
     const groupIds = new Set<string>();
     for (const r of resources) {
@@ -436,29 +443,24 @@ export class ResourcesService {
       if (r.folder?.groupId) groupIds.add(r.folder.groupId);
     }
 
-    const userGroupIds = (await this.prisma.groupUser.findMany({
-      where: { userId },
-      select: { groupId: true },
-    } as any)).map((g: any) => g.groupId);
-
-    const allFolders = (await this.prisma.folder.findMany({
-      where: {
-        orgId,
-        OR: [
-          { workspaceType: "GROUP", groupId: { in: userGroupIds } },
-          { workspaceType: "PRIVATE", groupId: null, ownerId: userId },
-        ],
-      },
-      select: { id: true, name: true, parentFolderId: true, groupId: true },
-    } as any)) as any[];
-
-    const groups =
+    const [allFolders, groups] = await Promise.all([
+      this.prisma.folder.findMany({
+        where: {
+          orgId,
+          OR: [
+            { workspaceType: "GROUP", groupId: { in: userGroupIds } },
+            { workspaceType: "PRIVATE", groupId: null, ownerId: userId },
+          ],
+        },
+        select: { id: true, name: true, parentFolderId: true, groupId: true },
+      } as any) as Promise<any[]>,
       groupIds.size > 0
-        ? (await this.prisma.group.findMany({
+        ? (this.prisma.group.findMany({
             where: { id: { in: [...groupIds] }, orgId },
             select: { id: true, name: true },
-          } as any)) as any[]
-        : [];
+          } as any) as Promise<any[]>)
+        : Promise.resolve([] as any[]),
+    ]);
 
     const folderMap: Record<string, any> = Object.fromEntries(allFolders.map((f: any) => [f.id, f]));
     const groupMap: Record<string, any> = Object.fromEntries(groups.map((g: any) => [g.id, g]));
@@ -476,7 +478,7 @@ export class ResourcesService {
       return parts.length ? parts.join(" / ") : null;
     };
 
-    return resources.map((r: any) => {
+    return await Promise.all(resources.map(async (r: any) => {
       const groupId = r.groupId || r.folder?.groupId || null;
       const group = groupId ? groupMap[groupId] : null;
       const folder = r.folder ? { id: r.folder.id, name: r.folder.name } : null;
@@ -486,6 +488,7 @@ export class ResourcesService {
         source === "group"
           ? `${group?.name ?? "Group"}${folderPath ? " / " + folderPath : ""}`
           : (folderPath ?? null);
+      const myPermission = await this.permissions.resolveForResource(userId, r.id);
 
       return {
         id: r.id,
@@ -509,8 +512,9 @@ export class ResourcesService {
         groupId,
         groupName: group?.name ?? null,
         folderPath: location,
+        myPermission,
       };
-    });
+    }));
   }
 
   async listForGroup(
@@ -619,10 +623,11 @@ export class ResourcesService {
       return parts.length ? parts.join(" / ") : null;
     };
 
-    return resources.map((r: any) => {
+    return await Promise.all(resources.map(async (r: any) => {
       const folder = r.folder ? { id: r.folder.id, name: r.folder.name } : null;
       const folderPath = buildPath(r.folderId);
       const location = `${group.name}${folderPath ? " / " + folderPath : ""}`;
+      const myPermission = await this.permissions.resolveForResource(userId, r.id);
 
       return {
         id: r.id,
@@ -646,8 +651,9 @@ export class ResourcesService {
         groupId,
         groupName: group.name,
         folderPath: location,
+        myPermission,
       };
-    });
+    }));
   }
 
   async getOne(userId: string, resourceId: string) {
@@ -687,6 +693,7 @@ export class ResourcesService {
       })),
       metadata: resource.metadataJson,
       sharingMode: resource.sharingMode,
+      myPermission: perm,
       createdBy: resource.creator ? { email: resource.creator.email, name: `${resource.creator.firstName} ${resource.creator.lastName}` } : null,
       modifiedBy: resource.modifier ? { email: resource.modifier.email, name: `${resource.modifier.firstName} ${resource.modifier.lastName}` } : null,
       createdAt: resource.createdAt,

@@ -8,7 +8,7 @@ async function loadCrypto() {
 }
 
 async function main() {
-  // Default resource types (Phase 1 uses "password" only)
+  // Default resource types
   const resourceTypes = [
     {
       name: "password",
@@ -19,6 +19,8 @@ async function main() {
     },
     { name: "note", schemaJson: { secret: ["note"], metadata: ["name"] } },
     { name: "totp", schemaJson: { secret: ["totpSecret"], metadata: ["name", "issuer"] } },
+    { name: "custom_fields", schemaJson: { secret: ["fields"], metadata: ["name"] } },
+    { name: "pin_code", schemaJson: { secret: ["pin"], metadata: ["name", "uri"] } },
   ];
   for (const rt of resourceTypes) {
     await prisma.resourceType.upsert({

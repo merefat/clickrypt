@@ -4,23 +4,53 @@
 
 :root,
 .dark {
-  --bg: #17293c;
-  --surface: #1a3349;
-  --surface-hover: #213548;
-  --border: #2a4055;
-  --text: #e2e8f0;
-  --text-muted: #8ba3b8;
-  --text-secondary: #c4d4e0;
-  --accent: #1ebbd4;
-  --accent-hover: #1599b8;
+  --bg: #11131a;
+  --surface: #191c25;
+  --surface-hover: #212533;
+  --surface-raised: #1f2330;
+  --border: #2a2e3c;
+  --text: #edeff5;
+  --text-muted: #8d93a6;
+  --text-secondary: #8d93a6;
+  --brand: #6c6bf5;
+  --brand-hover: #5b5ad4;
+  --accent: #2dd4c8;
+  --accent-hover: #22b8af;
   --warning: #f89c11;
   --warning-hover: #d8870e;
-  --brand: #1ebbd4;
-  --brand-hover: #1599b8;
+  --success: #3ecf8e;
 }
 
 body {
   background-color: var(--bg);
   color: var(--text);
-  font-family: var(--font-sora), sans-serif;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-mono {
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2e3c;
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

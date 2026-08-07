@@ -53,34 +53,28 @@ export function useSessionRestore(): SessionRestoreResult {
       // Save current URL for redirect after unlock
       setCallbackUrl(window.location.pathname + window.location.search);
 
-      // Check if setup is needed first
-      try {
-        const setupStatus = await apiClient.getSetupStatus();
-        if (cancelled) return;
-        if (setupStatus.needsSetup) {
-          setAccessToken(null);
-          setStatus("unauthenticated");
-          router.push("/onboarding");
-          return;
-        }
-      } catch {
+      // Check setup status and validate the access token in parallel —
+      // they are independent calls, so this saves a network round trip.
+      const existingToken = getAccessToken();
+      const [setupStatus, tokenValid] = await Promise.all([
         // If setup status check fails, continue with session restore
+        apiClient.getSetupStatus().catch(() => null),
+        // Lightweight authenticated call to see if the token is still valid
+        existingToken
+          ? apiClient.me().then(() => true).catch(() => false)
+          : Promise.resolve(false),
+      ]);
+      if (cancelled) return;
+
+      if (setupStatus?.needsSetup) {
+        setAccessToken(null);
+        setStatus("unauthenticated");
+        router.push("/onboarding");
+        return;
       }
 
       // Try to validate / restore the access token
-      let hasValidToken = false;
-
-      const existingToken = getAccessToken();
-      if (existingToken) {
-        // Try a lightweight authenticated call to see if the token is still valid
-        try {
-          await apiClient.me();
-          if (cancelled) return;
-          hasValidToken = true;
-        } catch {
-          // Token might be expired — try silent refresh
-        }
-      }
+      let hasValidToken = tokenValid;
 
       if (!hasValidToken) {
         // Attempt silent refresh via httpOnly cookie

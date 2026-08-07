@@ -296,6 +296,18 @@ export const apiClient = {
   deleteFolder: (id: string) =>
     api(`/folders/${id}`, { method: "DELETE" }),
 
+  listFolderPermissions: (id: string) =>
+    api<PermissionEntry[]>(`/folders/${id}/permissions`),
+
+  shareFolder: (id: string, data: { recipients?: { userId: string; permission: "READ" | "UPDATE" | "OWNER" }[]; groupRecipients?: { groupId: string; permission: "READ" | "UPDATE" }[] }) =>
+    api(`/folders/${id}/share`, { method: "POST", body: JSON.stringify(data) }),
+
+  revokeFolderShare: (id: string, userId: string) =>
+    api(`/folders/${id}/share/${userId}`, { method: "DELETE" }),
+
+  revokeFolderGroupShare: (id: string, groupId: string) =>
+    api(`/folders/${id}/share/group/${groupId}`, { method: "DELETE" }),
+
   // ── Tags ───────────────────────────────────────────────────────────
 
   listTags: () => api<Tag[]>("/tags"),
@@ -604,6 +616,7 @@ export interface ResourceListItem {
   resourceType?: string;
   sharingMode?: "AUTO" | "RESTRICTED";
   isFavorite?: boolean;
+  myPermission?: "READ" | "UPDATE" | "OWNER" | null;
   createdBy?: { email: string; name: string } | null;
   modifiedBy?: { email: string; name: string } | null;
   createdAt: string;
@@ -624,6 +637,7 @@ export interface Folder {
   parentFolderId: string | null;
   groupId: string | null;
   sortOrder: number;
+  myPermission?: "READ" | "UPDATE" | "OWNER" | null;
   createdAt: string;
 }
 

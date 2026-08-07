@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronDown, Folder, GripVertical } from "lucide-react";
+import { ChevronRight, Folder, FolderOpen, GripVertical } from "lucide-react";
 import type { Folder as FolderType } from "@/lib/api/client";
 
 type DropPosition = "before" | "after" | "inside" | null;
@@ -339,9 +339,11 @@ function SortableFolderItem({
         <div className="h-0.5 bg-blue-500 rounded-full mx-1 mb-0.5" />
       )}
       <div
-        className={`group relative flex items-center justify-between rounded-md py-1.5 ${
-          isSelected ? "bg-[#213548] text-white" : "text-[#8ba3b8] hover:bg-[#213548]/50"
-        } ${showNestHighlight ? "ring-2 ring-blue-500 bg-blue-500/10" : ""} ${
+        className={`group relative flex items-center justify-between rounded-md py-1.5 border-l-2 transition-colors duration-150 ${
+          isSelected
+            ? "border-[var(--brand)] bg-[#6c6bf5]/10 text-[var(--text)]"
+            : "border-transparent text-[var(--text-muted)] hover:bg-[var(--surface-hover)]/60 hover:text-[var(--text)]"
+        } ${showNestHighlight ? "ring-2 ring-[var(--brand)] bg-[#6c6bf5]/10" : ""} ${
           isDescendantOfActive ? "opacity-50 pointer-events-none" : ""
         }`}
         style={{ paddingLeft: `${4 + depth * 12}px` }}
@@ -358,9 +360,12 @@ function SortableFolderItem({
           {hasChildren ? (
             <button
               onClick={() => onToggleExpand(folder.id)}
-              className="shrink-0 px-1 text-[#8ba3b8] hover:text-white"
+              className={`shrink-0 px-1 transition-colors ${isSelected ? "text-[var(--brand)]" : "text-[var(--text-muted)]"} hover:text-[var(--text)]`}
             >
-              <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? "" : "-rotate-90"}`} />
+              <ChevronRight
+                className="h-3 w-3 transition-transform duration-200"
+                style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }}
+              />
             </button>
           ) : (
             <span className="w-5 shrink-0" />
@@ -369,7 +374,11 @@ function SortableFolderItem({
             onClick={() => onSelect(folder.id)}
             className="flex flex-1 items-center gap-2 overflow-hidden text-left text-sm"
           >
-            <Folder className="h-3.5 w-3.5 shrink-0" />
+            {isExpanded ? (
+              <FolderOpen className={`h-3.5 w-3.5 shrink-0 ${isSelected ? "text-[var(--brand)]" : "text-[var(--text-muted)] group-hover:text-[var(--text)]"}`} />
+            ) : (
+              <Folder className={`h-3.5 w-3.5 shrink-0 ${isSelected ? "text-[var(--brand)]" : "text-[var(--text-muted)] group-hover:text-[var(--text)]"}`} />
+            )}
             <span className="truncate">{folder.name}</span>
           </button>
         </div>

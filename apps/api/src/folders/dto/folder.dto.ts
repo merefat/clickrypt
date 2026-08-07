@@ -51,3 +51,33 @@ export class ReorderFolderDto {
   @ApiProperty({ description: "New sort order among siblings" })
   sortOrder!: number;
 }
+
+export class ShareFolderRecipientDto {
+  @ApiProperty()
+  @IsUUID()
+  userId!: string;
+
+  @ApiProperty({ enum: ["READ", "UPDATE", "OWNER"] })
+  @IsString()
+  permission!: "READ" | "UPDATE" | "OWNER";
+}
+
+export class ShareFolderGroupDto {
+  @ApiProperty()
+  @IsUUID()
+  groupId!: string;
+
+  @ApiProperty({ enum: ["READ", "UPDATE"] })
+  @IsString()
+  permission!: "READ" | "UPDATE";
+}
+
+export class ShareFolderDto {
+  @ApiPropertyOptional({ type: [ShareFolderRecipientDto] })
+  @IsOptional()
+  recipients?: ShareFolderRecipientDto[];
+
+  @ApiPropertyOptional({ type: [ShareFolderGroupDto] })
+  @IsOptional()
+  groupRecipients?: ShareFolderGroupDto[];
+}

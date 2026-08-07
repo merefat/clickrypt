@@ -557,20 +557,26 @@ export default function GroupVaultV3() {
                               <span className="font-medium text-white">{r.name}</span>
                               <span
                                 className={`w-fit rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${
-                                  r.source === "group"
-                                    ? "bg-purple-900/50 text-purple-200"
-                                    : "bg-blue-900/50 text-blue-200"
+                                  r.resourceType === "pin_code"
+                                    ? "bg-cyan-900/50 text-cyan-200"
+                                    : r.source === "group"
+                                      ? "bg-purple-900/50 text-purple-200"
+                                      : "bg-blue-900/50 text-blue-200"
                                 }`}
                               >
-                                {r.source === "group" ? "Group" : "Workplace"}
+                                {r.resourceType === "pin_code" ? "PIN" : r.source === "group" ? "Group" : "Workplace"}
                               </span>
                             </div>
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="rounded bg-[#213548] px-2 py-0.5 text-xs text-[#c4d4e0]">
-                            {r.source === "group" ? (r.groupName ?? "Group") : "My Workplace"}
-                          </span>
+                          {r.resourceType === "pin_code" && r.source !== "group" ? (
+                            <span className="text-xs text-[#8ba3b8]">—</span>
+                          ) : (
+                            <span className="rounded bg-[#213548] px-2 py-0.5 text-xs text-[#c4d4e0]">
+                              {r.source === "group" ? (r.groupName ?? "Group") : "My Workplace"}
+                            </span>
+                          )}
                         </td>
                         <td className="max-w-[200px] truncate px-4 py-3 text-[#8ba3b8]">
                           {r.folderPath ?? "—"}

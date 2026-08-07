@@ -60,7 +60,7 @@ export function useSync({
     if (!token) return;
 
     let mounted = true;
-    const socket = io(API_BASE, {
+    const socket = io(`${API_BASE}/sync`, {
       auth: { token },
       transports: ["websocket"],
       reconnection: true,

@@ -87,6 +87,22 @@ export class PermissionsService {
     userId: string,
     folderId: string
   ): Promise<PermissionLevel | null> {
+    const folder = await this.prisma.folder.findUnique({
+      where: { id: folderId },
+      select: { id: true, workspaceType: true, groupId: true, ownerId: true, createdBy: true },
+    });
+    if (!folder) return null;
+
+    if (folder.workspaceType === "PRIVATE") {
+      if (folder.ownerId === userId || folder.createdBy === userId) return "OWNER";
+    }
+
+    const isGroupMember = folder.groupId
+      ? (await this.prisma.groupUser.count({
+          where: { groupId: folder.groupId, userId },
+        })) > 0
+      : false;
+
     const userPerm = await this.prisma.permission.findFirst({
       where: {
         aroType: "USER",
@@ -102,6 +118,10 @@ export class PermissionsService {
     });
 
     let groupLevel: PermissionLevel | null = null;
+    if (folder.groupId && isGroupMember) {
+      groupLevel = "READ";
+    }
+
     if (groupIds.length > 0) {
       const groupPerms = await this.prisma.permission.findMany({
         where: {
