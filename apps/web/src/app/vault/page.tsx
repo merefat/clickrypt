@@ -62,6 +62,7 @@ import { SecretText } from "@/components/vault/SecretText";
 import { CopyButton } from "@/components/vault/CopyButton";
 import { Section } from "@/components/vault/Section";
 import VaultApp from "@/components/vault/VaultApp";
+import { type PasswordFields } from "@/components/vault/InlineInspectorEdit";
 
 function formatApiError(err: unknown): string {
   if (err instanceof ApiError) {
@@ -434,7 +435,7 @@ export default function VaultPage() {
     try {
       const { encryptedData } = await apiClient.getSecret(resource.id);
       const decrypted = await decryptMessage(encryptedData, privateKey);
-      const publicKey = getPublicKeyFromPrivateKey(privateKey);
+      const publicKey = await getPublicKeyFromPrivateKey(privateKey);
       const newEncryptedData = await encryptMessage(decrypted.plaintext, publicKey);
       const created = await apiClient.createResource({
         name: `${resource.name} (copy)`,
@@ -450,6 +451,38 @@ export default function VaultPage() {
       showToast(message);
       throw err;
     }
+  }
+
+  async function handleInlineSave(resourceId: string, fields: PasswordFields) {
+    if (!privateKey) throw new Error("Session locked");
+    const resource = resources.find((r) => r.id === resourceId);
+    if (!resource) throw new Error("Resource not found");
+
+    const reencryptSecret = JSON.stringify({
+      username: fields.username,
+      password: fields.password,
+      notes: fields.notes,
+    });
+    const publicKey = await getPublicKeyFromPrivateKeyLocal(privateKey);
+    const encryptedData = await encryptMessage(reencryptSecret, [publicKey]);
+
+    const updateData: Record<string, unknown> = {
+      name: fields.name,
+      uri: fields.url || undefined,
+      metadata: { username: fields.username },
+      encryptedData,
+    };
+
+    if (resource.source !== "workplace") {
+      const currentUserId = useSessionStore.getState().userId;
+      updateData.additionalSecrets = await encryptForAllOrgMembers(reencryptSecret, publicKey, currentUserId);
+    }
+
+    const updated = await apiClient.updateResource(resource.id, updateData);
+    setResources((prev) => prev.map((r) => (r.id === resourceId ? { ...r, ...updated } : r)));
+    setSelectedResource((prev) => (prev?.id === resourceId ? ({ ...prev, ...updated } as ResourceListItem) : prev));
+    const refreshed = { ...resource, ...updated } as ResourceListItem;
+    await handleReveal(refreshed);
   }
 
   function closeDetail() {
@@ -607,6 +640,7 @@ export default function VaultPage() {
         onLogout={handleLogout}
         onExport={handleExport}
         onDuplicate={handleDuplicate}
+        onSave={handleInlineSave}
         onRefresh={loadData}
         email={email}
         syncConnected={syncConnected}

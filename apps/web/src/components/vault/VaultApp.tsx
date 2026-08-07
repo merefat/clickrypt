@@ -41,6 +41,7 @@ import VaultContextMenu from "./VaultContextMenu";
 import MoveDialog from "./MoveDialog";
 import { InlineRenameField } from "./InlineRenameField";
 import { FavoritesSidebarSection, FavoriteToggle, type FavoriteResource } from "./Favorites";
+import { InlineInspectorEdit, type PasswordFields } from "./InlineInspectorEdit";
 import { apiClient } from "@/lib/api/client";
 import type { Comment, Folder, ResourceActivityItem, ResourceListItem, Tag as TagType } from "@/lib/api/client";
 
@@ -253,6 +254,7 @@ interface VaultAppProps {
   onRefresh: () => void;
   onExport: () => void;
   onDuplicate: (resource: ResourceListItem) => Promise<ResourceListItem>;
+  onSave: (resourceId: string, fields: PasswordFields) => Promise<void>;
   email: string | null;
   syncConnected: boolean;
 }
@@ -286,6 +288,7 @@ export default function VaultApp({
   onRefresh,
   onExport,
   onDuplicate,
+  onSave,
   email,
   syncConnected,
 }: VaultAppProps) {
@@ -300,6 +303,7 @@ export default function VaultApp({
   const [createOpen, setCreateOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [editingResource, setEditingResource] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -495,7 +499,7 @@ export default function VaultApp({
       { id: "copy-username", label: "Copy username", icon: Copy, onClick: () => { closeContextMenu(); if (username) navigator.clipboard.writeText(username); } },
       { id: "copy-password", label: "Copy password", icon: password ? Copy : Eye, onClick: () => { closeContextMenu(); if (password) navigator.clipboard.writeText(password); } },
       { id: "copy-uri", label: "Copy URI", icon: ExternalLink, onClick: () => { closeContextMenu(); if (r.uri) navigator.clipboard.writeText(r.uri); } },
-      { id: "edit", label: "Edit", icon: Pencil, disabled: !canEdit, onClick: () => { onSelectResource(r); onEdit(); closeContextMenu(); } },
+      { id: "edit", label: "Edit", icon: Pencil, disabled: !canEdit, onClick: () => { if (r.resourceType === "password") { setEditingResource(true); } else { onEdit(); } onSelectResource(r); closeContextMenu(); } },
       { id: "share", label: "Share", icon: Share2, disabled: !canOwn, onClick: () => { onSelectResource(r); onShare(); closeContextMenu(); } },
       { id: "move", label: "Move", icon: ExternalLink, disabled: !canEdit, onClick: () => { closeContextMenu(); setMoveTarget({ type: "resource", target: r }); } },
       { id: "duplicate", label: "Duplicate", icon: Copy, disabled: !canEdit, onClick: async () => { closeContextMenu(); await onDuplicate(r); } },
@@ -694,7 +698,16 @@ export default function VaultApp({
               {selectedResource && (
                 <>
                   {canEditResource && (
-                    <button onClick={onEdit} className="flex items-center gap-1.5 text-[12px] text-slate-300 hover:text-slate-100 hover:bg-slate-800/70 rounded-md px-2.5 py-1.5 transition-colors">
+                    <button
+                      onClick={() => {
+                        if (selectedResource?.resourceType === "password") {
+                          setEditingResource(true);
+                        } else {
+                          onEdit();
+                        }
+                      }}
+                      className="flex items-center gap-1.5 text-[12px] text-slate-300 hover:text-slate-100 hover:bg-slate-800/70 rounded-md px-2.5 py-1.5 transition-colors"
+                    >
                       <Pencil className="w-3.5 h-3.5" /> Edit
                     </button>
                   )}
@@ -872,36 +885,54 @@ export default function VaultApp({
               <div className="flex-1 overflow-y-auto px-5">
                 {tab === "details" ? (
                   <>
-                    <Section title="Password" icon={KeyRound} open={sections.password} onToggle={() => setSections((s) => ({ ...s, password: !s.password }))}>
-                      {decryptedSecret ? (
-                        <div className="space-y-2.5 text-[13px]">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-slate-500 w-16 shrink-0">Username</span>
-                            <span className="font-mono text-slate-200 truncate">{decryptedSecret.username ?? "—"}</span>
-                            {decryptedSecret.username && (
-                              <CopyButton value={decryptedSecret.username} className="shrink-0" />
-                            )}
+                    {selectedResource.resourceType === "password" ? (
+                      <InlineInspectorEdit
+                        resourceId={selectedResource.id}
+                        fields={{
+                          name: selectedResource.name,
+                          username: decryptedSecret?.username ?? "",
+                          password: decryptedSecret?.password ?? "",
+                          url: selectedResource.uri ?? "",
+                          notes: decryptedSecret?.notes ?? "",
+                        }}
+                        canEdit={canEditResource}
+                        onSave={async (id, fields) => {
+                          await onSave(id, fields);
+                          setEditingResource(false);
+                        }}
+                      />
+                    ) : (
+                      <Section title="Password" icon={KeyRound} open={sections.password} onToggle={() => setSections((s) => ({ ...s, password: !s.password }))}>
+                        {decryptedSecret ? (
+                          <div className="space-y-2.5 text-[13px]">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-slate-500 w-16 shrink-0">Username</span>
+                              <span className="font-mono text-slate-200 truncate">{decryptedSecret.username ?? "—"}</span>
+                              {decryptedSecret.username && (
+                                <CopyButton value={decryptedSecret.username} className="shrink-0" />
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-slate-500 w-16 shrink-0">Password</span>
+                              <SecretText value={decryptedSecret.password ?? ""} revealed={revealPassword} className="text-slate-200 truncate flex-1 justify-end" />
+                              <button onClick={onToggleDetailReveal} className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 transition-colors shrink-0">
+                                {revealPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                              <CopyButton value={decryptedSecret.password ?? ""} className="shrink-0" />
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-slate-500 w-16 shrink-0">URI</span>
+                              <span className="text-cyan-300/90 truncate">{selectedResource.uri ?? "—"}</span>
+                              {selectedResource.uri && (
+                                <CopyButton value={selectedResource.uri} className="shrink-0" />
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-slate-500 w-16 shrink-0">Password</span>
-                            <SecretText value={decryptedSecret.password ?? ""} revealed={revealPassword} className="text-slate-200 truncate flex-1 justify-end" />
-                            <button onClick={onToggleDetailReveal} className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 transition-colors shrink-0">
-                              {revealPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                            </button>
-                            <CopyButton value={decryptedSecret.password ?? ""} className="shrink-0" />
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-slate-500 w-16 shrink-0">URI</span>
-                            <span className="text-cyan-300/90 truncate">{selectedResource.uri ?? "—"}</span>
-                            {selectedResource.uri && (
-                              <CopyButton value={selectedResource.uri} className="shrink-0" />
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-[13px] text-slate-500">Select a resource to decrypt its secret.</p>
-                      )}
-                    </Section>
+                        ) : (
+                          <p className="text-[13px] text-slate-500">Select a resource to decrypt its secret.</p>
+                        )}
+                      </Section>
+                    )}
 
                     <Section title="Note" icon={FileText} open={sections.note} onToggle={() => setSections((s) => ({ ...s, note: !s.note }))}>
                       {decryptedSecret?.notes ? (
