@@ -369,15 +369,15 @@ export default function VaultPage() {
     setResourceToDelete(null);
   }
 
-  async function handleToggleFavorite(resourceId: string, e: React.MouseEvent) {
-    e.stopPropagation();
+  async function handleToggleFavorite(resourceId: string, next: boolean) {
+    if (favoriteIds.has(resourceId) === next) return;
     try {
       const res = await apiClient.toggleFavorite(resourceId);
       setFavoriteIds((prev) => {
-        const next = new Set(prev);
-        if (res.isFavorite) next.add(resourceId);
-        else next.delete(resourceId);
-        return next;
+        const ids = new Set(prev);
+        if (res.isFavorite) ids.add(resourceId);
+        else ids.delete(resourceId);
+        return ids;
       });
     } catch {
       // ignore

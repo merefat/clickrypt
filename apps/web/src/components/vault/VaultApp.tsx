@@ -40,6 +40,7 @@ import { Section } from "./Section";
 import VaultContextMenu from "./VaultContextMenu";
 import MoveDialog from "./MoveDialog";
 import { InlineRenameField } from "./InlineRenameField";
+import { FavoritesSidebarSection, FavoriteToggle, type FavoriteResource } from "./Favorites";
 import { apiClient } from "@/lib/api/client";
 import type { Comment, Folder, ResourceActivityItem, ResourceListItem, Tag as TagType } from "@/lib/api/client";
 
@@ -241,7 +242,7 @@ interface VaultAppProps {
   query: string;
   onQueryChange: (q: string) => void;
   favoriteIds: Set<string>;
-  onToggleFavorite: (id: string, e: React.MouseEvent) => void;
+  onToggleFavorite: (id: string, next: boolean) => Promise<void>;
   onCreate: (type: "folder" | "password", folderId?: string | null) => void;
   onEdit: () => void;
   onShare: () => void;
@@ -330,6 +331,13 @@ export default function VaultApp({
     if (selectedFolderId) return "list";
     return "tree";
   }, [selectedResource, selectedFolderId]);
+  const favoriteResources = useMemo(
+    () =>
+      resources
+        .filter((r) => favoriteIds.has(r.id))
+        .map((r) => ({ id: r.id, name: r.name, kind: r.resourceType as FavoriteResource["kind"] })),
+    [resources, favoriteIds]
+  );
 
   const onPanelMouseMove = (e: React.MouseEvent) => {
     const el = panelIconRef.current;
@@ -577,6 +585,18 @@ export default function VaultApp({
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-4">
+            {favoriteResources.length > 0 && (
+              <FavoritesSidebarSection
+                favorites={favoriteResources}
+                activeId={selectedResource?.id ?? null}
+                onSelect={(id) => {
+                  const r = resources.find((x) => x.id === id);
+                  if (!r) return;
+                  onSelectFolder(r.folder?.id ?? null);
+                  onSelectResource(r);
+                }}
+              />
+            )}
             <div>
               {tree.map((n) => (
                 <TreeNode
@@ -703,12 +723,11 @@ export default function VaultApp({
                             {r.name.slice(0, 2).toUpperCase()}
                           </div>
                           <span className="text-slate-100 font-medium truncate">{r.name}</span>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onToggleFavorite(r.id, e); }}
-                            className={`text-slate-500 hover:text-amber-400 transition-colors ${favoriteIds.has(r.id) ? "text-amber-400" : ""}`}
-                          >
-                            <Star className="w-3.5 h-3.5" fill={favoriteIds.has(r.id) ? "currentColor" : "none"} />
-                          </button>
+                          <FavoriteToggle
+                            resourceId={r.id}
+                            isFavorite={favoriteIds.has(r.id)}
+                            onToggle={onToggleFavorite}
+                          />
                         </div>
                       </td>
                       <td className="py-2 text-slate-400">{username}</td>
