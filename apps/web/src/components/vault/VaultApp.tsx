@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Activity,
   ChevronDown,
+  ChevronLeft,
   Clock,
   Copy,
   Download,
@@ -23,7 +25,7 @@ import {
   Pencil,
   Plus,
   Search,
-  Settings,
+  LogOut,
   Share2,
   Shield,
   ShieldCheck,
@@ -213,6 +215,7 @@ interface VaultAppProps {
   onLock: () => void;
   onLogout: () => void;
   onRefresh: () => void;
+  onExport: () => void;
   email: string | null;
   syncConnected: boolean;
 }
@@ -244,9 +247,11 @@ export default function VaultApp({
   onLock,
   onLogout,
   onRefresh,
+  onExport,
   email,
   syncConnected,
 }: VaultAppProps) {
+  const router = useRouter();
   const [openMap, setOpenMap] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = { home: true };
     for (const f of folders) {
@@ -255,6 +260,7 @@ export default function VaultApp({
     return initial;
   });
   const [createOpen, setCreateOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -283,6 +289,11 @@ export default function VaultApp({
 
   const tree = useMemo(() => buildTree(folders), [folders]);
   const breadcrumbs = useMemo(() => buildBreadcrumbPath(selectedFolderId, folders), [selectedFolderId, folders]);
+  const mobileView = useMemo(() => {
+    if (selectedResource) return "detail";
+    if (selectedFolderId) return "list";
+    return "tree";
+  }, [selectedResource, selectedFolderId]);
 
   const onPanelMouseMove = (e: React.MouseEvent) => {
     const el = panelIconRef.current;
@@ -296,6 +307,13 @@ export default function VaultApp({
   };
 
   const resetTilt = () => setTilt({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const canEditResource = selectedResource?.myPermission === "OWNER" || selectedResource?.myPermission === "UPDATE";
   const canOwnResource = selectedResource?.myPermission === "OWNER";
@@ -429,6 +447,15 @@ export default function VaultApp({
     <div className="w-full h-screen bg-slate-950 text-slate-200 flex flex-col overflow-hidden rounded-xl border border-slate-800" style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif" }}>
       {/* top bar */}
       <div className="h-14 shrink-0 flex items-center gap-4 px-4 border-b border-slate-800 bg-slate-950/95">
+        {isMobile && mobileView !== "tree" && (
+          <button
+            onClick={() => { if (mobileView === "list") { onSelectFolder(null); } else { onSelectResource(null); } }}
+            className="w-8 h-8 -ml-1 rounded-lg flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800/70 transition-colors"
+            aria-label="Back"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+        )}
         <div className="flex items-center gap-2 pr-3 mr-1 border-r border-slate-800">
           <div className="w-7 h-7 rounded-lg bg-indigo-500/15 flex items-center justify-center ring-1 ring-inset ring-indigo-500/30">
             <Shield className="w-4 h-4 text-indigo-300" />
@@ -436,15 +463,15 @@ export default function VaultApp({
           <span className="font-semibold text-[15px] tracking-tight text-slate-100">Vault</span>
         </div>
 
-        <div className="flex-1 max-w-md relative group">
+        <div className="flex-1 max-w-full md:max-w-md relative group">
           <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none group-focus-within:text-indigo-400 transition-colors" />
           <input
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             placeholder="Search resources"
-            className="w-full bg-slate-900/80 border border-slate-800 focus:border-indigo-500/60 rounded-lg pl-9 pr-14 py-2 text-[13px] text-slate-200 placeholder:text-slate-500 outline-none transition-all focus:ring-2 focus:ring-indigo-500/20"
+            className="w-full bg-slate-900/80 border border-slate-800 focus:border-indigo-500/60 rounded-lg pl-9 pr-4 md:pr-14 py-2 text-[13px] text-slate-200 placeholder:text-slate-500 outline-none transition-all focus:ring-2 focus:ring-indigo-500/20"
           />
-          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 border border-slate-700 rounded px-1.5 py-0.5 leading-none">⌘K</kbd>
+          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 border border-slate-700 rounded px-1.5 py-0.5 leading-none hidden md:inline-flex">⌘K</kbd>
         </div>
 
         <div className="flex-1" />
@@ -452,17 +479,22 @@ export default function VaultApp({
           <KeyRound className="w-4 h-4" />
         </button>
         <button onClick={onLogout} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 transition-colors" title="Sign out">
-          <Settings className="w-4 h-4" />
+          <LogOut className="w-4 h-4" />
         </button>
-        <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center text-[11px] font-semibold text-white">
+        <button
+          type="button"
+          onClick={() => router.push("/settings/profile")}
+          className="relative w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center text-[11px] font-semibold text-white cursor-pointer transition-opacity hover:opacity-90"
+          title="Profile"
+        >
           {email ? email.slice(0, 2).toUpperCase() : "??"}
           <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-slate-950 ${syncConnected ? "bg-emerald-400" : "bg-red-400"}`} />
-        </div>
+        </button>
       </div>
 
       <div className="flex-1 flex min-h-0">
         {/* sidebar */}
-        <aside className="hidden md:flex w-60 shrink-0 border-r border-slate-800 flex-col bg-slate-950/60">
+        <aside className={`${isMobile && mobileView !== "tree" ? "hidden" : "flex"} ${isMobile ? "w-full" : "hidden md:flex w-60"} shrink-0 border-r border-slate-800 flex-col bg-slate-950/60`}>
           <div className="p-3">
             <div className="relative">
               <button
@@ -485,7 +517,10 @@ export default function VaultApp({
                   >
                     <FolderIcon className="w-4 h-4" /> Folder
                   </button>
-                  <button className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-indigo-500/20">
+                  <button
+                    onClick={() => { setCreateOpen(false); onExport(); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-indigo-500/20"
+                  >
                     <Download className="w-4 h-4" /> Export
                   </button>
                 </div>
@@ -548,7 +583,7 @@ export default function VaultApp({
         </aside>
 
         {/* main */}
-        <main className="flex-1 min-w-0 flex flex-col">
+        <main className={`${isMobile && mobileView !== "list" ? "hidden" : "flex"} ${isMobile ? "w-full" : "flex-1 min-w-0"} flex flex-col`}>
           <div className="px-5 pt-4 pb-3 flex items-center justify-between shrink-0">
             <div>
               <h1 className="text-[15px] font-semibold text-slate-100">
@@ -691,7 +726,7 @@ export default function VaultApp({
         </main>
 
         {/* detail panel */}
-        <aside className="hidden xl:flex w-80 shrink-0 border-l border-slate-800 flex-col bg-slate-950/60">
+        <aside className={`${isMobile && mobileView !== "detail" ? "hidden" : "flex"} ${isMobile ? "w-full" : "hidden xl:flex w-80"} shrink-0 border-l border-slate-800 flex-col bg-slate-950/60`}>
           {selectedResource ? (
             <>
               <div

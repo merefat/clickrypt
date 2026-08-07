@@ -425,6 +425,10 @@ export default function VaultPage() {
     router.push("/login");
   }
 
+  function handleExport() {
+    router.push("/export");
+  }
+
   function closeDetail() {
     setSelectedResource(null);
     setDecryptedSecret(null);
@@ -544,7 +548,7 @@ export default function VaultPage() {
         selectedFolderId={selectedFolder}
         onSelectFolder={setSelectedFolder}
         selectedResource={selectedResource}
-        onSelectResource={(resource) => { if (resource) handleReveal(resource); }}
+        onSelectResource={(resource) => { if (resource) { handleReveal(resource); } else { closeDetail(); } }}
         revealedPasswords={revealedPasswords}
         decryptingPasswordId={decryptingPasswordId}
         onToggleReveal={handleRevealPassword}
@@ -570,10 +574,31 @@ export default function VaultPage() {
         onInfo={() => setDialogMode("info")}
         onLock={handleLock}
         onLogout={handleLogout}
+        onExport={handleExport}
         onRefresh={loadData}
         email={email}
         syncConnected={syncConnected}
       />
+      {showCreate && (
+        <CreateDialog
+          folders={folders}
+          privateKey={privateKey}
+          defaultFolderId={selectedFolder}
+          orgRole={orgRole}
+          onClose={() => setShowCreate(false)}
+          onCreated={() => { setShowCreate(false); refreshResources(); }}
+        />
+      )}
+
+      {showCreateFolder && (
+        <CreateFolderDialog
+          parentFolderId={createFolderParent}
+          groupId={createFolderGroupId}
+          onClose={() => setShowCreateFolder(false)}
+          onCreated={() => { setShowCreateFolder(false); loadData(); }}
+        />
+      )}
+
       {selectedResource && dialogMode === "edit" && (
         <EditDialog resource={selectedResource} decryptedSecret={decryptedSecret} folders={folders} privateKey={privateKey} onClose={closeDetail} onUpdated={() => { setDialogMode("detail"); refreshResources(); if (selectedResource) handleReveal(selectedResource); }} />
       )}
