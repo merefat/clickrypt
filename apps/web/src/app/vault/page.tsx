@@ -61,6 +61,7 @@ import { inputClass, primaryBtnClass, secondaryBtnClass } from "@/components/ui/
 import { SecretText } from "@/components/vault/SecretText";
 import { CopyButton } from "@/components/vault/CopyButton";
 import { Section } from "@/components/vault/Section";
+import VaultApp from "@/components/vault/VaultApp";
 
 function formatApiError(err: unknown): string {
   if (err instanceof ApiError) {
@@ -535,423 +536,42 @@ export default function VaultPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-[1400px] flex-col px-6">
-      <header className="flex items-center justify-between py-6">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <img src="/clickrypt.png" alt="Clickrypt" className="h-8 w-8" />
-            <span className="text-xl font-bold">Clickrypt</span>
-          </div>
-          <div className="relative" ref={createDropdownRef}>
-            <button
-              onClick={() => setCreateOpen((v) => !v)}
-              className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
-            >
-              <Plus className="h-4 w-4" />
-              Create
-              <ChevronDown className={`h-4 w-4 transition-transform ${createOpen ? "rotate-180" : ""}`} />
-            </button>
-
-            {createOpen && (
-              <div className="absolute left-0 top-full z-50 mt-2 w-56 rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1 shadow-xl">
-                <button
-                  onClick={() => { setCreateOpen(false); setShowCreate(true); }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-white hover:bg-[var(--accent)]"
-                >
-                  <Key className="h-4 w-4" /> Password
-                </button>
-                <button
-                  onClick={() => { setCreateOpen(false); setShowCreateTotp(true); }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-white hover:bg-[var(--accent)]"
-                >
-                  <Clock className="h-4 w-4" /> TOTP
-                </button>
-                <button
-                  onClick={() => { setCreateOpen(false); setShowCreateCustom(true); }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-white hover:bg-[var(--accent)]"
-                >
-                  <ListTree className="h-4 w-4" /> Custom fields
-                </button>
-                <button
-                  onClick={() => { setCreateOpen(false); setShowCreatePin(true); }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-white hover:bg-[var(--accent)]"
-                >
-                  <Pin className="h-4 w-4" /> Pin code
-                </button>
-                <button
-                  onClick={() => { setCreateOpen(false); setShowCreateNote(true); }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-white hover:bg-[var(--accent)]"
-                >
-                  <StickyNote className="h-4 w-4" /> Notes
-                </button>
-
-                <div className="my-1 border-t border-[var(--border)]" />
-
-                {orgRole === "OWNER" && (
-                  <button
-                    onClick={() => { setCreateOpen(false); setShowCreateFolder(true); }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-white hover:bg-[var(--accent)]"
-                  >
-                    <FolderPlus className="h-4 w-4" /> Folder
-                  </button>
-                )}
-                <button
-                  onClick={() => { setCreateOpen(false); router.push("/import"); }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-white hover:bg-[var(--accent)]"
-                >
-                  <FileUp className="h-4 w-4" /> Import resources
-                </button>
-                <button
-                  onClick={() => { setCreateOpen(false); router.push("/export"); }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-white hover:bg-[var(--accent)]"
-                >
-                  <Download className="h-4 w-4" /> Export resources
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className={`h-2 w-2 rounded-full ${syncConnected ? "bg-green-500" : "bg-red-500"}`} title={syncConnected ? "Sync connected" : syncError || "Sync disconnected"} />
-            <span className="text-xs text-[var(--text-muted)]">{syncConnected ? "Synced" : "Offline"}</span>
-          </div>
-          <span className="text-sm text-[var(--text-muted)]">{email}</span>
-          <button onClick={handleLock} className="flex items-center gap-1 rounded-md px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface-hover)]">
-            <Lock className="h-4 w-4" /> Lock
-          </button>
-          <button onClick={handleLogout} className="flex items-center gap-1 rounded-md px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface-hover)]">
-            <LogOut className="h-4 w-4" /> Sign out
-          </button>
-        </div>
-      </header>
-
-      <div className="flex flex-1 gap-6 py-4">
-        <aside className="w-56 shrink-0 space-y-4">
-          <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase text-[var(--text-muted)]">Filters</h3>
-            <button onClick={() => { setSelectedFolder(null); setShowFavoritesOnly(false); }} className={`block w-full rounded-md px-3 py-1.5 text-left text-sm ${!selectedFolder && !showFavoritesOnly ? "bg-[var(--surface-hover)] text-white" : "text-[var(--text-muted)] hover:bg-[var(--surface-hover)]/50"}`}>All Items</button>
-            <button onClick={() => { setSelectedFolder(null); setShowFavoritesOnly(true); }} className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm ${showFavoritesOnly ? "bg-[var(--surface-hover)] text-white" : "text-[var(--text-muted)] hover:bg-[var(--surface-hover)]/50"}`}>
-              <Star className="h-3.5 w-3.5" /> Favorites
-            </button>
-          </div>
-          {orgRole === "OWNER" && (
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-xs font-semibold uppercase text-[var(--text-muted)]">My Workspace</h3>
-                <button
-                  onClick={() => { setCreateFolderParent(null); setShowCreateFolder(true); }}
-                  className="text-[var(--text-muted)] hover:text-white"
-                  title="New folder"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <SortableFolderTree
-                folders={folders}
-                selectedFolderId={selectedFolder}
-                onSelectFolder={setSelectedFolder}
-                onReorder={handleReorderFolder}
-                expandedFolders={expandedFolders}
-                onToggleExpand={toggleExpandFolder}
-                actionButtons={renderFolderActions}
-              />
-            </div>
-          )}
-          <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase text-[var(--text-muted)]">Manage</h3>
-            <button onClick={() => router.push("/settings/profile")} className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-[var(--text-muted)] hover:bg-[var(--surface-hover)]/50">
-              <UserCircle className="h-3.5 w-3.5" /> Profile
-            </button>
-            <button onClick={() => router.push("/settings/mfa")} className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-[var(--text-muted)] hover:bg-[var(--surface-hover)]/50">
-              <Shield className="h-3.5 w-3.5" /> MFA
-            </button>
-            {deploymentMode === "organization" && (
-              <button onClick={() => router.push("/settings/groups")} className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-[var(--text-muted)] hover:bg-[var(--surface-hover)]/50">
-                <Users className="h-3.5 w-3.5" /> Groups
-              </button>
-            )}
-            {deploymentMode === "organization" && (orgRole === "OWNER" || orgRole === "ADMIN") && (
-              <button onClick={() => router.push("/admin")} className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-[var(--text-muted)] hover:bg-[var(--surface-hover)]/50">
-                <Shield className="h-3.5 w-3.5" /> Members
-              </button>
-            )}
-            <button onClick={() => router.push("/import")} className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-sm text-[var(--text-muted)] hover:bg-[var(--surface-hover)]/50">
-              <Upload className="h-3.5 w-3.5" /> Import
-            </button>
-          </div>
-          {tags.length > 0 && (
-            <div>
-              <h3 className="mb-2 text-xs font-semibold uppercase text-[var(--text-muted)]">Tags</h3>
-              <div className="flex flex-wrap gap-1.5">
-                {tags.map((t) => (
-                  <button key={t.id} onClick={() => setSelectedTag(selectedTag === t.id ? null : t.id)} className={`rounded-full px-2.5 py-1 text-xs ${selectedTag === t.id ? "bg-brand-600 text-white" : "bg-[var(--surface-hover)] text-[var(--text-muted)] hover:bg-[var(--surface-hover)]"}`}>{t.name}</button>
-                ))}
-              </div>
-            </div>
-          )}
-        </aside>
-
-        <main className="flex-1 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-              <input type="text" placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] py-2 pl-10 pr-3 text-sm focus:border-brand-500 focus:outline-none" />
-            </div>
-          </div>
-
-          {selectedFolder && (() => {
-            const folder = folders.find((f) => f.id === selectedFolder);
-            if (!folder) return null;
-            const breadcrumbs: Folder[] = [];
-            let current: Folder | undefined = folder;
-            while (current) {
-              breadcrumbs.unshift(current);
-              current = folders.find((f) => f.id === current!.parentFolderId);
-            }
-            return (
-              <div className="flex items-center gap-1 text-sm text-[var(--text-muted)]">
-                <button onClick={() => setSelectedFolder(null)} className="hover:text-white">All Items</button>
-                {breadcrumbs.map((f) => (
-                  <span key={f.id} className="flex items-center gap-1">
-                    <span className="text-[var(--text-muted)]">/</span>
-                    <button
-                      onClick={() => setSelectedFolder(f.id)}
-                      className={`hover:text-white ${f.id === selectedFolder ? "text-white font-medium" : ""}`}
-                    >
-                      {f.name}
-                    </button>
-                  </span>
-                ))}
-              </div>
-            );
-          })()}
-
-          {error && (
-            <div className="flex items-center gap-2 rounded-lg border border-[var(--warning)] bg-[var(--warning)]/20 px-4 py-2 text-sm text-[var(--warning)]">
-              <AlertCircle className="h-4 w-4" /> {error}
-            </div>
-          )}
-
-          {filtered.length === 0 ? (
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/50 p-12 text-center">
-              <p className="text-[var(--text-muted)]">{resources.length === 0 ? "Your vault is empty. Create your first password." : "No resources match your filters."}</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-[var(--border)] bg-[var(--surface)]/80 text-xs uppercase text-[var(--text-muted)]">
-                  <tr>
-                    <th className="px-4 py-3 font-semibold">Name</th>
-                    <th className="px-4 py-3 font-semibold">Source</th>
-                    <th className="px-4 py-3 font-semibold">Location</th>
-                    <th className="px-4 py-3 font-semibold">Type</th>
-                    <th className="px-4 py-3 font-semibold">Username</th>
-                    <th className="px-4 py-3 font-semibold">Password</th>
-                    <th className="px-4 py-3 font-semibold">URI</th>
-                    <th className="px-4 py-3 font-semibold">Modified</th>
-                    <th className="px-4 py-3 text-center font-semibold">★</th>
-                    <th className="px-4 py-3 text-center font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((r, i) => (
-                    <tr
-                      key={r.id}
-                      onClick={() => handleReveal(r)}
-                      className={`cursor-pointer border-b border-[var(--border)]/50 hover:bg-[var(--surface-hover)]/40 ${i % 2 === 0 ? "bg-[var(--surface)]/30" : ""}`}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--surface-hover)]">
-                            {r.resourceType === "totp" ? (
-                              <Clock className="h-3 w-3 text-[var(--accent)]" />
-                            ) : r.resourceType === "note" ? (
-                              <StickyNote className="h-3 w-3 text-[var(--accent)]" />
-                            ) : r.resourceType === "pin_code" ? (
-                              <Pin className="h-3 w-3 text-[var(--accent)]" />
-                            ) : r.resourceType === "custom_fields" ? (
-                              <ListTree className="h-3 w-3 text-[var(--accent)]" />
-                            ) : (
-                              <Lock className="h-3 w-3 text-[var(--text-muted)]" />
-                            )}
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="font-medium text-white">{r.name}</span>
-                            <span
-                              className={`w-fit rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${
-                                r.resourceType === "pin_code"
-                                  ? "bg-cyan-900/50 text-cyan-200"
-                                  : r.source === "group"
-                                    ? "bg-purple-900/50 text-purple-200"
-                                    : "bg-blue-900/50 text-blue-200"
-                              }`}
-                            >
-                              {r.resourceType === "pin_code" ? "PIN" : r.source === "group" ? "Group" : "Workplace"}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {r.resourceType === "pin_code" && r.source !== "group" ? (
-                          <span className="text-xs text-[var(--text-muted)]">—</span>
-                        ) : (
-                          <span className="rounded bg-[var(--surface-hover)] px-2 py-0.5 text-xs text-[var(--text)]">
-                            {r.source === "group" ? (r.groupName ?? "Group") : "My Workplace"}
-                          </span>
-                        )}
-                      </td>
-                      <td className="max-w-[200px] truncate px-4 py-3 text-[var(--text-muted)]">
-                        {r.folderPath ?? "—"}
-                      </td>
-                      <td className="px-4 py-3 text-[var(--text-muted)]">
-                        {r.resourceType === "totp" ? "TOTP" : r.resourceType === "note" ? "Note" : r.resourceType === "pin_code" ? "PIN" : r.resourceType === "custom_fields" ? "Custom" : "Password"}
-                      </td>
-                      <td className="px-4 py-3 text-[var(--text-muted)]">{(r.metadata as Record<string, string>)?.username ?? "—"}</td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        {r.resourceType === "note" ? (
-                          <span className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
-                            <StickyNote className="h-3.5 w-3.5" />
-                            Encrypted note
-                          </span>
-                        ) : r.resourceType === "totp" ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent)]/10 px-2 py-0.5 text-[10px] font-mono text-[var(--accent)] ring-1 ring-inset ring-[var(--accent)]/25">
-                            <span className="w-1 h-1 rounded-full bg-[var(--accent)] animate-pulse" />
-                            {String(100 + (r.name.length * 37)).slice(0, 3)} {String(200 + (r.name.length * 19)).slice(0, 3)}
-                          </span>
-                        ) : decryptingPasswordId === r.id ? (
-                          <span className="text-xs text-[var(--text-muted)]">Decrypting…</span>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-[var(--text-muted)] group">
-                            <SecretText value={revealedPasswords[r.id] ?? ""} revealed={!!revealedPasswords[r.id]} />
-                            <button
-                              onClick={(e) => { e.stopPropagation(); if (r.resourceType === "password" || r.resourceType === "pin_code" || r.resourceType === "custom_fields") handleRevealPassword(r, e); }}
-                              className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-md flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-hover)] transition-all"
-                              title={revealedPasswords[r.id] ? "Hide" : "Reveal"}
-                            >
-                              {!!revealedPasswords[r.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                            </button>
-                            {!!revealedPasswords[r.id] && (
-                              <CopyButton
-                                value={revealedPasswords[r.id]}
-                                onCopy={() => showToast("Password copied")}
-                                className="opacity-0 group-hover:opacity-100"
-                              />
-                            )}
-                          </div>
-                        )}
-                      </td>
-                      <td className="max-w-[200px] truncate px-4 py-3 text-[var(--text-muted)]">{r.uri ?? "—"}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-[var(--text-muted)]">{new Date(r.updatedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</td>
-                      <td className="px-4 py-3 text-center">
-                        <button onClick={(e) => handleToggleFavorite(r.id, e)} className={`p-1 ${favoriteIds.has(r.id) ? "text-[var(--warning)]" : "text-[var(--text-muted)] hover:text-[var(--text-muted)]"}`}>
-                          <Star className="h-4 w-4" fill={favoriteIds.has(r.id) ? "currentColor" : "none"} />
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {r.myPermission === "OWNER" && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleDeleteClick(r); }}
-                            disabled={deletingId === r.id}
-                            className="p-1 text-[var(--text-muted)] hover:text-[var(--warning)] disabled:opacity-50"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </main>
-      </div>
-
-      {showCreate && <CreateDialog folders={folders} privateKey={privateKey} defaultFolderId={selectedFolder} orgRole={orgRole} onClose={() => setShowCreate(false)} onCreated={() => { setShowCreate(false); refreshResources(); }} />}
-
-      {showCreateTotp && <CreateTotpDialog folders={folders} privateKey={privateKey} defaultFolderId={selectedFolder} orgRole={orgRole} onClose={() => setShowCreateTotp(false)} onCreated={() => { setShowCreateTotp(false); refreshResources(); }} />}
-
-      {showCreateNote && <CreateNoteDialog folders={folders} privateKey={privateKey} defaultFolderId={selectedFolder} orgRole={orgRole} onClose={() => setShowCreateNote(false)} onCreated={() => { setShowCreateNote(false); refreshResources(); }} />}
-
-      {showCreateCustom && <CreateCustomFieldsDialog folders={folders} privateKey={privateKey} defaultFolderId={selectedFolder} orgRole={orgRole} onClose={() => setShowCreateCustom(false)} onCreated={() => { setShowCreateCustom(false); refreshResources(); }} />}
-
-      {showCreatePin && <CreatePinDialog folders={folders} privateKey={privateKey} defaultFolderId={selectedFolder} orgRole={orgRole} onClose={() => setShowCreatePin(false)} onCreated={() => { setShowCreatePin(false); refreshResources(); }} />}
-
-      {showCreateFolder && <CreateFolderDialog parentFolderId={createFolderParent} groupId={createFolderGroupId} onClose={() => { setShowCreateFolder(false); setCreateFolderParent(null); setCreateFolderGroupId(null); }} onCreated={() => { setShowCreateFolder(false); setCreateFolderParent(null); setCreateFolderGroupId(null); loadData(); }} />}
-
-      {showReUnlock && <ReUnlockDialog onClose={() => { setShowReUnlock(false); router.push("/login"); }} onUnlocked={() => setShowReUnlock(false)} />}
-
-      {toast && (
-        <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-[var(--surface-hover)] px-4 py-2 text-sm text-white shadow-lg">
-          {toast}
-        </div>
-      )}
-
-      {selectedResource && dialogMode === "detail" && (
-        <Dialog title={selectedResource.name} onClose={closeDetail}>
-          <div className="space-y-4">
-            {decrypting && <p className="text-sm text-[var(--text-muted)]">Decrypting…</p>}
-            {decryptedSecret ? (
-              selectedResource.resourceType === "note" ? (
-                <>
-                  <div>
-                    <label className="mb-1 block text-xs text-[var(--text-muted)]">Note</label>
-                    <p className="whitespace-pre-wrap rounded-md bg-[var(--surface-hover)]/50 p-3 text-sm text-[var(--text)]">{decryptedSecret.note ?? ""}</p>
-                  </div>
-                  <div className="flex justify-end">
-                    <button
-                      onClick={() => handleCopy("note", decryptedSecret.note ?? "")}
-                      className="flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text)]"
-                    >
-                      {copiedField === "note" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                      {copiedField === "note" ? "Copied" : "Copy note"}
-                    </button>
-                  </div>
-                </>
-              ) : selectedResource.resourceType === "pin_code" ? (
-                <>
-                  <SecretField label="PIN" value={(decryptedSecret as any).pin ?? ""} masked={!revealPassword} copied={copiedField === "pin"} onCopy={() => handleCopy("pin", (decryptedSecret as any).pin ?? "")} onToggleReveal={() => setRevealPassword((v) => !v)} />
-                  {(decryptedSecret as any).notes && <div><label className="mb-1 block text-xs text-[var(--text-muted)]">Notes</label><p className="rounded-md bg-[var(--surface-hover)]/50 p-3 text-sm text-[var(--text)]">{(decryptedSecret as any).notes}</p></div>}
-                </>
-              ) : selectedResource.resourceType === "custom_fields" ? (
-                <div className="space-y-3">
-                  {((decryptedSecret as any).fields ?? []).map((field: { label: string; value: string; hidden?: boolean }, idx: number) => (
-                    <SecretField
-                      key={idx}
-                      label={field.label || `Field ${idx + 1}`}
-                      value={field.value ?? ""}
-                      masked={field.hidden}
-                      copied={copiedField === `field-${idx}`}
-                      onCopy={() => handleCopy(`field-${idx}`, field.value ?? "")}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <>
-                  <SecretField label="Username" value={decryptedSecret.username ?? ""} copied={copiedField === "username"} onCopy={() => handleCopy("username", decryptedSecret.username ?? "")} />
-                  <SecretField label="Password" value={decryptedSecret.password ?? ""} masked={!revealPassword} copied={copiedField === "password"} onCopy={() => handleCopy("password", decryptedSecret.password ?? "")} onToggleReveal={() => setRevealPassword((v) => !v)} />
-                  {decryptedSecret.notes && <div><label className="mb-1 block text-xs text-[var(--text-muted)]">Notes</label><p className="rounded-md bg-[var(--surface-hover)]/50 p-3 text-sm text-[var(--text)]">{decryptedSecret.notes}</p></div>}
-                </>
-              )
-            ) : !secretAccessible ? (
-              <div>
-                <p className="flex items-center gap-2 text-sm text-[var(--text-muted)]"><Lock className="h-4 w-4" /> Not shared with you</p>
-              </div>
-            ) : null}
-            {selectedResource.uri && <div><label className="mb-1 block text-xs text-[var(--text-muted)]">URI</label><p className="text-sm text-[var(--text)]">{selectedResource.uri}</p></div>}
-            <div className="grid grid-cols-3 gap-2 border-t border-[var(--border)] pt-4">
-              {(selectedResource.myPermission === "OWNER" || selectedResource.myPermission === "UPDATE") && <button onClick={() => setDialogMode("edit")} className={`${secondaryBtnClass} flex items-center justify-center gap-1.5`}><Pencil className="h-3.5 w-3.5" />Edit</button>}
-              {selectedResource.myPermission === "OWNER" && selectedResource.source !== "workplace" && <button onClick={() => setDialogMode("share")} className={`${secondaryBtnClass} flex items-center justify-center gap-1.5`}><Share2 className="h-3.5 w-3.5" />Share</button>}
-              {selectedResource.myPermission === "OWNER" && <button onClick={() => setDialogMode("permissions")} className={`${secondaryBtnClass} flex items-center justify-center gap-1.5`}>Permissions</button>}
-              <button onClick={() => setDialogMode("info")} className={`${secondaryBtnClass} flex items-center justify-center gap-1.5`}><Info className="h-3.5 w-3.5" />Info</button>
-              {selectedResource.myPermission === "OWNER" && <button onClick={handleDelete} className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--warning)] px-3 py-2 text-sm text-[var(--warning)] hover:bg-[var(--warning)]/20"><Trash2 className="h-3.5 w-3.5" />Delete</button>}
-            </div>
-          </div>
-        </Dialog>
-      )}
-
+    <div className="min-h-screen w-full bg-slate-950 text-slate-200">
+      <VaultApp
+        folders={folders}
+        resources={filtered}
+        tags={tags}
+        selectedFolderId={selectedFolder}
+        onSelectFolder={setSelectedFolder}
+        selectedResource={selectedResource}
+        onSelectResource={(resource) => { if (resource) handleReveal(resource); }}
+        revealedPasswords={revealedPasswords}
+        decryptingPasswordId={decryptingPasswordId}
+        onToggleReveal={handleRevealPassword}
+        decryptedSecret={decryptedSecret}
+        revealPassword={revealPassword}
+        onToggleDetailReveal={() => setRevealPassword((v) => !v)}
+        query={search}
+        onQueryChange={setSearch}
+        favoriteIds={favoriteIds}
+        onToggleFavorite={handleToggleFavorite}
+        onCreate={(type) => {
+          if (type === "folder") {
+            setCreateFolderParent(selectedFolder);
+            setShowCreateFolder(true);
+          } else {
+            setShowCreate(true);
+          }
+        }}
+        onEdit={() => setDialogMode("edit")}
+        onShare={() => setDialogMode("share")}
+        onDelete={() => selectedResource && handleDeleteClick(selectedResource)}
+        onInfo={() => setDialogMode("info")}
+        onLock={handleLock}
+        onLogout={handleLogout}
+        email={email}
+        syncConnected={syncConnected}
+      />
       {selectedResource && dialogMode === "edit" && (
         <EditDialog resource={selectedResource} decryptedSecret={decryptedSecret} folders={folders} privateKey={privateKey} onClose={closeDetail} onUpdated={() => { setDialogMode("detail"); refreshResources(); if (selectedResource) handleReveal(selectedResource); }} />
       )}

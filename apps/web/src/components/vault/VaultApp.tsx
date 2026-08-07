@@ -182,14 +182,14 @@ interface VaultAppProps {
   onSelectResource: (resource: ResourceListItem | null) => void;
   revealedPasswords: Record<string, string>;
   decryptingPasswordId: string | null;
-  onToggleReveal: (resource: ResourceListItem) => void;
+  onToggleReveal: (resource: ResourceListItem, e: React.MouseEvent) => void;
   decryptedSecret: Record<string, string> | null;
   revealPassword: boolean;
   onToggleDetailReveal: () => void;
   query: string;
   onQueryChange: (q: string) => void;
   favoriteIds: Set<string>;
-  onToggleFavorite: (id: string) => void;
+  onToggleFavorite: (id: string, e: React.MouseEvent) => void;
   onCreate: (type: "folder" | "password") => void;
   onEdit: () => void;
   onShare: () => void;
@@ -464,7 +464,7 @@ export default function VaultApp({
                           </div>
                           <span className="text-slate-100 font-medium truncate">{r.name}</span>
                           <button
-                            onClick={(e) => { e.stopPropagation(); onToggleFavorite(r.id); }}
+                            onClick={(e) => { e.stopPropagation(); onToggleFavorite(r.id, e); }}
                             className={`text-slate-500 hover:text-amber-400 transition-colors ${favoriteIds.has(r.id) ? "text-amber-400" : ""}`}
                           >
                             <Star className="w-3.5 h-3.5" fill={favoriteIds.has(r.id) ? "currentColor" : "none"} />
@@ -485,7 +485,7 @@ export default function VaultApp({
                             <>
                               <SecretText value={revealedPasswords[r.id] ?? ""} revealed={isRevealed} />
                               <button
-                                onClick={(e) => { e.stopPropagation(); onToggleReveal(r); }}
+                                onClick={(e) => { e.stopPropagation(); onToggleReveal(r, e); }}
                                 className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-md flex items-center justify-center text-slate-500 hover:text-slate-100 hover:bg-slate-800/70 transition-all"
                               >
                                 {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
