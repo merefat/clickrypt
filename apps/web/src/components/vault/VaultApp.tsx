@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
-  ChevronDown,
   ChevronLeft,
   Clock,
   Copy,
@@ -16,10 +15,10 @@ import {
   Folder as FolderIcon,
   FolderOpen,
   FolderPlus,
-  Home,
   Info,
   KeyRound,
   Link2,
+  Lock,
   MessageSquare,
   MoreHorizontal,
   Pencil,
@@ -30,6 +29,7 @@ import {
   Shield,
   ShieldCheck,
   Star,
+  StickyNote,
   Tag as TagIcon,
   Trash2,
   Users,
@@ -39,11 +39,12 @@ import { SecretText } from "./SecretText";
 import { Section } from "./Section";
 import VaultContextMenu from "./VaultContextMenu";
 import MoveDialog from "./MoveDialog";
-import { InlineRenameField } from "./InlineRenameField";
 import { FavoritesSidebarSection, FavoriteToggle, type FavoriteResource } from "./Favorites";
 import { InlineInspectorEdit, type PasswordFields } from "./InlineInspectorEdit";
+import { FileTree } from "@/components/vault/FileTree/FileTree";
+import { buildTree, type TreeItem } from "@/components/vault/FileTree/types";
 import { apiClient } from "@/lib/api/client";
-import type { Comment, Folder, ResourceActivityItem, ResourceListItem, Tag as TagType } from "@/lib/api/client";
+import type { Comment, Folder, GroupInfo, ResourceActivityItem, ResourceListItem, Tag as TagType } from "@/lib/api/client";
 
 const PALETTE = [
   { bg: "bg-indigo-500/15", text: "text-indigo-300", ring: "ring-indigo-500/20" },
@@ -55,157 +56,6 @@ const PALETTE = [
   { bg: "bg-sky-500/15", text: "text-sky-300", ring: "ring-sky-500/20" },
   { bg: "bg-fuchsia-500/15", text: "text-fuchsia-300", ring: "ring-fuchsia-500/20" },
 ];
-
-interface TreeNodeItem extends Folder {
-  icon: "home" | "folder";
-  children: TreeNodeItem[];
-}
-
-function buildTree(folders: Folder[]): TreeNodeItem[] {
-  const byId = new Map<string, TreeNodeItem>();
-  const children = new Map<string | null, TreeNodeItem[]>();
-  children.set(null, []);
-
-  const home: TreeNodeItem = {
-    id: "home",
-    name: "Home",
-    icon: "home",
-    children: [],
-    parentFolderId: null,
-    groupId: null,
-    sortOrder: 0,
-    createdAt: "",
-    myPermission: null,
-  };
-  children.get(null)!.push(home);
-
-  for (const f of folders) {
-    const node: TreeNodeItem = { ...f, icon: "folder", children: [] };
-    byId.set(f.id, node);
-    const key = f.parentFolderId ?? null;
-    if (!children.has(key)) children.set(key, []);
-    children.get(key)!.push(node);
-  }
-
-  for (const [id, node] of byId) {
-    node.children = children.get(id) ?? [];
-  }
-
-  // treat root private folders as children of home for display
-  home.children = children.get(null)!.filter((n) => n.id !== "home");
-
-  return [home];
-}
-
-function TreeNode({
-  node,
-  depth,
-  openMap,
-  toggle,
-  activeId,
-  onSelect,
-  onContextMenu,
-  renamingFolderId,
-  onRenameCommit,
-  onRenameCancel,
-}: {
-  node: TreeNodeItem;
-  depth: number;
-  openMap: Record<string, boolean>;
-  toggle: (id: string) => void;
-  activeId: string | null;
-  onSelect: (id: string) => void;
-  onContextMenu?: (node: TreeNodeItem) => (e: React.MouseEvent) => void;
-  renamingFolderId: string | null;
-  onRenameCommit: (id: string, newName: string) => Promise<void>;
-  onRenameCancel: () => void;
-}) {
-  const hasChildren = node.children.length > 0;
-  const open = !!openMap[node.id];
-  const Icon = node.icon === "home" ? Home : open ? FolderOpen : FolderIcon;
-  const isActive = activeId === node.id;
-  const isRenaming = renamingFolderId === node.id;
-  const canRename = node.myPermission === "OWNER" || node.myPermission === "UPDATE";
-
-  const rowClasses = `group w-full flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-150
-    ${isActive ? "bg-indigo-500/10 text-indigo-200" : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-100"}`;
-  const iconColor = `w-3.5 h-3.5 shrink-0 ${isActive ? "text-indigo-300" : "text-slate-500 group-hover:text-slate-300"}`;
-
-  return (
-    <div>
-      {isRenaming ? (
-        <div
-          className={rowClasses}
-          style={{ paddingLeft: 8 + depth * 14 }}
-        >
-          <span className="w-3.5 h-3.5 shrink-0" />
-          <Icon className={iconColor} />
-          <div className="min-w-0 flex-1">
-            <InlineRenameField
-              id={node.id}
-              initialName={node.name}
-              isEditing={true}
-              onCommit={onRenameCommit}
-              onCancel={onRenameCancel}
-              canRename={canRename}
-            />
-          </div>
-        </div>
-      ) : (
-        <button
-          onClick={() => onSelect(node.id)}
-          onContextMenu={onContextMenu ? onContextMenu(node) : undefined}
-          className={rowClasses}
-          style={{ paddingLeft: 8 + depth * 14 }}
-        >
-          <span
-            onClick={(e) => {
-              e.stopPropagation();
-              if (hasChildren) toggle(node.id);
-            }}
-            className={`relative flex items-center justify-center w-3.5 h-3.5 shrink-0 text-slate-500 transition-transform duration-200 ${!hasChildren ? "opacity-0" : ""}`}
-            style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
-          >
-            <ChevronDown className="w-3 h-3" style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }} />
-          </span>
-          <Icon className={iconColor} />
-          <span className="truncate">{node.name}</span>
-          {isActive && <span className="ml-auto w-1 h-1 rounded-full bg-indigo-400" />}
-        </button>
-      )}
-      {hasChildren && (
-        <div
-          className="overflow-hidden transition-[grid-template-rows] duration-200 ease-out grid"
-          style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
-        >
-          <div className="min-h-0 overflow-hidden relative">
-            {depth >= 0 && (
-              <span
-                className="absolute top-0 bottom-0 w-px bg-slate-800"
-                style={{ left: 8 + depth * 14 + 6 }}
-              />
-            )}
-            {node.children.map((c) => (
-              <TreeNode
-                key={c.id}
-                node={c}
-                depth={depth + 1}
-                openMap={openMap}
-                toggle={toggle}
-                activeId={activeId}
-                onSelect={onSelect}
-                onContextMenu={onContextMenu}
-                renamingFolderId={renamingFolderId}
-                onRenameCommit={onRenameCommit}
-                onRenameCancel={onRenameCancel}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function rowStyle(id: string) {
   const p = PALETTE[id.length % PALETTE.length];
@@ -228,7 +78,7 @@ interface VaultAppProps {
   folders: Folder[];
   resources: ResourceListItem[];
   tags: TagType[];
-  groups?: { id: string; name: string }[];
+  groups?: GroupInfo[];
   loading?: boolean;
   selectedFolderId: string | null;
   onSelectFolder: (id: string | null) => void;
@@ -244,7 +94,7 @@ interface VaultAppProps {
   onQueryChange: (q: string) => void;
   favoriteIds: Set<string>;
   onToggleFavorite: (id: string, next: boolean) => Promise<void>;
-  onCreate: (type: "folder" | "password" | "totp" | "note" | "custom" | "pin", folderId?: string | null) => void;
+  onCreate: (type: "folder" | "password" | "totp" | "note" | "custom" | "pin", folderId?: string | null, groupId?: string | null) => void;
   onEdit: () => void;
   onShare: () => void;
   onDelete: () => void;
@@ -252,6 +102,8 @@ interface VaultAppProps {
   onLock: () => void;
   onLogout: () => void;
   onRefresh: () => void;
+  onCreateGroup: (name: string) => Promise<void>;
+  onDeleteGroup?: (id: string) => void;
   onExport: () => void;
   onDuplicate: (resource: ResourceListItem) => Promise<ResourceListItem>;
   onSave: (resourceId: string, fields: PasswordFields) => Promise<void>;
@@ -286,6 +138,8 @@ export default function VaultApp({
   onLock,
   onLogout,
   onRefresh,
+  onCreateGroup,
+  onDeleteGroup,
   onExport,
   onDuplicate,
   onSave,
@@ -300,9 +154,13 @@ export default function VaultApp({
     }
     return initial;
   });
+  const [selectedScope, setSelectedScope] = useState<{ type: "workplace" } | { type: "group"; groupId: string; name: string }>({ type: "workplace" });
+  const [showGroupInput, setShowGroupInput] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [groupCreateError, setGroupCreateError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [editingResource, setEditingResource] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -327,11 +185,46 @@ export default function VaultApp({
   });
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const panelIconRef = useRef<HTMLDivElement>(null);
+  const previousItemsRef = useRef<Record<string, TreeItem>>({});
 
   const toggleFolder = (id: string) => setOpenMap((m) => ({ ...m, [id]: !m[id] }));
 
-  const tree = useMemo(() => buildTree(folders), [folders]);
-  const breadcrumbs = useMemo(() => buildBreadcrumbPath(selectedFolderId, folders), [selectedFolderId, folders]);
+  async function handleCreateGroup(e?: React.FormEvent) {
+    e?.preventDefault();
+    const name = newGroupName.trim();
+    if (!name) return;
+    setCreatingGroup(true); setGroupCreateError(null);
+    try {
+      await onCreateGroup(name);
+      setNewGroupName("");
+      setShowGroupInput(false);
+    } catch (err) {
+      setGroupCreateError(formatError(err));
+    } finally {
+      setCreatingGroup(false);
+    }
+  }
+
+  function formatError(err: unknown) {
+    if (err && typeof err === "object" && "message" in err) {
+      return (err as { message: string }).message;
+    }
+    return err instanceof Error ? err.message : "Request failed";
+  }
+
+  const scopeFolders = useMemo(() => {
+    if (selectedScope.type === "workplace") return folders.filter((f) => !f.groupId);
+    return folders.filter((f) => f.groupId === selectedScope.groupId);
+  }, [folders, selectedScope]);
+
+  const scopeResources = useMemo(() => {
+    if (selectedScope.type === "workplace") return resources.filter((r) => !r.groupId);
+    return resources.filter((r) => r.groupId === selectedScope.groupId);
+  }, [resources, selectedScope]);
+
+  const activeGroupId = useMemo(() => (selectedScope.type === "group" ? selectedScope.groupId : null), [selectedScope]);
+
+  const breadcrumbs = useMemo(() => buildBreadcrumbPath(selectedFolderId, scopeFolders), [selectedFolderId, scopeFolders]);
   const mobileView = useMemo(() => {
     if (selectedResource) return "detail";
     if (selectedFolderId) return "list";
@@ -339,10 +232,10 @@ export default function VaultApp({
   }, [selectedResource, selectedFolderId]);
   const favoriteResources = useMemo(
     () =>
-      resources
+      scopeResources
         .filter((r) => favoriteIds.has(r.id))
         .map((r) => ({ id: r.id, name: r.name, kind: r.resourceType as FavoriteResource["kind"] })),
-    [resources, favoriteIds]
+    [scopeResources, favoriteIds]
   );
 
   const onPanelMouseMove = (e: React.MouseEvent) => {
@@ -364,6 +257,49 @@ export default function VaultApp({
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  useEffect(() => {
+    previousItemsRef.current = buildTree(scopeFolders, scopeResources);
+  }, [scopeFolders, scopeResources]);
+
+  const handleFileTreeChange = useCallback(
+    (newItems: Record<string, TreeItem>) => {
+      const previous = previousItemsRef.current;
+      const folderMoves: { id: string; parentId: string | null; sortOrder: number }[] = [];
+      const resourceMoves: { id: string; folderId: string | null; sortOrder: number }[] = [];
+
+      for (const [id, item] of Object.entries(newItems)) {
+        const prev = previous[id];
+        if (!prev) continue;
+        if (item.parentId !== prev.parentId || item.sortOrder !== prev.sortOrder) {
+          if (item.type === "folder") {
+            folderMoves.push({ id, parentId: item.parentId, sortOrder: item.sortOrder });
+          } else {
+            resourceMoves.push({ id, folderId: item.parentId, sortOrder: item.sortOrder });
+          }
+        }
+      }
+
+      if (folderMoves.length === 0 && resourceMoves.length === 0) return;
+
+      previousItemsRef.current = { ...newItems };
+
+      Promise.all([
+        ...folderMoves.map((m) =>
+          apiClient.reorderFolder(m.id, { parentFolderId: m.parentId, sortOrder: m.sortOrder })
+        ),
+        ...resourceMoves.map((m) =>
+          apiClient.reorderResource(m.id, { folderId: m.folderId, sortOrder: m.sortOrder })
+        ),
+      ])
+        .then(() => onRefresh())
+        .catch((err) => {
+          console.error("[DnD] save failed", err);
+          onRefresh();
+        });
+    },
+    [onRefresh]
+  );
 
   const canEditResource = selectedResource?.myPermission === "OWNER" || selectedResource?.myPermission === "UPDATE";
   const canOwnResource = selectedResource?.myPermission === "OWNER";
@@ -408,18 +344,6 @@ export default function VaultApp({
     onRefresh();
   };
 
-  const handleRenameCommit = async (id: string, newName: string) => {
-    const folder = folders.find((f) => f.id === id);
-    if (!folder) throw new Error("Folder not found");
-    const parentId = folder.parentFolderId ?? null;
-    const siblings = folders.filter((f) => (f.parentFolderId ?? null) === parentId && f.id !== id);
-    if (siblings.some((f) => f.name === newName)) throw new Error("A sibling folder already has that name");
-    await apiClient.updateFolder(id, { name: newName });
-    setRenamingFolderId(null);
-    onRefresh();
-  };
-
-  const handleRenameCancel = () => setRenamingFolderId(null);
 
   useEffect(() => {
     if (!selectedResource || tab !== "activity") return;
@@ -479,10 +403,9 @@ export default function VaultApp({
     const canOwn = f.myPermission === "OWNER";
     return [
       { id: "open", label: "Open", icon: FolderOpen, onClick: () => { onSelectFolder(f.id); onSelectResource(null); closeContextMenu(); } },
-      { id: "new-password", label: "New password", icon: KeyRound, onClick: () => { onCreate("password", f.id); closeContextMenu(); } },
-      { id: "new-folder", label: "New subfolder", icon: FolderPlus, onClick: () => { onCreate("folder", f.id); closeContextMenu(); } },
+      { id: "new-password", label: "New password", icon: KeyRound, onClick: () => { onCreate("password", f.id, f.groupId ?? undefined); closeContextMenu(); } },
+      { id: "new-folder", label: "New subfolder", icon: FolderPlus, onClick: () => { onCreate("folder", f.id, f.groupId ?? undefined); closeContextMenu(); } },
       { id: "move", label: "Move", icon: ExternalLink, disabled: !canEdit, onClick: () => { closeContextMenu(); setMoveTarget({ type: "folder", target: f }); } },
-      { id: "rename", label: "Rename", icon: Pencil, disabled: !canEdit, onClick: () => { closeContextMenu(); setRenamingFolderId(f.id); } },
       { id: "delete", label: "Delete", icon: Trash2, danger: true, disabled: !canOwn, onClick: async () => { closeContextMenu(); if (window.confirm(`Delete folder "${f.name}" and its contents?`)) { await apiClient.deleteFolder(f.id); onSelectFolder(null); onRefresh(); } } },
     ];
   }, [contextMenu]);
@@ -570,40 +493,46 @@ export default function VaultApp({
               {createOpen && (
                 <div className="absolute left-0 top-full z-50 mt-2 w-56 rounded-lg border border-slate-700 bg-slate-900 py-1 shadow-xl">
                   <button
-                    onClick={() => { setCreateOpen(false); onCreate("password"); }}
+                    onClick={() => { setCreateOpen(false); onCreate("password", undefined, activeGroupId ?? undefined); }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-indigo-500/20"
                   >
                     <KeyRound className="w-4 h-4" /> Password
                   </button>
                   <button
-                    onClick={() => { setCreateOpen(false); onCreate("totp"); }}
+                    onClick={() => { setCreateOpen(false); onCreate("totp", undefined, activeGroupId ?? undefined); }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-indigo-500/20"
                   >
                     <Clock className="w-4 h-4" /> TOTP
                   </button>
                   <button
-                    onClick={() => { setCreateOpen(false); onCreate("note"); }}
+                    onClick={() => { setCreateOpen(false); onCreate("note", undefined, activeGroupId ?? undefined); }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-indigo-500/20"
                   >
                     <StickyNote className="w-4 h-4" /> Note
                   </button>
                   <button
-                    onClick={() => { setCreateOpen(false); onCreate("custom"); }}
+                    onClick={() => { setCreateOpen(false); onCreate("custom", undefined, activeGroupId ?? undefined); }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-indigo-500/20"
                   >
                     <FileText className="w-4 h-4" /> Custom
                   </button>
                   <button
-                    onClick={() => { setCreateOpen(false); onCreate("pin"); }}
+                    onClick={() => { setCreateOpen(false); onCreate("pin", undefined, activeGroupId ?? undefined); }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-indigo-500/20"
                   >
                     <Lock className="w-4 h-4" /> PIN
                   </button>
                   <button
-                    onClick={() => { setCreateOpen(false); onCreate("folder"); }}
+                    onClick={() => { setCreateOpen(false); onCreate("folder", undefined, activeGroupId ?? undefined); }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-indigo-500/20"
                   >
                     <FolderIcon className="w-4 h-4" /> Folder
+                  </button>
+                  <button
+                    onClick={() => { setCreateOpen(false); setShowGroupInput(true); }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-indigo-500/20"
+                  >
+                    <Users className="w-4 h-4" /> Group
                   </button>
                   <button
                     onClick={() => { setCreateOpen(false); onExport(); }}
@@ -621,7 +550,7 @@ export default function VaultApp({
                 favorites={favoriteResources}
                 activeId={selectedResource?.id ?? null}
                 onSelect={(id) => {
-                  const r = resources.find((x) => x.id === id);
+                  const r = scopeResources.find((x) => x.id === id);
                   if (!r) return;
                   onSelectFolder(r.folder?.id ?? null);
                   onSelectResource(r);
@@ -629,39 +558,132 @@ export default function VaultApp({
               />
             )}
             <div>
-              {tree.map((n) => (
-                <TreeNode
-                  key={n.id}
-                  node={n}
-                  depth={0}
-                  openMap={openMap}
-                  toggle={toggleFolder}
-                  activeId={selectedFolderId}
-                  onSelect={(id) => {
-                    onSelectFolder(id === "home" ? null : id);
-                    onSelectResource(null);
-                  }}
-                  onContextMenu={(target) => openContextMenu("folder", target as Folder)}
-                  renamingFolderId={renamingFolderId}
-                  onRenameCommit={handleRenameCommit}
-                  onRenameCancel={handleRenameCancel}
-                />
-              ))}
+              <button
+                onClick={() => {
+                  setSelectedScope({ type: "workplace" });
+                  onSelectFolder(null);
+                  onSelectResource(null);
+                }}
+                className={`w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors ${
+                  selectedScope.type === "workplace"
+                    ? "bg-indigo-500/20 text-indigo-200"
+                    : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-100"
+                }`}
+              >
+                <FolderIcon className="w-3.5 h-3.5 text-slate-500" />
+                My Workplace
+              </button>
             </div>
 
-            {groups && groups.length > 0 && (
-              <div>
-                <div className="px-2 pb-1.5 text-[11px] font-semibold tracking-wide text-slate-500 uppercase flex items-center gap-1.5">
-                  <Users className="w-3 h-3" /> Groups
-                </div>
-                {groups.map((g) => (
-                  <button key={g.id} className="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-slate-300 hover:bg-slate-800/60 hover:text-slate-100 transition-colors">
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-700" />
-                    {g.name}
-                  </button>
-                ))}
+            <FileTree
+              folders={scopeFolders}
+              resources={scopeResources}
+              selectedId={selectedResource?.id ?? selectedFolderId ?? undefined}
+              expandedIds={Object.entries(openMap).filter(([_, v]) => v).map(([k]) => k)}
+              groupId={activeGroupId}
+              onSelect={(id, type) => {
+                if (type === "folder") {
+                  onSelectFolder(id);
+                  onSelectResource(null);
+                } else {
+                  const r = scopeResources.find((x) => x.id === id) ?? null;
+                  onSelectResource(r);
+                }
+              }}
+              onToggleExpand={toggleFolder}
+              onCreate={(type, folderId) => onCreate(type === "folder" ? "folder" : "password", folderId ?? undefined, activeGroupId ?? undefined)}
+              onChange={handleFileTreeChange}
+              onDelete={async (id, type) => {
+                try {
+                  if (type === "folder") {
+                    await apiClient.deleteFolder(id);
+                    onSelectFolder(null);
+                  } else {
+                    await apiClient.deleteResource(id);
+                    onSelectResource(null);
+                  }
+                  onRefresh();
+                } catch {}
+              }}
+            />
+
+            <div>
+              <div className="px-2 pb-1.5 text-[11px] font-semibold tracking-wide text-slate-500 uppercase flex items-center justify-between gap-1.5">
+                <div className="flex items-center gap-1.5"><Users className="w-3 h-3" /> Groups</div>
+                <button
+                  onClick={() => { setShowGroupInput((v) => !v); setGroupCreateError(null); }}
+                  className="text-slate-500 hover:text-slate-200 p-0.5 rounded hover:bg-slate-800/60"
+                  title="New group"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
               </div>
-            )}
+
+              {showGroupInput && (
+                <form onSubmit={handleCreateGroup} className="px-2 mb-2 space-y-1.5">
+                  <input
+                    type="text"
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    placeholder="Group name"
+                    className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-[13px] text-slate-200 placeholder:text-slate-600 focus:border-indigo-500 focus:outline-none"
+                  />
+                  <div className="flex gap-1.5">
+                    <button
+                      type="submit"
+                      disabled={creatingGroup}
+                      className="flex-1 rounded-md bg-indigo-600 px-2 py-1 text-[12px] font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                    >
+                      {creatingGroup ? "Creating…" : "Create"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowGroupInput(false); setNewGroupName(""); setGroupCreateError(null); }}
+                      className="rounded-md border border-slate-700 px-2 py-1 text-[12px] text-slate-300 hover:bg-slate-800/60"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  {groupCreateError && <p className="text-[11px] text-red-400">{groupCreateError}</p>}
+                </form>
+              )}
+
+              {(groups ?? []).length === 0 ? (
+                <p className="px-2 text-[12px] text-slate-600">No groups</p>
+              ) : (
+                (groups ?? []).map((g) => {
+                  const active = selectedScope.type === "group" && selectedScope.groupId === g.id;
+                  return (
+                    <div key={g.id} className="group flex w-full items-center gap-1">
+                      <button
+                        onClick={() => {
+                          setSelectedScope({ type: "group", groupId: g.id, name: g.name });
+                          onSelectFolder(null);
+                          onSelectResource(null);
+                        }}
+                        className={`flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors ${
+                          active
+                            ? "bg-indigo-500/20 text-indigo-200"
+                            : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-100"
+                        }`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-indigo-400" : "bg-slate-700"}`} />
+                        {g.name}
+                      </button>
+                      {(g.myRole === "OWNER" || g.myRole == null) && onDeleteGroup && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onDeleteGroup(g.id); }}
+                          className="rounded-md p-1.5 text-slate-500 hover:bg-red-500/10 hover:text-red-400"
+                          title="Delete group"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
 
             <div>
               <div className="px-2 pb-1.5 text-[11px] font-semibold tracking-wide text-slate-500 uppercase flex items-center gap-1.5">
@@ -690,9 +712,13 @@ export default function VaultApp({
           <div className="px-5 pt-4 pb-3 flex items-center justify-between shrink-0">
             <div>
               <h1 className="text-[15px] font-semibold text-slate-100">
-                {breadcrumbs[breadcrumbs.length - 1]?.name ?? "Home"}
+                {breadcrumbs.length > 1
+                  ? breadcrumbs[breadcrumbs.length - 1]?.name
+                  : selectedScope.type === "workplace"
+                    ? "My Workplace"
+                    : selectedScope.name}
               </h1>
-              <p className="text-[12px] text-slate-500 mt-0.5">{resources.length} items</p>
+              <p className="text-[12px] text-slate-500 mt-0.5">{scopeResources.length} items</p>
             </div>
             <div className="flex items-center gap-1">
               {selectedResource && (
@@ -742,7 +768,7 @@ export default function VaultApp({
                 </tr>
               </thead>
               <tbody>
-                {resources.map((r) => {
+                {scopeResources.map((r) => {
                   const isActive = selectedResource?.id === r.id;
                   const isRevealed = !!revealedPasswords[r.id];
                   const isDecrypting = decryptingPasswordId === r.id;
@@ -753,7 +779,7 @@ export default function VaultApp({
                       key={r.id}
                       onClick={() => onSelectResource(r)}
                       onContextMenu={openContextMenu("resource", r)}
-                      className={`group border-b border-slate-900 cursor-pointer transition-colors
+                      className={`group border-b border-slate-900 transition-colors cursor-pointer
                         ${isActive ? "bg-indigo-500/10" : "hover:bg-slate-900/70"}`}
                       style={{ borderLeft: isActive ? "2px solid #6366f1" : "2px solid transparent" }}
                     >
@@ -820,7 +846,7 @@ export default function VaultApp({
                     </tr>
                   );
                 })}
-                {resources.length === 0 && (
+                {scopeResources.length === 0 && (
                   <tr>
                     <td colSpan={8} className="py-12 text-center">
                       <div className="flex flex-col items-center gap-2 text-slate-500">

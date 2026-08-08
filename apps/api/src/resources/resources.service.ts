@@ -19,6 +19,7 @@ import {
   ShareRecipientDto,
 } from "./dto/share-resource.dto";
 import { UpdateResourceDto } from "./dto/update-resource.dto";
+import { ReorderResourceDto } from "./dto/reorder-resource.dto";
 
 @Injectable()
 export class ResourcesService {
@@ -293,7 +294,7 @@ export class ResourcesService {
           creator: { select: { id: true, email: true, firstName: true, lastName: true } },
           modifier: { select: { id: true, email: true, firstName: true, lastName: true } },
         },
-        orderBy: { updatedAt: "desc" },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       } as any) as Promise<any[]>,
       this.prisma.groupUser.findMany({
         where: { userId },
@@ -376,6 +377,7 @@ export class ResourcesService {
         groupId,
         groupName: group?.name ?? null,
         folderPath: location,
+        sortOrder: r.sortOrder,
       };
     });
   }
@@ -429,7 +431,7 @@ export class ResourcesService {
           creator: { select: { id: true, email: true, firstName: true, lastName: true } },
           modifier: { select: { id: true, email: true, firstName: true, lastName: true } },
         },
-        orderBy: { updatedAt: "desc" },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       } as any) as Promise<any[]>,
       this.prisma.groupUser.findMany({
         where: { userId },
@@ -512,6 +514,7 @@ export class ResourcesService {
         groupId,
         groupName: group?.name ?? null,
         folderPath: location,
+        sortOrder: r.sortOrder,
         myPermission,
       };
     }));
@@ -599,7 +602,7 @@ export class ResourcesService {
         creator: { select: { id: true, email: true, firstName: true, lastName: true } },
         modifier: { select: { id: true, email: true, firstName: true, lastName: true } },
       },
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     } as any);
     /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -651,6 +654,7 @@ export class ResourcesService {
         groupId,
         groupName: group.name,
         folderPath: location,
+        sortOrder: r.sortOrder,
         myPermission,
       };
     }));
@@ -1251,6 +1255,88 @@ export class ResourcesService {
       metadata: e.metadataJson as Record<string, unknown>,
       createdAt: e.createdAt,
     }));
+  }
+
+  async reorder(
+    userId: string,
+    orgId: string,
+    resourceId: string,
+    dto: ReorderResourceDto,
+    userRole?: string,
+  ) {
+    const resource = await this.prisma.resource.findFirst({
+      where: { id: resourceId, orgId },
+      include: { folder: { select: { groupId: true } } },
+    });
+    if (!resource) {
+      throw new NotFoundException("Resource not found");
+    }
+
+    const perm = await this.permissions.resolveForResource(userId, resourceId);
+    if (!perm || !this.permissions.hasAtLeast(perm, "UPDATE")) {
+      throw new ForbiddenException("You need UPDATE permission");
+    }
+
+    const newFolderId = dto.folderId ?? null;
+    const resourceGroupId = resource.groupId ?? resource.folder?.groupId ?? null;
+
+    if (newFolderId) {
+      const targetFolder = await this.prisma.folder.findFirst({
+        where: { id: newFolderId, orgId },
+      });
+      if (!targetFolder) {
+        throw new NotFoundException("Target folder not found");
+      }
+      if (targetFolder.groupId !== resourceGroupId) {
+        throw new BadRequestException("Target folder must belong to the same group");
+      }
+      const folderPerm = await this.permissions.resolveForFolder(userId, newFolderId);
+      if (!folderPerm || !this.permissions.hasAtLeast(folderPerm, "UPDATE")) {
+        throw new ForbiddenException("You need UPDATE permission on the target folder");
+      }
+    }
+
+    const siblings = await this.prisma.resource.findMany({
+      where: {
+        orgId,
+        folderId: newFolderId,
+        groupId: resourceGroupId,
+        id: { not: resourceId },
+      },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    });
+
+    const clampedOrder = Math.max(0, Math.min(dto.sortOrder, siblings.length));
+
+    await this.prisma.$transaction([
+      this.prisma.resource.update({
+        where: { id: resourceId },
+        data: {
+          folderId: newFolderId,
+          sortOrder: clampedOrder,
+          modifiedBy: userId,
+        },
+      }),
+      ...siblings.map((s, i) =>
+        this.prisma.resource.update({
+          where: { id: s.id },
+          data: {
+            sortOrder: i < clampedOrder ? i : i + 1,
+          },
+        })
+      ),
+    ]);
+
+    const recipientIds = await this.permissions.getResourceUserIds(resourceId);
+    const result = await this.getOne(userId, resourceId);
+    this.sync.emitToUsers(recipientIds, {
+      type: "resource:update",
+      entityType: "resource",
+      entityId: resourceId,
+      data: result,
+    });
+
+    return result;
   }
 
   private toResourceDto(r: {

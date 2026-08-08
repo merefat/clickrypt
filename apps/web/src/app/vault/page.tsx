@@ -48,12 +48,12 @@ import {
   type ResourceListItem,
   type Tag,
   type UserProfile,
+  type GroupInfo,
 } from "@/lib/api/client";
 import { useSessionStore, clearCallbackUrl } from "@/stores/session";
 import { useSessionRestore } from "@/hooks/useSessionRestore";
 import { useSync } from "@/lib/api/sync";
 import { ReUnlockDialog } from "@/components/ReUnlockDialog";
-import { SortableFolderTree } from "@/components/SortableFolderTree";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field } from "@/components/ui/Field";
 import { ErrorMsg } from "@/components/ui/ErrorMsg";
@@ -80,6 +80,7 @@ export default function VaultPage() {
   const [resources, setResources] = useState<ResourceListItem[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -97,6 +98,7 @@ export default function VaultPage() {
   const [showCreatePin, setShowCreatePin] = useState(false);
   const [createFolderParent, setCreateFolderParent] = useState<string | null>(null);
   const [createFolderGroupId, setCreateFolderGroupId] = useState<string | null>(null);
+  const [createResourceGroupId, setCreateResourceGroupId] = useState<string | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [showReUnlock, setShowReUnlock] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -122,14 +124,16 @@ export default function VaultPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [r, f, t] = await Promise.all([
+      const [r, f, t, g] = await Promise.all([
         apiClient.listResources(),
         apiClient.listFolders(),
         apiClient.listTags(),
+        apiClient.listGroups().catch(() => []),
       ]);
       setResources(r);
       setFolders(f);
       setTags(t);
+      setGroups(g);
       setFavoriteIds(new Set(r.filter((res) => (res as any).isFavorite).map((res) => res.id)));
     } catch (err) {
       console.error("[Vault] loadData failed:", err);
@@ -157,6 +161,34 @@ export default function VaultPage() {
       }
     }
   }, [router]);
+
+  // Create a group and refresh the groups list
+  const handleCreateGroup = useCallback(async (name: string) => {
+    console.log("[Vault] handleCreateGroup:", name);
+    await apiClient.createGroup(name);
+    console.log("[Vault] createGroup succeeded, refreshing groups");
+    const g = await apiClient.listGroups().catch((err) => {
+      console.error("[Vault] listGroups failed after create:", err);
+      return [];
+    });
+    console.log("[Vault] groups after create:", g);
+    setGroups(g);
+  }, []);
+
+  // Delete a group and refresh the groups list
+  const handleDeleteGroup = useCallback(async (id: string) => {
+    if (!confirm("Delete this group and all of its resources?")) return;
+    try {
+      await apiClient.deleteGroup(id);
+      const g = await apiClient.listGroups().catch((err) => {
+        console.error("[Vault] listGroups failed after delete:", err);
+        return [];
+      });
+      setGroups(g);
+    } catch (err) {
+      console.error("[Vault] deleteGroup failed:", err);
+    }
+  }, []);
 
   // A private (non-group) folder belongs in this vault only if the current user owns it
   const isOwnPrivateFolder = useCallback((folder: Folder) => {
@@ -436,7 +468,7 @@ export default function VaultPage() {
       const { encryptedData } = await apiClient.getSecret(resource.id);
       const decrypted = await decryptMessage(encryptedData, privateKey);
       const publicKey = await getPublicKeyFromPrivateKey(privateKey);
-      const newEncryptedData = await encryptMessage(decrypted.plaintext, publicKey);
+      const newEncryptedData = await encryptMessage(decrypted.plaintext, [publicKey]);
       const created = await apiClient.createResource({
         name: `${resource.name} (copy)`,
         folderId: resource.folder?.id,
@@ -601,6 +633,7 @@ export default function VaultPage() {
         folders={folders}
         resources={filtered}
         tags={tags}
+        groups={groups}
         selectedFolderId={selectedFolder}
         onSelectFolder={setSelectedFolder}
         selectedResource={selectedResource}
@@ -615,20 +648,26 @@ export default function VaultPage() {
         onQueryChange={setSearch}
         favoriteIds={favoriteIds}
         onToggleFavorite={handleToggleFavorite}
-        onCreate={(type, folderId) => {
+        onCreate={(type, folderId, groupId) => {
           setSelectedFolder(folderId ?? selectedFolder);
           if (type === "folder") {
             setCreateFolderParent(folderId ?? selectedFolder);
+            setCreateFolderGroupId(groupId ?? null);
             setShowCreateFolder(true);
           } else if (type === "password") {
+            setCreateResourceGroupId(groupId ?? null);
             setShowCreate(true);
           } else if (type === "totp") {
+            setCreateResourceGroupId(groupId ?? null);
             setShowCreateTotp(true);
           } else if (type === "note") {
+            setCreateResourceGroupId(groupId ?? null);
             setShowCreateNote(true);
           } else if (type === "custom") {
+            setCreateResourceGroupId(groupId ?? null);
             setShowCreateCustom(true);
           } else if (type === "pin") {
+            setCreateResourceGroupId(groupId ?? null);
             setShowCreatePin(true);
           }
         }}
@@ -642,6 +681,8 @@ export default function VaultPage() {
         onDuplicate={handleDuplicate}
         onSave={handleInlineSave}
         onRefresh={loadData}
+        onCreateGroup={handleCreateGroup}
+        onDeleteGroup={handleDeleteGroup}
         email={email}
         syncConnected={syncConnected}
       />
@@ -650,6 +691,7 @@ export default function VaultPage() {
           folders={folders}
           privateKey={privateKey}
           defaultFolderId={selectedFolder}
+          groupId={createResourceGroupId}
           orgRole={orgRole}
           onClose={() => setShowCreate(false)}
           onCreated={() => { setShowCreate(false); refreshResources(); }}
@@ -778,7 +820,7 @@ async function encryptForAllOrgMembers(secretPayload: string, selfPublicKey: str
   }
 }
 
-function CreateDialog({ folders, privateKey, defaultFolderId, orgRole, onClose, onCreated }: { folders: Folder[]; privateKey: string | null; defaultFolderId: string | null; orgRole: string | null; onClose: () => void; onCreated: () => void; }) {
+function CreateDialog({ folders, privateKey, defaultFolderId, groupId, orgRole, onClose, onCreated }: { folders: Folder[]; privateKey: string | null; defaultFolderId: string | null; groupId: string | null; orgRole: string | null; onClose: () => void; onCreated: () => void; }) {
   const [name, setName] = useState("");
   const [uri, setUri] = useState("");
   const [username, setUsername] = useState("");
@@ -787,6 +829,11 @@ function CreateDialog({ folders, privateKey, defaultFolderId, orgRole, onClose, 
   const [folderId, setFolderId] = useState(defaultFolderId ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const visibleFolders = useMemo(() => {
+    if (groupId) return folders.filter((f) => f.groupId === groupId);
+    return folders.filter((f) => !f.groupId);
+  }, [folders, groupId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -801,7 +848,16 @@ function CreateDialog({ folders, privateKey, defaultFolderId, orgRole, onClose, 
       const encryptedData = await encryptMessage(secretPayload, [publicKey]);
       const additionalSecrets: Record<string, string> = {};
       const sharingMode = "RESTRICTED" as const;
-      await apiClient.createResource({ name, uri: uri || undefined, folderId: folderId || undefined, encryptedData, metadata: { username }, additionalSecrets, sharingMode });
+      await apiClient.createResource({
+        name,
+        uri: uri || undefined,
+        folderId: folderId || undefined,
+        groupId: !folderId && groupId ? groupId : undefined,
+        encryptedData,
+        metadata: { username },
+        additionalSecrets,
+        sharingMode,
+      });
       onCreated();
     } catch (err) {
       console.error("[CreateDialog] failed:", err);
@@ -817,7 +873,7 @@ function CreateDialog({ folders, privateKey, defaultFolderId, orgRole, onClose, 
         <Field label="Username"><input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className={inputClass} autoComplete="off" name="new-username" /></Field>
         <Field label="Password" required><input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className={inputClass} autoComplete="new-password" name="new-password" /></Field>
         <Field label="Notes"><textarea value={notes} onChange={(e) => setNotes(e.target.value)} className={`${inputClass} min-h-[60px] resize-y`} /></Field>
-        {folders.length > 0 && <Field label="Folder"><select value={folderId} onChange={(e) => setFolderId(e.target.value)} className={inputClass}><option value="">No folder</option>{folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select></Field>}
+        {visibleFolders.length > 0 && <Field label="Folder"><select value={folderId} onChange={(e) => setFolderId(e.target.value)} className={inputClass}><option value="">No folder</option>{visibleFolders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select></Field>}
         {error && <ErrorMsg msg={error} />}
         <div className="flex gap-2 pt-2"><button type="submit" disabled={saving} className={primaryBtnClass}>{saving ? "Saving…" : "Save"}</button><button type="button" onClick={onClose} className={secondaryBtnClass}>Cancel</button></div>
       </form>

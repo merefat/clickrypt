@@ -21,6 +21,7 @@ import { TagsService } from "../tags/tags.service";
 import { CreateResourceDto } from "./dto/create-resource.dto";
 import { ShareResourceDto } from "./dto/share-resource.dto";
 import { UpdateResourceDto } from "./dto/update-resource.dto";
+import { ReorderResourceDto } from "./dto/reorder-resource.dto";
 import { ResourcesService } from "./resources.service";
 
 @ApiTags("resources")
@@ -129,6 +130,16 @@ export class ResourcesController {
     @Body() dto: UpdateResourceDto
   ) {
     return this.resourcesService.update(user.id, id, dto);
+  }
+
+  @Put(":id/reorder")
+  @ApiOperation({ summary: "Reorder/move a resource" })
+  reorder(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id", ParseUUIDPipe) id: string,
+    @Body() dto: ReorderResourceDto,
+  ) {
+    return this.resourcesService.reorder(user.id, user.orgId, id, dto, user.orgRole);
   }
 
   @Delete(":id")

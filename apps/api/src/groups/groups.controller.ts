@@ -28,7 +28,7 @@ export class GroupsController {
   @Get()
   @ApiOperation({ summary: "List groups in organization" })
   list(@CurrentUser() user: AuthenticatedUser) {
-    return this.groupsService.list(user.orgId);
+    return this.groupsService.list(user.id, user.orgId);
   }
 
   @Get(":id")

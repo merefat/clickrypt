@@ -45,6 +45,27 @@ function formatApiError(err: unknown): string {
   return "Request failed";
 }
 
+function getFolderTreeOptions(folders) {
+  const children = new Map();
+  for (const f of folders) {
+    const key = f.parentFolderId ?? null;
+    if (!children.has(key)) children.set(key, []);
+    children.get(key).push(f);
+  }
+  for (const list of children.values()) {
+    list.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }
+  const out = [];
+  function walk(parentId, depth) {
+    for (const f of (children.get(parentId) ?? [])) {
+      out.push({ id: f.id, label: `${"  ".repeat(depth)}${f.name}` });
+      walk(f.id, depth + 1);
+    }
+  }
+  walk(null, 0);
+  return out;
+}
+
 export default function GroupVaultV3() {
   const router = useRouter();
   const { unlocked, privateKey, userId } = useSessionStore();
@@ -430,10 +451,10 @@ export default function GroupVaultV3() {
   function renderGroupFolderActions(folder: Folder) {
     return (
       <>
-        <button onClick={() => openFolderForm(folder.id)} className="px-1.5 py-1 text-[#8ba3b8] hover:text-white" title="New subfolder"><FolderPlus className="h-3 w-3" /></button>
-        <button onClick={() => { setRenamingFolder(folder.id); setRenameName(folder.name); }} className="px-1.5 py-1 text-[#8ba3b8] hover:text-white" title="Rename"><Pencil className="h-3 w-3" /></button>
-        <button onClick={() => { setMovingFolder(folder.id); setMoveTarget(""); }} className="px-1.5 py-1 text-[#8ba3b8] hover:text-white" title="Move"><ChevronRight className="h-3 w-3" /></button>
-        <button onClick={() => handleDeleteFolder(folder.id)} className="px-1.5 py-1 text-[#8ba3b8] hover:text-[#f89c11]" title="Delete"><Trash2 className="h-3 w-3" /></button>
+        <button onClick={() => openFolderForm(folder.id)} className="rounded p-1 text-[#c4d4e0] hover:bg-[var(--surface-hover)] hover:text-white" title="New subfolder"><FolderPlus className="h-4 w-4" /></button>
+        <button onClick={() => { setRenamingFolder(folder.id); setRenameName(folder.name); }} className="rounded p-1 text-[#c4d4e0] hover:bg-[var(--surface-hover)] hover:text-white" title="Rename"><Pencil className="h-4 w-4" /></button>
+        <button onClick={() => { setMovingFolder(folder.id); setMoveTarget(""); }} className="rounded p-1 text-[#c4d4e0] hover:bg-[var(--surface-hover)] hover:text-white" title="Move"><ChevronRight className="h-4 w-4" /></button>
+        <button onClick={() => handleDeleteFolder(folder.id)} className="rounded p-1 text-[#c4d4e0] hover:bg-[var(--surface-hover)] hover:text-[#f89c11]" title="Delete"><Trash2 className="h-4 w-4" /></button>
       </>
     );
   }
@@ -501,9 +522,9 @@ export default function GroupVaultV3() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button onClick={openCreateResource} className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700"><Plus className="h-3.5 w-3.5" /> New Password</button>
-                <button onClick={() => openFolderForm(selectedFolderId)} className="flex items-center gap-1.5 rounded-lg border border-[#2a4055] px-3 py-2 text-xs font-semibold text-[#c4d4e0] hover:bg-[#213548]"><FolderPlus className="h-3.5 w-3.5" /> New Folder</button>
+                <button onClick={() => openFolderForm(selectedFolderId)} className="flex items-center gap-1.5 rounded-lg border border-[#2a4055] px-3 py-2 text-xs font-semibold text-[#c4d4e0] hover:bg-[#213548]" title={currentFolder ? `Create a subfolder inside "${currentFolder.name}"` : "Create a folder in this group"}><FolderPlus className="h-3.5 w-3.5" /> {currentFolder ? `New Subfolder in ${currentFolder.name}` : "New Folder"}</button>
                 <button onClick={handleSyncAll} disabled={syncingAll || busy || resources.length === 0} className="flex items-center gap-1.5 rounded-lg border border-[#1ebbd4] px-3 py-2 text-xs font-semibold text-[#1ebbd4] hover:bg-[#1ebbd4]/20 disabled:opacity-50">{syncingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />} {syncingAll ? "Syncing…" : "Sync All"}</button>
-                {selectedGroup.myRole === "OWNER" && <button onClick={() => handleDeleteGroup(selectedGroup.id)} disabled={busy} className="flex items-center gap-1.5 rounded-lg border border-[#f89c11] px-3 py-2 text-xs font-semibold text-[#f89c11] hover:bg-[#f89c11]/20 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" /> Delete Group</button>}
+                {(selectedGroup.myRole === "OWNER" || selectedGroup.myRole == null) && <button onClick={() => handleDeleteGroup(selectedGroup.id)} disabled={busy} className="flex items-center gap-1.5 rounded-lg border border-[#f89c11] px-3 py-2 text-xs font-semibold text-[#f89c11] hover:bg-[#f89c11]/20 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" /> Delete Group</button>}
               </div>
             </div>
 
@@ -660,10 +681,22 @@ export default function GroupVaultV3() {
       ) : (
         <div className="space-y-2">
           {groups.length === 0 ? <p className="text-[#8ba3b8]">No groups yet. Create one to start sharing with teams.</p> : groups.map(g => (
-            <button key={g.id} onClick={() => handleSelectGroup(g.id)} className="flex w-full items-center justify-between rounded-lg border border-[#2a4055] bg-[#1a3349]/50 px-4 py-3 text-left hover:bg-[#213548]/50">
-              <div><p className="font-medium text-white">{g.name}</p><p className="text-xs text-[#8ba3b8]">{g.memberCount} member{g.memberCount !== 1 ? "s" : ""}</p></div>
-              <Users className="h-4 w-4 text-[#8ba3b8]" />
-            </button>
+            <div key={g.id} className="group flex w-full items-center justify-between rounded-lg border border-[#2a4055] bg-[#1a3349]/50 px-4 py-3 hover:bg-[#213548]/50">
+              <button onClick={() => handleSelectGroup(g.id)} className="flex flex-1 items-center justify-between text-left">
+                <div><p className="font-medium text-white">{g.name}</p><p className="text-xs text-[#8ba3b8]">{g.memberCount} member{g.memberCount !== 1 ? "s" : ""}</p></div>
+                <Users className="h-4 w-4 text-[#8ba3b8]" />
+              </button>
+              {(g.myRole === "OWNER" || g.myRole == null) && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeleteGroup(g.id); }}
+                  disabled={busy}
+                  className="ml-3 flex items-center gap-1.5 rounded-lg border border-[#f89c11] px-2.5 py-1.5 text-xs font-semibold text-[#f89c11] hover:bg-[#f89c11]/20 disabled:opacity-50"
+                  title="Delete group"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Delete
+                </button>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -672,6 +705,14 @@ export default function GroupVaultV3() {
         <Dialog title={folderFormParent ? "New Subfolder" : "New Folder"} onClose={() => { setShowFolderForm(false); setFolderFormParent(null); }}>
           <form onSubmit={handleCreateFolder} className="space-y-4">
             <Field label="Name" required><input type="text" required value={folderFormName} onChange={e => setFolderFormName(e.target.value)} className={inputClass} autoFocus /></Field>
+            {folders.length > 0 && (
+              <Field label="Parent folder">
+                <select value={folderFormParent ?? ""} onChange={e => setFolderFormParent(e.target.value || null)} className={inputClass}>
+                  <option value="">— Group root —</option>
+                  {getFolderTreeOptions(folders).map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+                </select>
+              </Field>
+            )}
             <div className="flex gap-2 pt-2"><button type="submit" disabled={busy} className={primaryBtnClass}>{busy ? "Creating…" : "Create"}</button><button type="button" onClick={() => { setShowFolderForm(false); setFolderFormParent(null); }} className={secondaryBtnClass}>Cancel</button></div>
           </form>
         </Dialog>
@@ -692,7 +733,7 @@ export default function GroupVaultV3() {
             <Field label="Destination">
               <select value={moveTarget} onChange={e => setMoveTarget(e.target.value)} className={inputClass}>
                 <option value="">— Group root —</option>
-                {folders.filter(f => f.id !== movingFolder).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                {getFolderTreeOptions(folders).filter(f => f.id !== movingFolder).map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
               </select>
             </Field>
             <div className="flex gap-2 pt-2"><button onClick={() => handleMoveFolder(movingFolder)} disabled={busy} className={primaryBtnClass}>{busy ? "Moving…" : "Move"}</button><button onClick={() => { setMovingFolder(null); setMoveTarget(""); }} className={secondaryBtnClass}>Cancel</button></div>
@@ -712,7 +753,7 @@ export default function GroupVaultV3() {
               <Field label="Folder">
                 <select value={formFolderId} onChange={e => setFormFolderId(e.target.value)} className={inputClass}>
                   <option value="">— Group root —</option>
-                  {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  {getFolderTreeOptions(folders).map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
                 </select>
               </Field>
             )}
@@ -727,7 +768,7 @@ export default function GroupVaultV3() {
             <Field label="Destination">
               <select value={moveResourceTarget} onChange={e => setMoveResourceTarget(e.target.value)} className={inputClass}>
                 <option value="">— Group root —</option>
-                {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                {getFolderTreeOptions(folders).map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
               </select>
             </Field>
             <div className="flex gap-2 pt-2"><button onClick={handleMoveResource} disabled={busy} className={primaryBtnClass}>{busy ? "Moving…" : "Move"}</button><button onClick={() => { setMovingResource(null); setMoveResourceTarget(""); }} className={secondaryBtnClass}>Cancel</button></div>

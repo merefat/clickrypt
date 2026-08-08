@@ -89,12 +89,13 @@ export class GroupsService {
     }
   }
 
-  async list(orgId: string) {
+  async list(userId: string, orgId: string) {
     const groups = await this.prisma.group.findMany({
       where: { orgId },
       orderBy: { name: "asc" },
       include: {
         _count: { select: { members: true } },
+        members: { where: { userId }, select: { role: true } },
       },
     });
     return groups.map((g) => ({
@@ -102,6 +103,7 @@ export class GroupsService {
       name: g.name,
       memberCount: g._count.members,
       createdAt: g.createdAt,
+      myRole: (g.members[0]?.role as GroupRole | undefined) ?? null,
     }));
   }
 

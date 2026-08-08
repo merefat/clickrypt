@@ -266,6 +266,7 @@ model Resource {
   uri            String?
   metadataJson   Json     @default("{}") @map("metadata_json")
   sharingMode    SharingMode @default(AUTO) @map("sharing_mode")
+  sortOrder      Int      @default(0) @map("sort_order")
   ownerId        String?  @map("owner_id")
   createdBy      String?  @map("created_by")
   modifiedBy     String?  @map("modified_by")

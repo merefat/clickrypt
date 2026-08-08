@@ -314,6 +314,12 @@ export const apiClient = {
       body: JSON.stringify(data),
     }),
 
+  reorderResource: (id: string, data: { folderId?: string | null; sortOrder: number }) =>
+    api<ResourceListItem>(`/resources/${id}/reorder`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
   deleteFolder: (id: string) =>
     api(`/folders/${id}`, { method: "DELETE" }),
 
@@ -649,6 +655,7 @@ export interface ResourceListItem {
   groupId?: string | null;
   groupName?: string | null;
   folderPath?: string | null;
+  sortOrder?: number;
 }
 
 export interface ResourceDetail extends ResourceListItem {
@@ -768,6 +775,7 @@ export interface GroupInfo {
   name: string;
   memberCount: number;
   createdAt: string;
+  myRole: "OWNER" | "ADMIN" | "USER" | null;
 }
 
 export interface GroupMember {

@@ -224,6 +224,7 @@ export function SortableFolderTree({
               isDragging={activeId === folder.id}
               isDescendantOfActive={activeDescendantIds.has(folder.id)}
               setItemRef={setItemRef}
+              hasChildren={(children.get(folder.id)?.length ?? 0) > 0}
             >
               {expandedFolders.has(folder.id) && (
                 <div className="pl-2">{renderFolderGroup(folder.id, depth + 1)}</div>
@@ -284,6 +285,7 @@ interface SortableFolderItemProps {
   isDragging: boolean;
   isDescendantOfActive: boolean;
   setItemRef: (id: string, el: HTMLDivElement | null) => void;
+  hasChildren: boolean;
   children?: React.ReactNode;
 }
 
@@ -301,6 +303,7 @@ function SortableFolderItem({
   isDescendantOfActive,
   setItemRef,
   children,
+  hasChildren,
 }: SortableFolderItemProps) {
   const {
     attributes,
@@ -310,7 +313,8 @@ function SortableFolderItem({
     transition,
   } = useSortable({ id: folder.id });
 
-  const hasChildren = React.Children.count(children) > 0;
+  // hasChildren is derived from the folder map so the chevron is shown
+  // even when the child group is currently collapsed (not rendered).
 
   const handleRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -383,7 +387,7 @@ function SortableFolderItem({
           </button>
         </div>
         {actionButtons && (
-          <div className="flex shrink-0 items-center opacity-0 group-hover:opacity-100">
+          <div className="flex shrink-0 items-center gap-0.5 rounded bg-[var(--surface-hover)]/0 px-1 py-0.5 opacity-0 transition-opacity duration-150 group-hover:bg-[var(--surface-hover)]/60 group-hover:opacity-100 focus-within:opacity-100">
             {actionButtons(folder)}
           </div>
         )}
