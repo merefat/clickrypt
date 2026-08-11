@@ -52,8 +52,10 @@ export default function PasswordDrawer({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchFolders();
-  }, []);
+    if (isOpen) {
+      fetchFolders();
+    }
+  }, [isOpen, isSecretVault]);
 
   useEffect(() => {
     if (editItem) {
@@ -75,7 +77,8 @@ export default function PasswordDrawer({
 
   const fetchFolders = async () => {
     try {
-      const res = await api.get('/folders');
+      // Pass secretVault flag so Secret Vault items ONLY fetch Secret Vault private folders
+      const res = await api.get('/folders', { params: { secretVault: !!isSecretVault } });
       setFolders(res.data);
     } catch (err) {
       console.error(err);
@@ -166,7 +169,9 @@ export default function PasswordDrawer({
               <h2 className="text-base font-bold text-white">
                 {editItem ? 'Edit Password Item' : isSecretVault ? 'New Private Secret' : 'New Password Item'}
               </h2>
-              <p className="text-[11px] text-[#1fbbd2]">Client-side OpenPGP Encryption</p>
+              <p className="text-[11px] text-[#1fbbd2]">
+                {isSecretVault ? 'Secret Vault Private Folder Scope' : 'Client-side OpenPGP Encryption'}
+              </p>
             </div>
           </div>
 
@@ -205,15 +210,17 @@ export default function PasswordDrawer({
             </div>
 
             <div>
-              <label className="block font-semibold text-gray-300 mb-1">Folder</label>
+              <label className="block font-semibold text-gray-300 mb-1">
+                {isSecretVault ? 'Private Folder' : 'Folder'}
+              </label>
               <select
                 value={folderId}
                 onChange={(e) => setFolderId(e.target.value)}
-                className="w-full bg-[#0d1724] border border-gray-700 rounded-lg p-2.5 text-white focus:border-[#1fbbd2] outline-none cursor-pointer"
+                className="w-full bg-[#0d1724] border border-gray-700 rounded-lg p-2.5 text-white focus:border-[#1fbbd2] outline-none cursor-pointer font-sora"
               >
-                <option value="">No Folder</option>
+                <option value="" className="bg-[#17283b] text-white">No Folder</option>
                 {folders.map((f) => (
-                  <option key={f.id} value={f.id}>
+                  <option key={f.id} value={f.id} className="bg-[#17283b] text-white">
                     / {f.name}
                   </option>
                 ))}
@@ -350,7 +357,7 @@ export default function PasswordDrawer({
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 py-2.5 purple-gradient-btn rounded-xl text-[#0d1724] font-extrabold shadow-lg transition-all"
+              className="flex-1 py-2.5 gold-cyan-gradient-btn rounded-xl text-[#0d1724] font-extrabold shadow-lg transition-all"
             >
               {loading ? 'Encrypting & Saving...' : editItem ? 'Save Changes' : 'Create Item'}
             </button>
