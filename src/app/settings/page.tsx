@@ -392,7 +392,7 @@ ${encKey || 'No encrypted private key found.'}
                 <div>
                   <h4 className="text-xs font-bold text-white">Two-Factor Authentication (TOTP)</h4>
                   <p className="text-[11px] text-gray-400 mt-0.5">
-                    Add an extra layer of security using Google Authenticator or Authy.
+                    Add an extra layer of security using Microsoft Authenticator or Google Authenticator.
                   </p>
                 </div>
 
@@ -648,7 +648,7 @@ ${encKey || 'No encrypted private key found.'}
                 </div>
                 <div>
                   <h3 className="text-base font-extrabold text-white">Two-Factor Authentication</h3>
-                  <p className="text-[10px] text-[#1fbbd2] font-semibold">Google Authenticator / Authy TOTP Setup</p>
+                  <p className="text-[10px] text-[#1fbbd2] font-semibold">Microsoft Authenticator / TOTP Setup</p>
                 </div>
               </div>
               <button onClick={() => setShowTwoFactorModal(false)} className="text-gray-400 hover:text-white">
@@ -680,7 +680,7 @@ ${encKey || 'No encrypted private key found.'}
                   </svg>
                 </div>
                 <p className="text-[11px] text-gray-300">
-                  Scan this QR code with Google Authenticator, Authy, or 1Password.
+                  Scan this QR code with Microsoft Authenticator, Google Authenticator, or Authy.
                 </p>
               </div>
 
