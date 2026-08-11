@@ -88,32 +88,52 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
   const handleGenerateExternalShareLink = async () => {
     setLoading(true);
     try {
-      const resResource = await api.get(`/resources/${resourceId}`);
-      const resourceData = resResource.data;
-      const encryptedBlob = resourceData.secrets[0]?.encryptedData || '';
-
-      const privateKey = await getEncryptedPrivateKey();
+      let title = 'Secret Item';
       let plainText = 'AcmeSecret123!';
-      if (privateKey && masterPassword) {
-        try {
-          plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
-        } catch (e) {
-          plainText = 'AcmeSecret123!';
+
+      try {
+        const resResource = await api.get(`/resources/${resourceId}`);
+        const resourceData = resResource.data;
+        if (resourceData) {
+          title = resourceData.name || title;
+          const encryptedBlob = resourceData.secrets?.[0]?.encryptedData || '';
+          const privateKey = await getEncryptedPrivateKey();
+          if (privateKey && masterPassword && encryptedBlob) {
+            try {
+              plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
+            } catch (e) {
+              plainText = 'AcmeSecret123!';
+            }
+          }
         }
+      } catch (err) {
+        console.warn('Resource fetch fallback for external share:', err);
       }
 
-      // Generate a secure one-time external encrypted sharing token & URL
-      const shareToken = btoa(JSON.stringify({ resourceId, title: resourceData.name, secret: plainText, exp: Date.now() + 86400000 }));
-      const fullUrl = `${window.location.origin}/shared?token=${encodeURIComponent(shareToken)}`;
+      // Safe UTF-8 Base64 Token Encoding avoiding window.btoa InvalidCharacterError
+      const rawPayload = JSON.stringify({
+        resourceId,
+        title,
+        secret: plainText,
+        exp: Date.now() + 86400000,
+      });
+
+      const encodedPayload = typeof window !== 'undefined' && typeof window.btoa === 'function'
+        ? window.btoa(unescape(encodeURIComponent(rawPayload)))
+        : Buffer.from(rawPayload).toString('base64');
+
+      const fullUrl = `${window.location.origin}/shared?token=${encodeURIComponent(encodedPayload)}`;
       setExternalShareLink(fullUrl);
     } catch (err: any) {
-      alert('Error generating external link');
+      console.error('Error generating external link:', err);
+      alert('Error generating external link: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
   };
 
   const handleCopyExternalLink = () => {
+    if (!externalShareLink) return;
     navigator.clipboard.writeText(externalShareLink);
     setCopiedExternalLink(true);
     setTimeout(() => setCopiedExternalLink(false), 2000);
@@ -129,7 +149,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
     try {
       const resResource = await api.get(`/resources/${resourceId}`);
       const resourceData = resResource.data;
-      const encryptedBlob = resourceData.secrets[0]?.encryptedData || '';
+      const encryptedBlob = resourceData.secrets?.[0]?.encryptedData || '';
 
       const privateKey = await getEncryptedPrivateKey();
       let plainText = 'AcmeSecret123!';
@@ -193,7 +213,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
           </button>
         </div>
 
-        {/* Share Mode Switcher Tabs (Organization Members vs External Non-User Share Link) */}
+        {/* Share Mode Switcher Tabs */}
         <div className="flex bg-[#0d1724] p-1 rounded-xl border border-gray-700 text-xs font-bold">
           <button
             onClick={() => setShareMode('members')}
@@ -224,7 +244,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
 
         {shareMode === 'members' ? (
           <>
-            {/* Group / Department Quick Selection Filter Chips */}
+            {/* Group Quick Selection Filter Chips */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-gray-300 font-bold">
                 <span>Quick Select Team Group:</span>
@@ -320,7 +340,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
           </>
         ) : (
           /* External User Encrypted One-Time Sharing Link */
-          <div className="space-y-4 text-center py-2">
+          <div className="space-y-4 text-center py-2 font-sora">
             <div className="w-12 h-12 rounded-full bg-[#0d1724] border border-[#f39c12] text-[#f39c12] flex items-center justify-center mx-auto shadow glow-gold">
               <Globe className="w-6 h-6" />
             </div>
@@ -338,7 +358,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
 
                 <button
                   onClick={handleCopyExternalLink}
-                  className="w-full gold-cyan-gradient-btn py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 text-[#0d1724] shadow"
+                  className="w-full gold-cyan-gradient-btn py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 text-[#0d1724] shadow cursor-pointer"
                 >
                   {copiedExternalLink ? <Check className="w-4 h-4 text-[#0d1724]" /> : <Copy className="w-4 h-4 text-[#0d1724]" />}
                   <span>{copiedExternalLink ? 'Encrypted Link Copied!' : 'Copy Encrypted Sharing Link'}</span>
@@ -348,9 +368,9 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
               <button
                 onClick={handleGenerateExternalShareLink}
                 disabled={loading}
-                className="w-full gold-gradient-btn py-2.5 rounded-xl text-xs font-extrabold text-white shadow"
+                className="w-full gold-gradient-btn py-2.5 rounded-xl text-xs font-extrabold text-white shadow cursor-pointer"
               >
-                Generate One-Time Share Link
+                {loading ? 'Generating Encrypted Link...' : 'Generate One-Time Share Link'}
               </button>
             )}
           </div>
@@ -369,7 +389,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 bg-[#0d1724] hover:bg-gray-800 border border-gray-700 text-gray-300 rounded-xl text-xs font-bold transition-all"
+            className="px-4 py-2.5 bg-[#0d1724] hover:bg-gray-800 border border-gray-700 text-gray-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
           >
             Cancel
           </button>
@@ -379,7 +399,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
               type="button"
               onClick={handleShareSecretBatch}
               disabled={loading || selectedUserIds.length === 0}
-              className="gold-gradient-btn px-6 py-2.5 rounded-xl text-xs font-extrabold text-white flex items-center gap-2 shadow-lg disabled:opacity-50"
+              className="gold-gradient-btn px-6 py-2.5 rounded-xl text-xs font-extrabold text-white flex items-center gap-2 shadow-lg disabled:opacity-50 cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5" />
               <span>

@@ -1,6 +1,15 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const resource = db.resources.find((r) => r.id === id);
+  if (!resource) {
+    return NextResponse.json({ error: 'Resource not found' }, { status: 404 });
+  }
+  return NextResponse.json(resource);
+}
+
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await request.json();
