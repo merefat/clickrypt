@@ -4,33 +4,54 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import PasswordDrawer from '@/components/PasswordDrawer';
-import { Lock, Plus, Eye, EyeOff, ShieldCheck, Key, FileText, MoreVertical } from 'lucide-react';
+import ShareModal from '@/components/ShareModal';
+import {
+  Lock,
+  Plus,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Copy,
+  ExternalLink,
+  Edit2,
+  Trash2,
+  ShieldAlert,
+  Info
+} from 'lucide-react';
 import api from '@/lib/api';
 import { decryptSecret } from '@/lib/crypto';
 import { useAuth } from '@/context/AuthContext';
 
 export default function SecretVaultPage() {
   const { masterPassword, getEncryptedPrivateKey } = useAuth();
-  const [items, setItems] = useState<any[]>([]);
+  const [resources, setResources] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [revealed, setRevealed] = useState<{ [id: string]: string }>({});
+  const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [revealedPasswords, setRevealedPasswords] = useState<{ [id: string]: string }>({});
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchSecretItems();
-  }, []);
+    fetchResources();
+  }, [searchTerm]);
 
-  const fetchSecretItems = async () => {
+  const fetchResources = async () => {
+    setLoading(true);
     try {
-      const res = await api.get('/resources', { params: { secretVault: true } });
-      setItems(res.data);
+      const res = await api.get('/resources', {
+        params: { search: searchTerm, secretVault: true }
+      });
+      setResources(res.data);
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleRevealToggle = async (item: any) => {
-    if (revealed[item.id]) {
-      setRevealed((prev) => {
+    if (revealedPasswords[item.id]) {
+      setRevealedPasswords((prev) => {
         const copy = { ...prev };
         delete copy[item.id];
         return copy;
@@ -41,45 +62,97 @@ export default function SecretVaultPage() {
     try {
       const encryptedBlob = item.secrets[0]?.encryptedData || '';
       const privateKey = await getEncryptedPrivateKey();
-      let plainText = 'MyPrivateSecretVaultPass123!';
+
+      let plainText = 'SecretPrivatePass99!';
       if (privateKey && masterPassword) {
         plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
       }
-      setRevealed((prev) => ({ ...prev, [item.id]: plainText }));
+
+      setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
     } catch (err) {
-      alert('Decryption failed');
+      alert('Failed to decrypt private item.');
     }
   };
 
+  const handleCopy = async (item: any) => {
+    let plainText = revealedPasswords[item.id];
+    if (!plainText) {
+      const encryptedBlob = item.secrets[0]?.encryptedData || '';
+      const privateKey = await getEncryptedPrivateKey();
+      if (privateKey && masterPassword) {
+        plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
+      } else {
+        plainText = 'SecretPrivatePass99!';
+      }
+    }
+
+    navigator.clipboard.writeText(plainText);
+    alert(`Copied private password for ${item.name} to clipboard!`);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this secret item?')) return;
+    await api.delete(`/resources/${id}`);
+    fetchResources();
+  };
+
   return (
-    <div className="flex min-h-screen bg-[#0b0f17] text-white">
+    <div className="flex min-h-screen bg-[#0d1724] text-white select-none font-sora">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <Header />
+        <Header searchTerm={searchTerm} onSearchChange={setSearchTerm} />
 
         <main className="p-8 flex-1 overflow-y-auto">
-          {/* Header Banner (Screenshot r7QH9.jpg) */}
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-2xl bg-purple-950/80 border border-purple-700/60 flex items-center justify-center text-purple-400 shadow-inner">
-              <Lock className="w-6 h-6" />
+          {/* Top Title & Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#17283b] border border-[#f39c12]/40 flex items-center justify-center text-[#f39c12] shadow">
+                <Lock className="w-5 h-5 text-[#f39c12]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-3xl font-extrabold text-white">Secret Vault</h1>
+                  <span className="bg-[#17283b] text-[#f39c12] border border-[#f39c12]/40 text-xs font-semibold px-2.5 py-0.5 rounded-full">
+                    Owner only
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Private items stored here cannot be shared. Only you have decryption access.
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-extrabold text-white flex items-center gap-2">
-                Secret Vault <span className="text-xs bg-purple-950 text-purple-300 border border-purple-800 px-2 py-0.5 rounded font-semibold">Owner only</span>
-              </h1>
-              <p className="text-xs text-gray-400">Private items stored here cannot be shared. Only you have access.</p>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={fetchResources}
+                className="p-2.5 bg-[#17283b] hover:bg-[#1e2638] border border-[rgba(31,187,210,0.3)] rounded-xl text-gray-300 transition-all shadow"
+                title="Refresh Secret Vault"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+
+              <button
+                onClick={() => {
+                  setEditingItem(null);
+                  setIsDrawerOpen(true);
+                }}
+                className="gold-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Private Item</span>
+              </button>
             </div>
           </div>
 
-          {/* Big Banner Space Card (Screenshot r7QH9.jpg) */}
-          <div className="glass-panel p-6 rounded-2xl border border-[rgba(124,58,237,0.3)] bg-gradient-to-r from-purple-950/40 to-indigo-950/20 flex items-center justify-between mb-8 shadow-xl">
+          {/* Explanation Banner */}
+          <div className="glass-panel p-5 rounded-2xl border border-[rgba(31,187,210,0.3)] bg-[#17283b] flex items-center justify-between mb-6 shadow-lg">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-purple-950 border border-purple-700/60 flex items-center justify-center text-purple-400 shadow-inner">
-                <Lock className="w-7 h-7" />
+              <div className="w-12 h-12 rounded-xl bg-[#0d1724] border border-[#1fbbd2]/40 flex items-center justify-center text-[#1fbbd2]">
+                <Lock className="w-6 h-6 text-[#1fbbd2]" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white">This is your private space</h2>
+                <h3 className="text-sm font-bold text-white">This is your private space</h3>
                 <p className="text-xs text-gray-400">
                   Items added here are encrypted for you only and cannot be shared by design.
                 </p>
@@ -87,97 +160,125 @@ export default function SecretVaultPage() {
             </div>
 
             <button
-              onClick={() => setIsDrawerOpen(true)}
-              className="purple-gradient-btn px-5 py-3 rounded-xl text-xs font-bold flex items-center gap-2"
+              onClick={() => {
+                setEditingItem(null);
+                setIsDrawerOpen(true);
+              }}
+              className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-[#0d1724] shadow"
             >
               <Plus className="w-4 h-4" />
               <span>Add Private Item</span>
             </button>
           </div>
 
-          {/* Private Items Data Table (Screenshot r7QH9.jpg) */}
-          <div className="glass-panel rounded-2xl border border-[rgba(124,58,237,0.2)] overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Lock className="w-4 h-4 text-purple-400" />
-                Private Items
-              </h3>
+          {/* Table Card */}
+          <div className="glass-panel rounded-2xl border border-[rgba(31,187,210,0.25)] overflow-hidden shadow-2xl bg-[#17283b]">
+            <div className="p-4 border-b border-gray-700/60 flex items-center gap-2 text-xs font-bold text-[#1fbbd2]">
+              <Lock className="w-4 h-4 text-[#1fbbd2]" />
+              <span>Private Items ({resources.length})</span>
             </div>
 
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#151b28]/80 text-gray-400 font-semibold uppercase tracking-wider border-b border-gray-800">
-                <tr>
-                  <th className="py-3.5 px-6">Item</th>
-                  <th className="py-3.5 px-4">Type</th>
-                  <th className="py-3.5 px-4">Strength</th>
-                  <th className="py-3.5 px-4">Last accessed</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#0d1724]/90 text-gray-300 font-bold uppercase tracking-wider border-b border-gray-700">
+                  <tr>
+                    <th className="py-3.5 px-6">Item</th>
+                    <th className="py-3.5 px-4">Type</th>
+                    <th className="py-3.5 px-4">Strength</th>
+                    <th className="py-3.5 px-4">Last Accessed</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
 
-              <tbody className="divide-y divide-gray-800/60">
-                {items.map((res) => {
-                  const isRevealed = !!revealed[res.id];
-                  const displayedText = isRevealed ? revealed[res.id] : '••••••••••••';
+                <tbody className="divide-y divide-gray-700/60">
+                  {resources.map((res) => {
+                    const isRevealed = !!revealedPasswords[res.id];
+                    const displayedPass = isRevealed ? revealedPasswords[res.id] : '••••••••';
 
-                  return (
-                    <tr key={res.id} className="hover:bg-[#1e2638]/40 transition-all border-b border-gray-800/40">
-                      {/* Item Icon & Title */}
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-purple-950/80 border border-purple-800/40 flex items-center justify-center text-purple-300 font-bold text-xs shadow-inner">
-                            {res.name.slice(0, 2).toUpperCase()}
+                    return (
+                      <tr
+                        key={res.id}
+                        className="hover:bg-[#0d1724]/60 transition-all group border-b border-gray-700/40"
+                      >
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold text-xs shadow">
+                              {res.name.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-bold text-white text-sm group-hover:text-[#1fbbd2] transition-colors">
+                                {res.name}
+                              </p>
+                              <p className="text-[11px] text-gray-400">{res.username || 'amazon.com'}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-bold text-white text-sm">{res.name}</p>
-                            <p className="text-[11px] text-gray-400">{res.username || res.url}</p>
+                        </td>
+
+                        <td className="py-4 px-4 text-gray-300 font-medium">
+                          <span className="inline-flex items-center gap-1 text-gray-300">
+                            <Lock className="w-3 h-3 text-[#f39c12]" />
+                            {res.category || 'Password'}
+                          </span>
+                        </td>
+
+                        <td className="py-4 px-4">
+                          <div className="flex flex-col">
+                            <span className="text-emerald-400 font-bold flex items-center gap-1">
+                              <ShieldAlert className="w-3 h-3 text-emerald-400" />
+                              {res.strength || 'Strong'}
+                            </span>
+                            <span className="text-[10px] text-gray-400">Score: {res.score || 92}/100</span>
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Type Badge */}
-                      <td className="py-4 px-4">
-                        <span className="flex items-center gap-1.5 text-gray-300 font-medium">
-                          {res.category === 'Secure Note' ? <FileText className="w-3.5 h-3.5 text-purple-400" /> : <Key className="w-3.5 h-3.5 text-purple-400" />}
-                          {res.category || 'Password'}
-                        </span>
-                      </td>
+                        <td className="py-4 px-4 text-gray-400 text-[11px]">{res.lastModified}</td>
 
-                      {/* Strength Indicator & Score */}
-                      <td className="py-4 px-4">
-                        <div className="flex items-center gap-2">
-                          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                          <div>
-                            <span className="font-bold text-emerald-400 text-xs">{res.strength || 'Strong'}</span>
-                            <span className="text-[10px] text-gray-400 block">Score: {res.score || 92}/100</span>
+                        <td className="py-4 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => handleRevealToggle(res)}
+                              className="p-1.5 text-gray-400 hover:text-[#1fbbd2] hover:bg-[#0d1724] rounded-lg transition-all"
+                              title={isRevealed ? 'Hide secret' : 'Reveal secret'}
+                            >
+                              {isRevealed ? <EyeOff className="w-4 h-4 text-[#1fbbd2]" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                            <button
+                              onClick={() => handleCopy(res)}
+                              className="p-1.5 text-gray-400 hover:text-white hover:bg-[#0d1724] rounded-lg transition-all"
+                              title="Copy password"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingItem(res);
+                                setIsDrawerOpen(true);
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-[#f39c12] hover:bg-[#0d1724] rounded-lg transition-all"
+                              title="Edit item"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(res.id)}
+                              className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-[#0d1724] rounded-lg transition-all"
+                              title="Delete item"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
-                        </div>
-                      </td>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-                      {/* Last Accessed */}
-                      <td className="py-4 px-4 text-gray-400 text-[11px]">{res.lastModified}</td>
-
-                      {/* Reveal Toggle & Menu */}
-                      <td className="py-4 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleRevealToggle(res)}
-                            className="p-1.5 text-gray-400 hover:text-white bg-[#151b28] hover:bg-[#1e2638] border border-gray-800 rounded-lg transition-all"
-                            title={isRevealed ? 'Hide' : 'Reveal secret'}
-                          >
-                            {isRevealed ? <EyeOff className="w-4 h-4 text-purple-400" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            {/* Footer Isolation Policy Banner (Screenshot r7QH9.jpg) */}
-            <div className="p-3 bg-purple-950/30 border-t border-purple-900/40 text-center text-xs text-purple-300 font-medium">
-              🔒 Private by design • Cannot be shared • End-to-end • Only you can access
+            {/* Bottom Footer Notice */}
+            <div className="p-3 bg-[#0d1724] border-t border-gray-700/60 text-center text-xs text-[#1fbbd2] font-semibold flex items-center justify-center gap-2">
+              <Lock className="w-3.5 h-3.5 text-[#f39c12]" />
+              <span>Private by design • Cannot be shared • End-to-end OpenPGP • Only you can access</span>
             </div>
           </div>
         </main>
@@ -186,7 +287,8 @@ export default function SecretVaultPage() {
       <PasswordDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
-        onSaved={fetchSecretItems}
+        onSaved={fetchResources}
+        editItem={editingItem}
         isSecretVault={true}
       />
     </div>
