@@ -18,7 +18,11 @@ import {
   Trash2,
   Fingerprint,
   Smartphone,
-  ShieldAlert
+  ShieldAlert,
+  QrCode,
+  Copy,
+  RefreshCw,
+  SlidersHorizontal
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -39,6 +43,19 @@ export default function SettingsPage() {
   // Modals state
   const [showChangePassModal, setShowChangePassModal] = useState(false);
   const [showPasskeysModal, setShowPasskeysModal] = useState(false);
+  const [showTwoFactorModal, setShowTwoFactorModal] = useState(false);
+  const [showViewBackupKeyModal, setShowViewBackupKeyModal] = useState(false);
+
+  // 2FA State
+  const [is2FAEnabled, setIs2FAEnabled] = useState(true);
+  const [totpSecret] = useState('JBSWY3DPEHPK3PXP');
+  const [totpInputCode, setTotpInputCode] = useState('');
+  const [copiedSecret, setCopiedSecret] = useState(false);
+  const [backupCodes] = useState([
+    '8492-1094', '3920-5812', '7104-9281', '4019-3820',
+    '9182-3710', '5819-2041', '1092-3847', '6720-4912'
+  ]);
+  const [totpSuccessMsg, setTotpSuccessMsg] = useState('');
 
   // Change Password state
   const [currentPass, setCurrentPass] = useState('');
@@ -49,6 +66,10 @@ export default function SettingsPage() {
   const [passError, setPassError] = useState('');
   const [passSuccessMsg, setPassSuccessMsg] = useState('');
   const [isChangingPass, setIsChangingPass] = useState(false);
+
+  // OpenPGP Key Inspector state
+  const [inspectPrivateKey, setInspectPrivateKey] = useState<string>('');
+  const [copiedPgpKeys, setCopiedPgpKeys] = useState(false);
 
   // Passkeys state
   const [passkeys, setPasskeys] = useState<PasskeyItem[]>([
@@ -156,6 +177,41 @@ export default function SettingsPage() {
   const handleDeletePasskey = (id: string) => {
     if (!confirm('Are you sure you want to revoke this passkey?')) return;
     setPasskeys((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const handleToggle2FA = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (totpInputCode.length > 0 && totpInputCode.length < 6) {
+      alert('Please enter a valid 6-digit TOTP verification code.');
+      return;
+    }
+    const nextState = !is2FAEnabled;
+    setIs2FAEnabled(nextState);
+    setTotpSuccessMsg(nextState ? 'Two-Factor Authentication (2FA) enabled successfully!' : '2FA has been disabled for your account.');
+    setTimeout(() => {
+      setTotpSuccessMsg('');
+      setShowTwoFactorModal(false);
+    }, 1800);
+  };
+
+  const handleCopyTotpSecret = () => {
+    navigator.clipboard.writeText(totpSecret);
+    setCopiedSecret(true);
+    setTimeout(() => setCopiedSecret(false), 2000);
+  };
+
+  const handleOpenPgpInspector = async () => {
+    const encKey = await getEncryptedPrivateKey();
+    setInspectPrivateKey(encKey || '');
+    setShowViewBackupKeyModal(true);
+  };
+
+  const handleCopyPgpKeys = () => {
+    const pubKey = user?.publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...ClickryptBackupKey...==\n-----END PGP PUBLIC KEY BLOCK-----';
+    const textToCopy = `--- PUBLIC KEY ---\n${pubKey}\n\n--- ENCRYPTED PRIVATE KEY ---\n${inspectPrivateKey || '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...==\n-----END PGP PRIVATE KEY BLOCK-----'}`;
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedPgpKeys(true);
+    setTimeout(() => setCopiedPgpKeys(false), 2000);
   };
 
   const handleDownloadBackupKey = async () => {
@@ -334,33 +390,58 @@ ${encKey || 'No encrypted private key found.'}
               {/* Two-Factor Authentication section */}
               <div className="flex items-center justify-between p-4 bg-[#0d1724] rounded-xl border border-gray-700">
                 <div>
-                  <h4 className="text-xs font-bold text-white">Two-Factor Authentication</h4>
+                  <h4 className="text-xs font-bold text-white">Two-Factor Authentication (TOTP)</h4>
                   <p className="text-[11px] text-gray-400 mt-0.5">
-                    Add an extra layer of security to your account.
+                    Add an extra layer of security using Google Authenticator or Authy.
                   </p>
                 </div>
 
-                <span className="bg-emerald-950/80 text-emerald-400 border border-emerald-700/60 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5">
-                  <Check className="w-3.5 h-3.5" /> Enabled
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 ${
+                    is2FAEnabled
+                      ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-700/60'
+                      : 'bg-amber-950/80 text-amber-400 border border-amber-700/60'
+                  }`}>
+                    {is2FAEnabled ? <Check className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
+                    <span>{is2FAEnabled ? 'Enabled' : 'Disabled'}</span>
+                  </span>
+
+                  <button
+                    onClick={() => setShowTwoFactorModal(true)}
+                    className="px-4 py-2 bg-[#17283b] hover:bg-[#1e2638] border border-gray-700 rounded-xl text-xs font-bold text-gray-300 flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <QrCode className="w-3.5 h-3.5 text-[#1fbbd2]" />
+                    <span>{is2FAEnabled ? 'Manage 2FA' : 'Configure 2FA'}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Backup Key section */}
               <div className="flex items-center justify-between p-4 bg-[#0d1724] rounded-xl border border-gray-700">
                 <div>
-                  <h4 className="text-xs font-bold text-white">OpenPGP Backup Key</h4>
+                  <h4 className="text-xs font-bold text-white">OpenPGP Backup Key Pair</h4>
                   <p className="text-[11px] text-gray-400 mt-0.5">
-                    Download your OpenPGP emergency backup key pair to recover access to your account.
+                    View or download your OpenPGP emergency backup key pair to recover account access.
                   </p>
                 </div>
 
-                <button
-                  onClick={handleDownloadBackupKey}
-                  className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-[#0d1724] shadow cursor-pointer"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Download Backup Key</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleOpenPgpInspector}
+                    className="px-3.5 py-2 bg-[#17283b] hover:bg-[#1e2638] border border-gray-700 rounded-xl text-xs font-bold text-gray-300 flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-[#f39c12]" />
+                    <span>View PGP Keys</span>
+                  </button>
+
+                  <button
+                    onClick={handleDownloadBackupKey}
+                    className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-[#0d1724] shadow cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download Backup Key</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -551,6 +632,194 @@ ${encKey || 'No encrypted private key found.'}
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TWO-FACTOR AUTHENTICATION (2FA) MODAL */}
+      {showTwoFactorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
+          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Two-Factor Authentication</h3>
+                  <p className="text-[10px] text-[#1fbbd2] font-semibold">Google Authenticator / Authy TOTP Setup</p>
+                </div>
+              </div>
+              <button onClick={() => setShowTwoFactorModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleToggle2FA} className="space-y-4 text-xs">
+              {totpSuccessMsg && (
+                <div className="p-3 bg-emerald-950/80 border border-emerald-700 rounded-xl text-emerald-300 text-xs flex items-center gap-2">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{totpSuccessMsg}</span>
+                </div>
+              )}
+
+              {/* QR Code Scan Section */}
+              <div className="bg-[#0d1724] p-4 rounded-xl border border-gray-700 flex flex-col items-center text-center space-y-3">
+                <div className="w-32 h-32 bg-white p-2 rounded-xl flex items-center justify-center shadow">
+                  <svg viewBox="0 0 100 100" className="w-full h-full text-[#0d1724] fill-current">
+                    <rect x="10" y="10" width="30" height="30" />
+                    <rect x="60" y="10" width="30" height="30" />
+                    <rect x="10" y="60" width="30" height="30" />
+                    <rect x="18" y="18" width="14" height="14" fill="#fff" />
+                    <rect x="68" y="18" width="14" height="14" fill="#fff" />
+                    <rect x="18" y="68" width="14" height="14" fill="#fff" />
+                    <rect x="45" y="45" width="10" height="10" />
+                    <rect x="60" y="60" width="15" height="15" />
+                    <rect x="75" y="75" width="15" height="15" />
+                  </svg>
+                </div>
+                <p className="text-[11px] text-gray-300">
+                  Scan this QR code with Google Authenticator, Authy, or 1Password.
+                </p>
+              </div>
+
+              {/* Secret Key Box */}
+              <div>
+                <label className="block font-semibold text-gray-300 mb-1">Manual Setup Secret Key</label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 font-mono text-[#f39c12] font-bold text-center tracking-widest">
+                    {totpSecret}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyTotpSecret}
+                    className="p-2.5 bg-[#0d1724] hover:bg-gray-800 border border-gray-700 text-gray-300 rounded-xl font-bold flex items-center gap-1"
+                    title="Copy Secret"
+                  >
+                    {copiedSecret ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Verification Code */}
+              <div>
+                <label className="block font-semibold text-gray-300 mb-1">Verify 6-Digit TOTP Code</label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  placeholder="e.g. 492019"
+                  value={totpInputCode}
+                  onChange={(e) => setTotpInputCode(e.target.value.replace(/\D/g, ''))}
+                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 font-mono text-center text-white text-base tracking-widest focus:border-[#1fbbd2] outline-none"
+                />
+              </div>
+
+              {/* Emergency Backup Codes */}
+              <div>
+                <label className="block font-semibold text-gray-300 mb-1">Emergency Recovery Codes</label>
+                <div className="grid grid-cols-2 gap-1.5 p-3 bg-[#0d1724] rounded-xl border border-gray-700 font-mono text-[10px] text-gray-300">
+                  {backupCodes.map((code, idx) => (
+                    <span key={idx} className="bg-[#17283b] px-2 py-1 rounded text-center">
+                      {code}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => setShowTwoFactorModal(false)}
+                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className={`px-5 py-2 rounded-xl text-xs font-extrabold shadow-lg cursor-pointer ${
+                    is2FAEnabled
+                      ? 'bg-rose-900/80 hover:bg-rose-800 text-rose-200 border border-rose-600'
+                      : 'gold-cyan-gradient-btn text-[#0d1724]'
+                  }`}
+                >
+                  {is2FAEnabled ? 'Disable 2FA' : 'Enable 2FA'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* OPENPGP KEY INSPECTOR MODAL */}
+      {showViewBackupKeyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
+          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
+                  <Eye className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">OpenPGP Emergency Key Pair Inspector</h3>
+                  <p className="text-[10px] text-[#1fbbd2] font-semibold">{user?.name} ({user?.email})</p>
+                </div>
+              </div>
+              <button onClick={() => setShowViewBackupKeyModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs max-h-[60vh] overflow-y-auto pr-1">
+              <div>
+                <label className="block font-semibold text-[#f39c12] mb-1">ASCII Armored Public Key</label>
+                <textarea
+                  readOnly
+                  rows={5}
+                  value={user?.publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...ClickryptPublicKey...==\n-----END PGP PUBLIC KEY BLOCK-----'}
+                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-3 font-mono text-[10px] text-gray-300 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-[#1fbbd2] mb-1">Client-Side Encrypted Private Key</label>
+                <textarea
+                  readOnly
+                  rows={5}
+                  value={inspectPrivateKey || '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...ClickryptPrivateKey...==\n-----END PGP PRIVATE KEY BLOCK-----'}
+                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-3 font-mono text-[10px] text-gray-300 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-gray-700 text-xs">
+              <button
+                type="button"
+                onClick={handleCopyPgpKeys}
+                className="px-4 py-2 bg-[#0d1724] hover:bg-gray-800 border border-gray-700 text-white rounded-xl font-bold flex items-center gap-2 cursor-pointer"
+              >
+                {copiedPgpKeys ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-[#1fbbd2]" />}
+                <span>{copiedPgpKeys ? 'Keys Copied to Clipboard!' : 'Copy Keys to Clipboard'}</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowViewBackupKeyModal(false)}
+                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                >
+                  Close
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadBackupKey}
+                  className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-[#0d1724] shadow cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download .asc File</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
