@@ -20,6 +20,7 @@ interface AuthContextType {
   masterPassword: string | null;
   login: (email: string, masterPassword: string) => Promise<boolean>;
   register: (name: string, email: string, masterPassword: string) => Promise<boolean>;
+  updateMasterPassword: (newMasterPass: string) => Promise<void>;
   logout: () => void;
   getEncryptedPrivateKey: () => Promise<string | null>;
 }
@@ -90,6 +91,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateMasterPassword = async (newMasterPass: string) => {
+    setMasterPassword(newMasterPass);
+    if (user?.email) {
+      try {
+        const { privateKey } = await generateKeyPair(user.email, newMasterPass);
+        await savePrivateKey(privateKey);
+      } catch (e) {
+        console.warn('Key re-encryption error:', e);
+      }
+    }
+  };
+
   const logout = async () => {
     try {
       await api.post('/auth/logout');
@@ -114,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         masterPassword,
         login,
         register,
+        updateMasterPassword,
         logout,
         getEncryptedPrivateKey,
       }}
