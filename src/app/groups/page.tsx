@@ -3,7 +3,21 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
-import { Users, Plus, Search, UserPlus, Trash2, Shield, Folder, Lock, ChevronRight, Check } from 'lucide-react';
+import {
+  Users,
+  Plus,
+  Search,
+  UserPlus,
+  Trash2,
+  Shield,
+  Folder,
+  Lock,
+  ChevronRight,
+  Check,
+  X,
+  CheckSquare,
+  Square
+} from 'lucide-react';
 import api from '@/lib/api';
 
 export default function GroupsPage() {
@@ -13,6 +27,19 @@ export default function GroupsPage() {
   const [activeTab, setActiveTab] = useState<'members' | 'folders' | 'passwords' | 'activity'>('members');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Modals state
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+
+  // Create Group Form
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupDesc, setNewGroupDesc] = useState('');
+  const [newGroupMemberIds, setNewGroupMemberIds] = useState<string[]>([]);
+
+  // Add Member Form
+  const [addMemberUserId, setAddMemberUserId] = useState('');
+  const [addMemberRole, setAddMemberRole] = useState<'User' | 'Admin'>('User');
 
   useEffect(() => {
     fetchGroups();
@@ -45,6 +72,84 @@ export default function GroupsPage() {
 
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) || groups[0];
 
+  const handleToggleNewGroupMember = (userId: string) => {
+    setNewGroupMemberIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleCreateGroupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGroupName) return;
+
+    try {
+      const res = await api.post('/groups', {
+        name: newGroupName,
+        description: newGroupDesc || 'Team access group',
+        memberIds: newGroupMemberIds,
+      });
+
+      setNewGroupName('');
+      setNewGroupDesc('');
+      setNewGroupMemberIds([]);
+      setShowCreateModal(false);
+      await fetchGroups();
+      setSelectedGroupId(res.data.id);
+    } catch (err) {
+      alert('Failed to create group');
+    }
+  };
+
+  const handleAddMemberSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addMemberUserId || !selectedGroup) return;
+
+    try {
+      await api.put(`/groups/${selectedGroup.id}`, {
+        addUserId: addMemberUserId,
+        role: addMemberRole,
+      });
+
+      setAddMemberUserId('');
+      setShowAddMemberModal(false);
+      fetchGroups();
+    } catch (err) {
+      alert('Failed to add member to group');
+    }
+  };
+
+  const handleRemoveMember = async (userId: string) => {
+    if (!selectedGroup) return;
+    if (!confirm('Are you sure you want to remove this member from the group?')) return;
+
+    try {
+      await api.put(`/groups/${selectedGroup.id}`, {
+        removeUserId: userId,
+      });
+      fetchGroups();
+    } catch (err) {
+      alert('Failed to remove member');
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!selectedGroup) return;
+    if (!confirm(`Are you sure you want to delete group "${selectedGroup.name}"?`)) return;
+
+    try {
+      await api.delete(`/groups/${selectedGroup.id}`);
+      setSelectedGroupId('');
+      fetchGroups();
+    } catch (err) {
+      alert('Failed to delete group');
+    }
+  };
+
+  // Available users not currently in the selected group
+  const availableUsersForGroup = selectedGroup
+    ? users.filter((u) => !selectedGroup.members.some((m: any) => m.userId === u.id))
+    : [];
+
   return (
     <div className="flex min-h-screen bg-[#0d1724] text-white select-none font-sora">
       <Sidebar />
@@ -67,9 +172,10 @@ export default function GroupsPage() {
               </div>
             </div>
 
+            {/* CREATE GROUP BUTTON */}
             <button
-              onClick={() => alert('Create Group modal')}
-              className="gold-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow"
+              onClick={() => setShowCreateModal(true)}
+              className="gold-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Create Group</span>
@@ -131,7 +237,7 @@ export default function GroupsPage() {
             </div>
 
             {/* Right: Selected Group Details */}
-            {selectedGroup && (
+            {selectedGroup ? (
               <div className="lg:col-span-2 glass-panel rounded-2xl p-6 border border-[rgba(31,187,210,0.25)] bg-[#17283b] flex flex-col">
                 {/* Group Header */}
                 <div className="flex items-center justify-between pb-6 border-b border-gray-700">
@@ -146,11 +252,24 @@ export default function GroupsPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <button className="px-3 py-1.5 bg-[#0d1724] hover:bg-gray-800 border border-gray-700 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all">
+                    {/* ADD MEMBER BUTTON */}
+                    <button
+                      onClick={() => {
+                        setAddMemberUserId('');
+                        setShowAddMemberModal(true);
+                      }}
+                      className="px-3 py-1.5 bg-[#0d1724] hover:bg-gray-800 border border-gray-700 hover:border-[#1fbbd2] rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
                       <UserPlus className="w-3.5 h-3.5 text-[#1fbbd2]" />
                       <span>Add Member</span>
                     </button>
-                    <button className="p-2 text-gray-400 hover:text-rose-400 bg-[#0d1724] border border-gray-700 rounded-xl transition-all">
+
+                    {/* DELETE GROUP BUTTON */}
+                    <button
+                      onClick={handleDeleteGroup}
+                      className="p-2 text-gray-400 hover:text-rose-400 bg-[#0d1724] border border-gray-700 hover:border-rose-500 rounded-xl transition-all cursor-pointer"
+                      title="Delete Group"
+                    >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -206,7 +325,13 @@ export default function GroupsPage() {
                               <span className="bg-[#17283b] text-[#f39c12] border border-[#f39c12]/40 text-[10px] font-bold px-2 py-0.5 rounded-full">
                                 {m.role}
                               </span>
-                              <button className="text-gray-500 hover:text-rose-400">
+
+                              {/* REMOVE MEMBER BUTTON */}
+                              <button
+                                onClick={() => handleRemoveMember(m.userId)}
+                                className="text-gray-500 hover:text-rose-400 p-1 transition-colors cursor-pointer"
+                                title="Remove from group"
+                              >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
@@ -238,10 +363,182 @@ export default function GroupsPage() {
                   )}
                 </div>
               </div>
+            ) : (
+              <div className="lg:col-span-2 glass-panel rounded-2xl p-12 text-center text-gray-400 text-xs bg-[#17283b]">
+                <Users className="w-12 h-12 text-gray-500 mx-auto mb-3 opacity-50" />
+                <p>No groups created yet. Click "Create Group" to add team access groups.</p>
+              </div>
             )}
           </div>
         </main>
       </div>
+
+      {/* CREATE GROUP MODAL */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
+          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
+                  <Users className="w-5 h-5" />
+                </div>
+                <h3 className="text-base font-extrabold text-white">Create Team Group</h3>
+              </div>
+              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateGroupSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-300 mb-1">Group Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. DevOps Infrastructure"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-300 mb-1">Description</label>
+                <input
+                  type="text"
+                  placeholder="Cloud deployment and server access"
+                  value={newGroupDesc}
+                  onChange={(e) => setNewGroupDesc(e.target.value)}
+                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-300 mb-1.5">Select Initial Members</label>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {users.map((u) => {
+                    const isChecked = newGroupMemberIds.includes(u.id);
+                    return (
+                      <div
+                        key={u.id}
+                        onClick={() => handleToggleNewGroupMember(u.id)}
+                        className={`p-2.5 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${
+                          isChecked
+                            ? 'border-[#f39c12] bg-[#0d1724]'
+                            : 'border-gray-700/60 bg-[#0d1724]/40 hover:border-gray-600'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                            isChecked ? 'border-[#f39c12] bg-[#f39c12]' : 'border-gray-600'
+                          }`}>
+                            {isChecked && <Check className="w-3 h-3 text-[#0d1724] stroke-[3]" />}
+                          </div>
+                          <div>
+                            <p className="font-bold text-white">{u.name}</p>
+                            <p className="text-[10px] text-gray-400">{u.email}</p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-gray-400 font-semibold">{u.role}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="gold-gradient-btn px-5 py-2 text-white rounded-xl font-extrabold shadow-lg"
+                >
+                  Create Group
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADD MEMBER MODAL */}
+      {showAddMemberModal && selectedGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
+          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Add Member to Group</h3>
+                  <p className="text-[10px] text-[#1fbbd2] font-semibold">{selectedGroup.name}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAddMemberModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddMemberSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-300 mb-1">Select Member</label>
+                {availableUsersForGroup.length === 0 ? (
+                  <p className="text-gray-400 text-xs py-3">All organization members are already in this group.</p>
+                ) : (
+                  <select
+                    value={addMemberUserId}
+                    onChange={(e) => setAddMemberUserId(e.target.value)}
+                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none cursor-pointer"
+                    required
+                  >
+                    <option value="" className="bg-[#17283b] text-white">Select a member...</option>
+                    {availableUsersForGroup.map((u) => (
+                      <option key={u.id} value={u.id} className="bg-[#17283b] text-white">
+                        {u.name} ({u.email})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-300 mb-1">Group Role</label>
+                <select
+                  value={addMemberRole}
+                  onChange={(e: any) => setAddMemberRole(e.target.value)}
+                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none cursor-pointer"
+                >
+                  <option value="User" className="bg-[#17283b] text-white">User</option>
+                  <option value="Admin" className="bg-[#17283b] text-white">Admin</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => setShowAddMemberModal(false)}
+                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!addMemberUserId}
+                  className="gold-cyan-gradient-btn px-5 py-2 text-[#0d1724] rounded-xl font-extrabold shadow-lg disabled:opacity-50"
+                >
+                  Add to Group
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
