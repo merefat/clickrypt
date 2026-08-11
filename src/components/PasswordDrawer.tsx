@@ -57,7 +57,7 @@ export default function PasswordDrawer({
     if (isOpen) {
       fetchFolders();
     }
-  }, [isOpen, isSecretVault]);
+  }, [isOpen]);
 
   useEffect(() => {
     if (editItem) {
@@ -75,7 +75,7 @@ export default function PasswordDrawer({
       setCategory('Developer');
       setFolderId(defaultFolderId || '');
     }
-  }, [editItem, isOpen, defaultFolderId]);
+  }, [editItem, isOpen]);
 
   const fetchFolders = async () => {
     try {

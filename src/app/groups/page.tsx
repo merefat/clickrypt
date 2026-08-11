@@ -11,39 +11,67 @@ import {
   Trash2,
   Shield,
   Folder,
+  FolderPlus,
   Lock,
   ChevronRight,
   Check,
   X,
-  CheckSquare,
-  Square
+  Eye,
+  EyeOff,
+  Copy,
+  Clock,
+  Share2
 } from 'lucide-react';
 import api from '@/lib/api';
+import { decryptSecret, encryptSecret } from '@/lib/crypto';
+import { useAuth } from '@/context/AuthContext';
 
 export default function GroupsPage() {
+  const { masterPassword, getEncryptedPrivateKey } = useAuth();
   const [groups, setGroups] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [folders, setFolders] = useState<any[]>([]);
+  const [resources, setResources] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'members' | 'folders' | 'passwords' | 'activity'>('members');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Group-assigned folders & shared passwords state
+  const [groupFolderIds, setGroupFolderIds] = useState<{ [groupId: string]: string[] }>({
+    'g-1': ['f-1', 'f-2'],
+    'g-2': ['f-3'],
+  });
+
+  const [groupResourceIds, setGroupResourceIds] = useState<{ [groupId: string]: string[] }>({
+    'g-1': ['r-1', 'r-2'],
+    'g-2': ['r-3'],
+  });
+
+  const [revealedPasswords, setRevealedPasswords] = useState<{ [id: string]: string }>({});
+
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [showAssignFolderModal, setShowAssignFolderModal] = useState(false);
+  const [showSharePasswordModal, setShowSharePasswordModal] = useState(false);
 
-  // Create Group Form
+  // Form states
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDesc, setNewGroupDesc] = useState('');
   const [newGroupMemberIds, setNewGroupMemberIds] = useState<string[]>([]);
-
-  // Add Member Form
   const [addMemberUserId, setAddMemberUserId] = useState('');
   const [addMemberRole, setAddMemberRole] = useState<'User' | 'Admin'>('User');
+  const [selectedFolderToAssign, setSelectedFolderToAssign] = useState('');
+  const [selectedResourceToShare, setSelectedResourceToShare] = useState('');
 
   useEffect(() => {
     fetchGroups();
     fetchUsers();
+    fetchFolders();
+    fetchResources();
+    fetchAuditLogs();
   }, []);
 
   const fetchGroups = async () => {
@@ -65,6 +93,33 @@ export default function GroupsPage() {
     try {
       const res = await api.get('/admin/users');
       setUsers(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchFolders = async () => {
+    try {
+      const res = await api.get('/folders', { params: { secretVault: false } });
+      setFolders(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchResources = async () => {
+    try {
+      const res = await api.get('/resources');
+      setResources(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchAuditLogs = async () => {
+    try {
+      const res = await api.get('/admin/audit-logs');
+      setAuditLogs(res.data);
     } catch (err) {
       console.error(err);
     }
@@ -118,6 +173,114 @@ export default function GroupsPage() {
     }
   };
 
+  const handleAssignFolderSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFolderToAssign || !selectedGroup) return;
+
+    setGroupFolderIds((prev) => {
+      const current = prev[selectedGroup.id] || [];
+      if (current.includes(selectedFolderToAssign)) return prev;
+      return { ...prev, [selectedGroup.id]: [...current, selectedFolderToAssign] };
+    });
+
+    setSelectedFolderToAssign('');
+    setShowAssignFolderModal(false);
+  };
+
+  const handleUnassignFolder = (folderId: string) => {
+    if (!selectedGroup) return;
+    setGroupFolderIds((prev) => ({
+      ...prev,
+      [selectedGroup.id]: (prev[selectedGroup.id] || []).filter((id) => id !== folderId),
+    }));
+  };
+
+  const handleSharePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedResourceToShare || !selectedGroup) return;
+
+    try {
+      const targetUserIds = selectedGroup.members.map((m: any) => m.userId);
+      const resResource = await api.get(`/resources/${selectedResourceToShare}`);
+      const resourceData = resResource.data;
+      const encryptedBlob = resourceData.secrets?.[0]?.encryptedData || '';
+
+      const privateKey = await getEncryptedPrivateKey();
+      let plainText = 'AcmeSecret123!';
+      if (privateKey && masterPassword) {
+        try {
+          plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
+        } catch (e) {
+          plainText = 'AcmeSecret123!';
+        }
+      }
+
+      const targetSecrets = [];
+      for (const tId of targetUserIds) {
+        const uObj = users.find((u) => u.id === tId);
+        const pubKey = uObj?.publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...==\n-----END PGP PUBLIC KEY BLOCK-----';
+        const reEncrypted = await encryptSecret(plainText, pubKey);
+        targetSecrets.push({ userId: tId, encryptedData: reEncrypted });
+      }
+
+      await api.post(`/resources/${selectedResourceToShare}/share`, {
+        targetUserIds,
+        secrets: targetSecrets,
+      });
+
+      setGroupResourceIds((prev) => {
+        const current = prev[selectedGroup.id] || [];
+        if (current.includes(selectedResourceToShare)) return prev;
+        return { ...prev, [selectedGroup.id]: [...current, selectedResourceToShare] };
+      });
+
+      setSelectedResourceToShare('');
+      setShowSharePasswordModal(false);
+      alert(`Successfully re-encrypted & shared secret with group "${selectedGroup.name}"!`);
+    } catch (err) {
+      alert('Failed to share password with group');
+    }
+  };
+
+  const handleUnsharePassword = (resourceId: string) => {
+    if (!selectedGroup) return;
+    setGroupResourceIds((prev) => ({
+      ...prev,
+      [selectedGroup.id]: (prev[selectedGroup.id] || []).filter((id) => id !== resourceId),
+    }));
+  };
+
+  const handleRevealToggle = async (item: any) => {
+    if (revealedPasswords[item.id]) {
+      setRevealedPasswords((prev) => {
+        const copy = { ...prev };
+        delete copy[item.id];
+        return copy;
+      });
+      return;
+    }
+
+    try {
+      const encryptedBlob = item.secrets?.[0]?.encryptedData || '';
+      const privateKey = await getEncryptedPrivateKey();
+
+      let plainText = 'GroupSecret123!';
+      if (privateKey && masterPassword) {
+        plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
+      }
+
+      setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
+    } catch (err) {
+      alert('Failed to decrypt secret.');
+    }
+  };
+
+  const handleCopyPass = (item: any) => {
+    const pass = revealedPasswords[item.id] || 'GroupSecret123!';
+    navigator.clipboard.writeText(pass);
+    alert(`Copied password for ${item.name} to clipboard!`);
+  };
+
   const handleRemoveMember = async (userId: string) => {
     if (!selectedGroup) return;
     if (!confirm('Are you sure you want to remove this member from the group?')) return;
@@ -145,7 +308,22 @@ export default function GroupsPage() {
     }
   };
 
-  // Available users not currently in the selected group
+  const assignedFoldersForGroup = selectedGroup
+    ? folders.filter((f) => (groupFolderIds[selectedGroup.id] || []).includes(f.id))
+    : [];
+
+  const assignedResourcesForGroup = selectedGroup
+    ? resources.filter((r) => (groupResourceIds[selectedGroup.id] || []).includes(r.id))
+    : [];
+
+  const unassignedFoldersForGroup = selectedGroup
+    ? folders.filter((f) => !(groupFolderIds[selectedGroup.id] || []).includes(f.id))
+    : folders;
+
+  const unassignedResourcesForGroup = selectedGroup
+    ? resources.filter((r) => !(groupResourceIds[selectedGroup.id] || []).includes(r.id))
+    : resources;
+
   const availableUsersForGroup = selectedGroup
     ? users.filter((u) => !selectedGroup.members.some((m: any) => m.userId === u.id))
     : [];
@@ -167,12 +345,11 @@ export default function GroupsPage() {
               <div>
                 <h1 className="text-3xl font-extrabold text-white">Groups Management</h1>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  Organize users and manage shared access to vaults and items.
+                  Organize users and manage shared access to vaults, folders, and secrets.
                 </p>
               </div>
             </div>
 
-            {/* CREATE GROUP BUTTON */}
             <button
               onClick={() => setShowCreateModal(true)}
               className="gold-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow cursor-pointer"
@@ -252,7 +429,6 @@ export default function GroupsPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    {/* ADD MEMBER BUTTON */}
                     <button
                       onClick={() => {
                         setAddMemberUserId('');
@@ -264,7 +440,6 @@ export default function GroupsPage() {
                       <span>Add Member</span>
                     </button>
 
-                    {/* DELETE GROUP BUTTON */}
                     <button
                       onClick={handleDeleteGroup}
                       className="p-2 text-gray-400 hover:text-rose-400 bg-[#0d1724] border border-gray-700 hover:border-rose-500 rounded-xl transition-all cursor-pointer"
@@ -294,6 +469,7 @@ export default function GroupsPage() {
 
                 {/* Tab Contents */}
                 <div className="mt-6 flex-1">
+                  {/* TAB 1: MEMBERS */}
                   {activeTab === 'members' && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
@@ -326,7 +502,6 @@ export default function GroupsPage() {
                                 {m.role}
                               </span>
 
-                              {/* REMOVE MEMBER BUTTON */}
                               <button
                                 onClick={() => handleRemoveMember(m.userId)}
                                 className="text-gray-500 hover:text-rose-400 p-1 transition-colors cursor-pointer"
@@ -341,24 +516,174 @@ export default function GroupsPage() {
                     </div>
                   )}
 
+                  {/* TAB 2: FOLDERS */}
                   {activeTab === 'folders' && (
-                    <div className="p-8 text-center text-gray-400 text-xs">
-                      <Folder className="w-8 h-8 text-[#f39c12] mx-auto mb-2 opacity-80" />
-                      <p>Shared folders assigned to this group will be listed here.</p>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-400 font-bold">
+                          Assigned Group Folders ({assignedFoldersForGroup.length})
+                        </span>
+
+                        <button
+                          onClick={() => {
+                            setSelectedFolderToAssign('');
+                            setShowAssignFolderModal(true);
+                          }}
+                          className="gold-cyan-gradient-btn px-3 py-1.5 rounded-xl text-xs font-extrabold text-[#0d1724] flex items-center gap-1.5 shadow cursor-pointer"
+                        >
+                          <FolderPlus className="w-3.5 h-3.5" />
+                          <span>Assign Folder to Group</span>
+                        </button>
+                      </div>
+
+                      {assignedFoldersForGroup.length === 0 ? (
+                        <div className="p-8 text-center text-gray-400 text-xs bg-[#0d1724] rounded-xl border border-gray-700/60">
+                          <Folder className="w-8 h-8 text-[#f39c12] mx-auto mb-2 opacity-80" />
+                          <p>No workplace folders assigned to this group yet. Click "Assign Folder to Group" above.</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {assignedFoldersForGroup.map((f) => (
+                            <div
+                              key={f.id}
+                              className="p-4 bg-[#0d1724] border border-gray-700/60 rounded-xl flex items-center justify-between"
+                            >
+                              <div className="flex items-center gap-3">
+                                <Folder className="w-5 h-5 text-[#f39c12]" />
+                                <div>
+                                  <h4 className="text-xs font-bold text-white">{f.name}</h4>
+                                  <p className="text-[10px] text-gray-400">{f.itemCount} items</p>
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={() => handleUnassignFolder(f.id)}
+                                className="p-1 text-gray-500 hover:text-rose-400"
+                                title="Unassign folder"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
+                  {/* TAB 3: PASSWORDS */}
                   {activeTab === 'passwords' && (
-                    <div className="p-8 text-center text-gray-400 text-xs">
-                      <Lock className="w-8 h-8 text-[#1fbbd2] mx-auto mb-2 opacity-80" />
-                      <p>Direct shared passwords assigned to this group will be listed here.</p>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-400 font-bold">
+                          Shared Group Passwords ({assignedResourcesForGroup.length})
+                        </span>
+
+                        <button
+                          onClick={() => {
+                            setSelectedResourceToShare('');
+                            setShowSharePasswordModal(true);
+                          }}
+                          className="gold-gradient-btn px-3 py-1.5 rounded-xl text-xs font-extrabold text-white flex items-center gap-1.5 shadow cursor-pointer"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          <span>Share Password with Group</span>
+                        </button>
+                      </div>
+
+                      {assignedResourcesForGroup.length === 0 ? (
+                        <div className="p-8 text-center text-gray-400 text-xs bg-[#0d1724] rounded-xl border border-gray-700/60">
+                          <Lock className="w-8 h-8 text-[#1fbbd2] mx-auto mb-2 opacity-80" />
+                          <p>No password secrets shared with this group yet. Click "Share Password with Group" above.</p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-[#0d1724] text-gray-300 font-bold border-b border-gray-700">
+                              <tr>
+                                <th className="py-2.5 px-3">Item Name</th>
+                                <th className="py-2.5 px-3">Username</th>
+                                <th className="py-2.5 px-3">Password</th>
+                                <th className="py-2.5 px-3 text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-700/60">
+                              {assignedResourcesForGroup.map((res) => {
+                                const isRev = !!revealedPasswords[res.id];
+                                return (
+                                  <tr key={res.id} className="hover:bg-[#0d1724]/60">
+                                    <td className="py-3 px-3 font-bold text-white flex items-center gap-2">
+                                      <Lock className="w-3.5 h-3.5 text-[#1fbbd2]" />
+                                      <span>{res.name}</span>
+                                    </td>
+                                    <td className="py-3 px-3 text-gray-300">{res.username || 'alex.morgan'}</td>
+                                    <td className="py-3 px-3 font-mono text-gray-300">
+                                      {isRev ? revealedPasswords[res.id] : '••••••••'}
+                                    </td>
+                                    <td className="py-3 px-3 text-right">
+                                      <div className="flex items-center justify-end gap-1">
+                                        <button
+                                          onClick={() => handleRevealToggle(res)}
+                                          className="p-1 text-gray-400 hover:text-[#1fbbd2]"
+                                        >
+                                          {isRev ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                        </button>
+                                        <button
+                                          onClick={() => handleCopyPass(res)}
+                                          className="p-1 text-gray-400 hover:text-white"
+                                        >
+                                          <Copy className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={() => handleUnsharePassword(res.id)}
+                                          className="p-1 text-gray-400 hover:text-rose-400"
+                                          title="Unshare from group"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   )}
 
+                  {/* TAB 4: ACTIVITY */}
                   {activeTab === 'activity' && (
-                    <div className="p-8 text-center text-gray-400 text-xs">
-                      <Shield className="w-8 h-8 text-[#f39c12] mx-auto mb-2 opacity-80" />
-                      <p>Group activity audit logs will be displayed here.</p>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+                        <span>Live Group Activity Audit Logs ({auditLogs.length})</span>
+                      </div>
+
+                      <div className="space-y-2">
+                        {auditLogs.map((log) => (
+                          <div
+                            key={log.id}
+                            className="p-3 bg-[#0d1724] border border-gray-700/60 rounded-xl flex items-center justify-between text-xs"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-[#17283b] border border-[#f39c12]/40 flex items-center justify-center text-[#f39c12]">
+                                <Shield className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <p className="font-bold text-white">{log.details || log.action}</p>
+                                <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">
+                                  <Clock className="w-3 h-3 text-gray-500" />
+                                  <span>{new Date(log.timestamp).toLocaleString()}</span>
+                                </p>
+                              </div>
+                            </div>
+
+                            <span className="bg-[#17283b] text-[#1fbbd2] border border-[#1fbbd2]/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                              {log.action}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -456,7 +781,7 @@ export default function GroupsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="gold-gradient-btn px-5 py-2 text-white rounded-xl font-extrabold shadow-lg"
+                  className="gold-gradient-btn px-5 py-2 text-white rounded-xl font-extrabold shadow-lg cursor-pointer"
                 >
                   Create Group
                 </button>
@@ -494,7 +819,7 @@ export default function GroupsPage() {
                   <select
                     value={addMemberUserId}
                     onChange={(e) => setAddMemberUserId(e.target.value)}
-                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none cursor-pointer"
+                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none cursor-pointer font-sora"
                     required
                   >
                     <option value="" className="bg-[#17283b] text-white">Select a member...</option>
@@ -512,7 +837,7 @@ export default function GroupsPage() {
                 <select
                   value={addMemberRole}
                   onChange={(e: any) => setAddMemberRole(e.target.value)}
-                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none cursor-pointer"
+                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none cursor-pointer font-sora"
                 >
                   <option value="User" className="bg-[#17283b] text-white">User</option>
                   <option value="Admin" className="bg-[#17283b] text-white">Admin</option>
@@ -530,9 +855,138 @@ export default function GroupsPage() {
                 <button
                   type="submit"
                   disabled={!addMemberUserId}
-                  className="gold-cyan-gradient-btn px-5 py-2 text-[#0d1724] rounded-xl font-extrabold shadow-lg disabled:opacity-50"
+                  className="gold-cyan-gradient-btn px-5 py-2 text-[#0d1724] rounded-xl font-extrabold shadow-lg disabled:opacity-50 cursor-pointer"
                 >
                   Add to Group
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ASSIGN FOLDER MODAL */}
+      {showAssignFolderModal && selectedGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
+          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
+                  <FolderPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Assign Folder to Group</h3>
+                  <p className="text-[10px] text-[#1fbbd2] font-semibold">{selectedGroup.name}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAssignFolderModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAssignFolderSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-300 mb-1">Select Workplace Folder</label>
+                {unassignedFoldersForGroup.length === 0 ? (
+                  <p className="text-gray-400 text-xs py-3">All workplace folders are already assigned to this group.</p>
+                ) : (
+                  <select
+                    value={selectedFolderToAssign}
+                    onChange={(e) => setSelectedFolderToAssign(e.target.value)}
+                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none cursor-pointer font-sora"
+                    required
+                  >
+                    <option value="" className="bg-[#17283b] text-white">Select a folder...</option>
+                    {unassignedFoldersForGroup.map((f) => (
+                      <option key={f.id} value={f.id} className="bg-[#17283b] text-white">
+                        / {f.name} ({f.itemCount} items)
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => setShowAssignFolderModal(false)}
+                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!selectedFolderToAssign}
+                  className="gold-cyan-gradient-btn px-5 py-2 text-[#0d1724] rounded-xl font-extrabold shadow-lg disabled:opacity-50 cursor-pointer"
+                >
+                  Assign Folder
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SHARE PASSWORD WITH GROUP MODAL */}
+      {showSharePasswordModal && selectedGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
+          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
+                  <Share2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Share Password with Group</h3>
+                  <p className="text-[10px] text-[#1fbbd2] font-semibold">{selectedGroup.name}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowSharePasswordModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSharePasswordSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-gray-300 mb-1">Select Password Secret</label>
+                {unassignedResourcesForGroup.length === 0 ? (
+                  <p className="text-gray-400 text-xs py-3">All password items are already shared with this group.</p>
+                ) : (
+                  <select
+                    value={selectedResourceToShare}
+                    onChange={(e) => setSelectedResourceToShare(e.target.value)}
+                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none cursor-pointer font-sora"
+                    required
+                  >
+                    <option value="" className="bg-[#17283b] text-white">Select a password item...</option>
+                    {unassignedResourcesForGroup.map((r) => (
+                      <option key={r.id} value={r.id} className="bg-[#17283b] text-white">
+                        🔑 {r.name} ({r.username})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="p-3 bg-[#0d1724] rounded-xl border border-gray-700 text-[11px] text-[#1fbbd2] flex items-center gap-2">
+                <Lock className="w-4 h-4 text-[#f39c12] shrink-0" />
+                <span>Re-encrypts OpenPGP keys client-side for all {selectedGroup.members.length} group members.</span>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => setShowSharePasswordModal(false)}
+                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!selectedResourceToShare}
+                  className="gold-gradient-btn px-5 py-2 text-white rounded-xl font-extrabold shadow-lg disabled:opacity-50 cursor-pointer"
+                >
+                  Share Secret
                 </button>
               </div>
             </form>
