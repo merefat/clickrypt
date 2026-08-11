@@ -3,218 +3,184 @@
 import React, { useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
-import {
-  Settings,
-  User,
-  Shield,
-  Key,
-  Download,
-  Bell,
-  Monitor,
-  CheckCircle,
-  Lock,
-  LogOut,
-  Upload
-} from 'lucide-react';
+import { User, Lock, Key, ShieldCheck, Download, Crown, Check, Smartphone } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const [name, setName] = useState(user?.name || 'Alex Rodriguez');
-  const [email, setEmail] = useState(user?.email || 'alex.rodriguez@myworkplace.com');
-  const [alerts, setAlerts] = useState(true);
-  const [activity, setActivity] = useState(true);
-  const [updates, setUpdates] = useState(true);
+  const [name, setName] = useState(user?.name || 'Alex Morgan');
+  const [email, setEmail] = useState(user?.email || 'alex.morgan@acme.com');
+  const [savedSuccess, setSavedSuccess] = useState(false);
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    alert('Profile settings saved successfully!');
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 3000);
   };
 
   return (
-    <div className="flex min-h-screen bg-[#0b0f17] text-white select-none">
+    <div className="flex min-h-screen bg-[#0d1724] text-white select-none font-sora">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
 
-        <main className="p-8 flex-1 overflow-y-auto max-w-5xl">
-          {/* Header Title */}
-          <div className="flex items-center justify-between mb-6">
+        <main className="p-8 flex-1 overflow-y-auto space-y-8">
+          {/* Header */}
+          <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-extrabold text-white flex items-center gap-3">
-                <Settings className="w-8 h-8 text-purple-400" />
-                Profile Settings
-              </h1>
-              <p className="text-xs text-gray-400">Manage your personal information, security, and preferences.</p>
+              <h1 className="text-3xl font-extrabold text-white">Profile Settings</h1>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Manage your personal information, security, and preferences.
+              </p>
             </div>
-            <span className="text-xs bg-purple-950 text-purple-300 border border-purple-800 px-3 py-1 rounded-full font-semibold">
-              👑 Owner
-            </span>
+
+            {/* Gold Owner Crown Badge (0% Purple) */}
+            <div className="flex items-center gap-1.5 bg-[#17283b] border border-[#f39c12]/50 px-3 py-1.5 rounded-full text-xs text-[#f39c12] font-bold shadow">
+              <Crown className="w-4 h-4 text-[#f39c12]" />
+              <span>Owner</span>
+            </div>
           </div>
 
-          <div className="space-y-6">
-            {/* Card 1: Personal Information (Screenshot hatty.jpg) */}
-            <div className="glass-panel p-6 rounded-2xl border border-[rgba(124,58,237,0.2)] bg-[#151b28]/90">
-              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-800">
-                <User className="w-4 h-4 text-purple-400" />
-                <h2 className="text-sm font-bold text-white">Personal Information</h2>
-              </div>
-
-              <form onSubmit={handleSaveProfile} className="space-y-4">
-                <div className="flex items-center gap-6 mb-4">
-                  <div className="w-16 h-16 rounded-full bg-purple-600 flex items-center justify-center font-bold text-xl text-white shadow-lg">
-                    {name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <button
-                      type="button"
-                      className="px-3 py-1.5 bg-[#1e2638] hover:bg-gray-700 text-xs font-semibold text-white rounded-lg border border-gray-700 flex items-center gap-1.5"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      Upload Avatar
-                    </button>
-                    <p className="text-[10px] text-gray-500 mt-1">JPG, PNG or GIF. Max 2MB</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1">Name</label>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full bg-[#0b0f17] border border-gray-700 rounded-lg px-3 py-2 text-xs text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1">Email</label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full bg-[#0b0f17] border border-gray-700 rounded-lg px-3 py-2 text-xs text-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <button type="submit" className="purple-gradient-btn px-4 py-2 rounded-lg text-xs font-bold">
-                    Save Changes
-                  </button>
-                </div>
-              </form>
+          {/* Personal Information Card */}
+          <div className="glass-panel rounded-2xl p-6 border border-[rgba(31,187,210,0.25)] bg-[#17283b] space-y-6">
+            <div className="flex items-center gap-2 text-sm font-bold text-white border-b border-gray-700 pb-3">
+              <User className="w-4 h-4 text-[#1fbbd2]" />
+              <span>Personal Information</span>
             </div>
 
-            {/* Card 2: Security Settings (Screenshot hatty.jpg) */}
-            <div className="glass-panel p-6 rounded-2xl border border-[rgba(124,58,237,0.2)] bg-[#151b28]/90 space-y-4">
-              <div className="flex items-center gap-2 pb-3 border-b border-gray-800">
-                <Shield className="w-4 h-4 text-purple-400" />
-                <h2 className="text-sm font-bold text-white">Security</h2>
+            <form onSubmit={handleSaveProfile} className="space-y-6">
+              <div className="flex items-center gap-4">
+                {/* Gold-Cyan Avatar (0% Purple) */}
+                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold text-lg shadow-lg">
+                  {name.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    className="px-3.5 py-1.5 bg-[#0d1724] hover:bg-gray-800 border border-gray-700 rounded-xl text-xs font-bold text-white transition-all"
+                  >
+                    Upload Avatar
+                  </button>
+                  <p className="text-[10px] text-gray-400 mt-1">JPG, PNG or GIF. Max 2MB</p>
+                </div>
               </div>
 
-              {/* Change Password */}
-              <div className="flex items-center justify-between py-2 border-b border-gray-800/60">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs font-bold text-white">Change Password</p>
-                  <p className="text-[11px] text-gray-400">Ensure your password is strong and unique.</p>
-                  <div className="w-48 bg-gray-800 h-1.5 rounded-full overflow-hidden mt-1.5">
-                    <div className="bg-purple-500 h-full w-[85%]" />
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#1fbbd2]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#1fbbd2]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                {savedSuccess && (
+                  <span className="text-emerald-400 text-xs font-bold flex items-center gap-1 self-center">
+                    <Check className="w-4 h-4" /> Saved!
+                  </span>
+                )}
+                <button
+                  type="submit"
+                  className="gold-gradient-btn px-6 py-2.5 rounded-xl text-xs font-extrabold text-white shadow"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Security Options Card */}
+          <div className="glass-panel rounded-2xl p-6 border border-[rgba(31,187,210,0.25)] bg-[#17283b] space-y-6">
+            <div className="flex items-center gap-2 text-sm font-bold text-white border-b border-gray-700 pb-3">
+              <ShieldCheck className="w-4 h-4 text-[#f39c12]" />
+              <span>Security</span>
+            </div>
+
+            <div className="space-y-6">
+              {/* Change Password section */}
+              <div className="flex items-center justify-between p-4 bg-[#0d1724] rounded-xl border border-gray-700">
+                <div>
+                  <h4 className="text-xs font-bold text-white">Change Master Password</h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Ensure your master password is strong and unique. Re-encrypts your local PGP private key.
+                  </p>
+                  {/* Cyan Strength Bar (0% Purple) */}
+                  <div className="w-36 h-1.5 bg-gray-800 rounded-full overflow-hidden mt-2">
+                    <div className="w-4/5 h-full bg-[#1fbbd2] glow-cyan" />
                   </div>
                 </div>
-                <button className="px-3 py-1.5 bg-purple-950 text-purple-300 border border-purple-800 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+
+                <button
+                  onClick={() => alert('Change password modal')}
+                  className="px-4 py-2 bg-[#17283b] hover:bg-[#1e2638] border border-[#f39c12]/40 rounded-xl text-xs font-bold text-[#f39c12] flex items-center gap-2 transition-all shadow"
+                >
                   <Lock className="w-3.5 h-3.5" />
-                  Change Password
+                  <span>Change Password</span>
                 </button>
               </div>
 
-              {/* Passkey */}
-              <div className="flex items-center justify-between py-2 border-b border-gray-800/60">
+              {/* Passkey section */}
+              <div className="flex items-center justify-between p-4 bg-[#0d1724] rounded-xl border border-gray-700">
                 <div>
-                  <p className="text-xs font-bold text-white">Passkey</p>
-                  <p className="text-[11px] text-gray-400">Use a passkey for passwordless and phishing-resistant sign-in.</p>
+                  <h4 className="text-xs font-bold text-white">Passkey</h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Use a passkey for passwordless and phishing-resistant sign-in.
+                  </p>
                 </div>
-                <button className="px-3 py-1.5 bg-[#1e2638] border border-gray-700 text-white rounded-lg text-xs font-semibold">
+
+                <button className="px-4 py-2 bg-[#17283b] hover:bg-[#1e2638] border border-gray-700 rounded-xl text-xs font-bold text-gray-300 transition-all">
                   Manage Passkeys
                 </button>
               </div>
 
-              {/* Two-Factor Authentication */}
-              <div className="flex items-center justify-between py-2 border-b border-gray-800/60">
+              {/* Two-Factor Authentication section */}
+              <div className="flex items-center justify-between p-4 bg-[#0d1724] rounded-xl border border-gray-700">
                 <div>
-                  <p className="text-xs font-bold text-white">Two-Factor Authentication</p>
-                  <p className="text-[11px] text-gray-400">Add an extra layer of security to your account.</p>
+                  <h4 className="text-xs font-bold text-white">Two-Factor Authentication</h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Add an extra layer of security to your account.
+                  </p>
                 </div>
-                <span className="flex items-center gap-1 bg-emerald-950 text-emerald-400 border border-emerald-800 px-2.5 py-1 rounded-lg text-xs font-semibold">
-                  <CheckCircle className="w-3.5 h-3.5" /> Enabled
+
+                <span className="bg-emerald-950/80 text-emerald-400 border border-emerald-700/60 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5" /> Enabled
                 </span>
               </div>
 
-              {/* Backup Key */}
-              <div className="flex items-center justify-between py-2">
+              {/* Backup Key section */}
+              <div className="flex items-center justify-between p-4 bg-[#0d1724] rounded-xl border border-gray-700">
                 <div>
-                  <p className="text-xs font-bold text-white">Backup Key</p>
-                  <p className="text-[11px] text-gray-400">Download your backup key to recover access to your account.</p>
+                  <h4 className="text-xs font-bold text-white">OpenPGP Backup Key</h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Download your OpenPGP emergency backup key pair to recover access to your account.
+                  </p>
                 </div>
-                <button className="purple-gradient-btn px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5">
-                  <Download className="w-3.5 h-3.5" />
-                  Download Backup Key
-                </button>
-              </div>
-            </div>
 
-            {/* Card 3: Notification Preferences (Screenshot hatty.jpg) */}
-            <div className="glass-panel p-6 rounded-2xl border border-[rgba(124,58,237,0.2)] bg-[#151b28]/90 space-y-3">
-              <div className="flex items-center gap-2 pb-3 border-b border-gray-800">
-                <Bell className="w-4 h-4 text-purple-400" />
-                <h2 className="text-sm font-bold text-white">Notification Preferences</h2>
-              </div>
-
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <p className="text-xs font-bold text-white">Security Alerts</p>
-                  <p className="text-[11px] text-gray-400">Important alerts about your account and security.</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={alerts}
-                  onChange={(e) => setAlerts(e.target.checked)}
-                  className="w-4 h-4 accent-purple-600 cursor-pointer"
-                />
-              </div>
-
-              <div className="flex items-center justify-between py-2">
-                <div>
-                  <p className="text-xs font-bold text-white">Account Activity</p>
-                  <p className="text-[11px] text-gray-400">Notifications about sign-ins and account changes.</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={activity}
-                  onChange={(e) => setActivity(e.target.checked)}
-                  className="w-4 h-4 accent-purple-600 cursor-pointer"
-                />
-              </div>
-            </div>
-
-            {/* Card 4: Session Management (Screenshot hatty.jpg) */}
-            <div className="glass-panel p-6 rounded-2xl border border-[rgba(124,58,237,0.2)] bg-[#151b28]/90 space-y-3">
-              <div className="flex items-center gap-2 pb-3 border-b border-gray-800">
-                <Monitor className="w-4 h-4 text-purple-400" />
-                <h2 className="text-sm font-bold text-white">Session Management</h2>
-              </div>
-
-              <div className="flex items-center justify-between py-2">
-                <div className="flex items-center gap-3">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 glow-green" />
-                  <div>
-                    <p className="text-xs font-bold text-white">Current Session (Active)</p>
-                    <p className="text-[11px] text-gray-400">Signed in on Chrome • Windows • 2 minutes ago</p>
-                  </div>
-                </div>
-                <button className="px-3 py-1.5 bg-rose-950 text-rose-300 border border-rose-800 rounded-lg text-xs font-semibold flex items-center gap-1.5">
-                  <LogOut className="w-3.5 h-3.5" /> Sign Out All Other Sessions
+                <button
+                  onClick={() => alert('Downloading OpenPGP emergency key backup...')}
+                  className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-[#0d1724] shadow"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Backup Key</span>
                 </button>
               </div>
             </div>
