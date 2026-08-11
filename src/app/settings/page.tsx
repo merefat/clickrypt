@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import {
@@ -35,10 +35,18 @@ interface PasskeyItem {
 }
 
 export default function SettingsPage() {
-  const { user, masterPassword, updateMasterPassword, getEncryptedPrivateKey } = useAuth();
+  const { user, masterPassword, updateMasterPassword, getEncryptedPrivateKey, updateProfile } = useAuth();
   const [name, setName] = useState(user?.name || 'Alex Morgan');
   const [email, setEmail] = useState(user?.email || 'alex.morgan@acme.com');
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (user?.name) setName(user.name);
+    if (user?.email) setEmail(user.email);
+    if (user?.avatarUrl) setAvatarUrl(user.avatarUrl);
+  }, [user]);
 
   // Modals state
   const [showChangePassModal, setShowChangePassModal] = useState(false);
@@ -92,8 +100,30 @@ export default function SettingsPage() {
   const [isTestingPasskey, setIsTestingPasskey] = useState(false);
   const [passkeyTestMsg, setPasskeyTestMsg] = useState('');
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image file size must be under 2MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      setAvatarUrl(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveAvatar = () => {
+    setAvatarUrl('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    await updateProfile(name, email, avatarUrl);
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
   };
@@ -334,19 +364,51 @@ ${privKey}
             </div>
 
             <form onSubmit={handleSaveProfile} className="space-y-6">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleAvatarChange}
+                accept="image/png, image/jpeg, image/gif, image/webp"
+                className="hidden"
+              />
+
               <div className="flex items-center gap-4">
-                {/* Gold-Cyan Avatar (0% Purple) */}
-                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold text-lg shadow-lg">
-                  {name.slice(0, 2).toUpperCase()}
-                </div>
+                {/* Dynamic Avatar Image or Initial Circle */}
+                {avatarUrl ? (
+                  <div className="relative group">
+                    <img
+                      src={avatarUrl}
+                      alt={name}
+                      className="w-16 h-16 rounded-full object-cover shadow-lg border-2 border-[#1fbbd2]"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold text-lg shadow-lg border-2 border-[#1fbbd2]/50">
+                    {name.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+
                 <div>
-                  <button
-                    type="button"
-                    className="px-3.5 py-1.5 bg-[#0d1724] hover:bg-gray-800 border border-gray-700 rounded-xl text-xs font-bold text-white transition-all cursor-pointer"
-                  >
-                    Upload Avatar
-                  </button>
-                  <p className="text-[10px] text-gray-400 mt-1">JPG, PNG or GIF. Max 2MB</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2 bg-[#0d1724] hover:bg-gray-800 border border-[#1fbbd2]/40 rounded-xl text-xs font-bold text-white transition-all cursor-pointer shadow"
+                    >
+                      Upload Avatar
+                    </button>
+
+                    {avatarUrl && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveAvatar}
+                        className="px-3 py-2 bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 rounded-xl text-xs font-bold text-rose-300 transition-all cursor-pointer shadow"
+                      >
+                        Remove Avatar
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1">JPG, PNG, WEBP or GIF. Max 2MB</p>
                 </div>
               </div>
 

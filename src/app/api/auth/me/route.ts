@@ -28,3 +28,30 @@ export async function GET() {
     return NextResponse.json({ user: db.users[0] });
   }
 }
+
+export async function PUT(req: Request) {
+  try {
+    const { name, email, avatarUrl } = await req.json();
+    const cookieStore = await cookies();
+    const token = cookieStore.get('access_token')?.value;
+
+    let targetUser = db.users[0];
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+        const found = db.users.find((u) => u.id === decoded.userId);
+        if (found) targetUser = found;
+      } catch (e) {
+        // use default
+      }
+    }
+
+    if (name) targetUser.name = name;
+    if (email) targetUser.email = email;
+    if (avatarUrl !== undefined) targetUser.avatarUrl = avatarUrl;
+
+    return NextResponse.json({ user: targetUser, message: 'Profile updated successfully' });
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
+  }
+}

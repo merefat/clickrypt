@@ -265,9 +265,17 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
           <div className="h-6 w-px bg-gray-700" />
 
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-xs font-bold text-[#0d1724] shadow-md">
-              {user?.name ? user.name.slice(0, 2).toUpperCase() : 'AM'}
-            </div>
+            {user?.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt={user.name}
+                className="w-8 h-8 rounded-full object-cover shadow-md border border-[#1fbbd2]"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-xs font-bold text-[#0d1724] shadow-md border border-[#1fbbd2]/50">
+                {user?.name ? user.name.slice(0, 2).toUpperCase() : 'AM'}
+              </div>
+            )}
             <div className="text-left hidden sm:block">
               <p className="text-xs font-bold text-white leading-tight">{user?.name || 'Alex Morgan'}</p>
               <p className="text-[10px] text-[#f39c12] font-semibold leading-tight">{user?.role || 'Owner'}</p>

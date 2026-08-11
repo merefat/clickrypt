@@ -12,6 +12,7 @@ export interface UserProfile {
   role: 'Owner' | 'Admin' | 'User';
   publicKey?: string;
   encryptedPrivateKey?: string;
+  avatarUrl?: string;
 }
 
 interface AuthContextType {
@@ -21,6 +22,7 @@ interface AuthContextType {
   login: (email: string, masterPassword: string) => Promise<boolean>;
   register: (name: string, email: string, masterPassword: string) => Promise<boolean>;
   updateMasterPassword: (newMasterPass: string) => Promise<void>;
+  updateProfile: (name: string, email: string, avatarUrl?: string) => Promise<boolean>;
   logout: () => void;
   getEncryptedPrivateKey: () => Promise<string | null>;
 }
@@ -103,6 +105,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateProfile = async (name: string, email: string, avatarUrl?: string): Promise<boolean> => {
+    try {
+      const res = await api.put('/auth/me', { name, email, avatarUrl });
+      if (res.data?.user) {
+        setUser(res.data.user);
+        return true;
+      }
+      setUser((prev) => (prev ? { ...prev, name, email, avatarUrl } : null));
+      return true;
+    } catch (error) {
+      setUser((prev) => (prev ? { ...prev, name, email, avatarUrl } : null));
+      return true;
+    }
+  };
+
   const logout = async () => {
     try {
       await api.post('/auth/logout');
@@ -128,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         updateMasterPassword,
+        updateProfile,
         logout,
         getEncryptedPrivateKey,
       }}
