@@ -687,18 +687,14 @@ ${privKey}
 
               {/* QR Code Scan Section */}
               <div className="bg-[#0d1724] p-4 rounded-xl border border-gray-700 flex flex-col items-center text-center space-y-3">
-                <div className="w-32 h-32 bg-white p-2 rounded-xl flex items-center justify-center shadow">
-                  <svg viewBox="0 0 100 100" className="w-full h-full text-[#0d1724] fill-current">
-                    <rect x="10" y="10" width="30" height="30" />
-                    <rect x="60" y="10" width="30" height="30" />
-                    <rect x="10" y="60" width="30" height="30" />
-                    <rect x="18" y="18" width="14" height="14" fill="#fff" />
-                    <rect x="68" y="18" width="14" height="14" fill="#fff" />
-                    <rect x="18" y="68" width="14" height="14" fill="#fff" />
-                    <rect x="45" y="45" width="10" height="10" />
-                    <rect x="60" y="60" width="15" height="15" />
-                    <rect x="75" y="75" width="15" height="15" />
-                  </svg>
+                <div className="w-36 h-36 bg-white p-2 rounded-xl flex items-center justify-center shadow border border-gray-200">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+                      `otpauth://totp/Clickrypt:${user?.email || 'alex.morgan@acme.com'}?secret=${totpSecret}&issuer=Clickrypt`
+                    )}`}
+                    alt="Clickrypt 2FA QR Code"
+                    className="w-full h-full object-contain"
+                  />
                 </div>
                 <p className="text-[11px] text-gray-300">
                   Scan this QR code with Microsoft Authenticator, Google Authenticator, or Authy.
