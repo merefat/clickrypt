@@ -25,11 +25,11 @@ export default function Sidebar() {
 
   const menuItems = [
     { name: 'Passwords', path: '/vault', icon: KeyRound },
-    { name: 'Secret Vault', path: '/secret-vault', icon: Lock, badge: 'Private' },
+    { name: 'Secret Vault', path: '/secret-vault', icon: Lock, badge: 'Private', role: 'OwnerOnly' },
     { name: 'Groups', path: '/groups', icon: Users },
     { name: 'Folders', path: '/folders', icon: Folder },
     { name: 'Shared with me', path: '/shared', icon: Share2 },
-    { name: 'Team Members', path: '/admin', icon: UserCheck, role: 'Owner' },
+    { name: 'Team Members', path: '/admin', icon: UserCheck, role: 'AdminOrOwner' },
     { name: 'Import / Export', path: '/import-export', icon: FileSpreadsheet },
     { name: 'Settings', path: '/settings', icon: Settings },
   ];
@@ -55,7 +55,10 @@ export default function Sidebar() {
         {/* Navigation Items */}
         <nav className="space-y-1">
           {menuItems.map((item) => {
-            if (item.role && user?.role !== 'Owner' && user?.role !== 'Admin') {
+            if (item.role === 'OwnerOnly' && user?.role !== 'Owner') {
+              return null;
+            }
+            if (item.role === 'AdminOrOwner' && user?.role !== 'Owner' && user?.role !== 'Admin') {
               return null;
             }
 

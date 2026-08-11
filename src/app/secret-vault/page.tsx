@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import PasswordDrawer from '@/components/PasswordDrawer';
@@ -26,7 +27,7 @@ import { decryptSecret } from '@/lib/crypto';
 import { useAuth } from '@/context/AuthContext';
 
 export default function SecretVaultPage() {
-  const { masterPassword, getEncryptedPrivateKey } = useAuth();
+  const { user, masterPassword, getEncryptedPrivateKey } = useAuth();
   const [resources, setResources] = useState<any[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
@@ -125,6 +126,34 @@ export default function SecretVaultPage() {
     await api.delete(`/resources/${id}`);
     fetchResources();
   };
+
+  if (user && user.role !== 'Owner') {
+    return (
+      <div className="flex min-h-screen bg-[#0d1724] text-white select-none font-sora">
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-w-0">
+          <Header />
+          <main className="p-8 flex-1 flex items-center justify-center">
+            <div className="bg-[#17283b] border border-rose-500/40 max-w-md w-full p-8 rounded-2xl text-center space-y-4 shadow-2xl">
+              <div className="w-14 h-14 rounded-full bg-rose-950 border border-rose-700 text-rose-400 flex items-center justify-center mx-auto shadow">
+                <ShieldAlert className="w-7 h-7 text-rose-400" />
+              </div>
+              <h2 className="text-xl font-extrabold text-white">Access Restricted to Owner</h2>
+              <p className="text-xs text-gray-300 leading-relaxed">
+                The <strong className="text-[#f39c12]">Secret Vault</strong> is accessible exclusively by the <strong>Organization Owner</strong> account. As an <span className="text-[#1fbbd2] font-semibold">{user.role}</span>, your items are managed in the main Passwords vault.
+              </p>
+              <Link
+                href="/vault"
+                className="gold-cyan-gradient-btn px-6 py-2.5 rounded-xl text-xs font-extrabold text-[#0d1724] inline-block shadow cursor-pointer mt-2"
+              >
+                Return to Passwords Vault
+              </Link>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-[#0d1724] text-white select-none font-sora">
