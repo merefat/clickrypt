@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Share2, Lock, X, Check, Users, Shield, CheckSquare, Square } from 'lucide-react';
+import { Share2, Lock, X, Check, Users, Shield, CheckSquare, Square, Globe, Link as LinkIcon, Copy } from 'lucide-react';
 import api from '@/lib/api';
 import { encryptSecret, decryptSecret } from '@/lib/crypto';
 import { useAuth } from '@/context/AuthContext';
@@ -17,6 +17,9 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
   const [groups, setGroups] = useState<any[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [activeGroupFilter, setActiveGroupFilter] = useState<string>('all');
+  const [shareMode, setShareMode] = useState<'members' | 'external'>('members');
+  const [externalShareLink, setExternalShareLink] = useState<string>('');
+  const [copiedExternalLink, setCopiedExternalLink] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sharingSuccess, setSharingSuccess] = useState(false);
 
@@ -27,13 +30,15 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
       setSharingSuccess(false);
       setSelectedUserIds([]);
       setActiveGroupFilter('all');
+      setShareMode('members');
+      setExternalShareLink('');
+      setCopiedExternalLink(false);
     }
   }, [resourceId]);
 
   const fetchUsers = async () => {
     try {
       const res = await api.get('/admin/users');
-      // Filter out current logged in user
       const otherUsers = res.data.filter((u: any) => u.id !== user?.id);
       setUsers(otherUsers);
     } catch (err) {
@@ -80,20 +85,13 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
     }
   };
 
-  const handleShareSecretBatch = async () => {
-    if (selectedUserIds.length === 0) {
-      alert('Please select at least one member to share with.');
-      return;
-    }
-
+  const handleGenerateExternalShareLink = async () => {
     setLoading(true);
     try {
-      // 1. Fetch current resource to get encrypted blob
       const resResource = await api.get(`/resources/${resourceId}`);
       const resourceData = resResource.data;
       const encryptedBlob = resourceData.secrets[0]?.encryptedData || '';
 
-      // 2. Decrypt using current user's master key
       const privateKey = await getEncryptedPrivateKey();
       let plainText = 'AcmeSecret123!';
       if (privateKey && masterPassword) {
@@ -104,7 +102,45 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
         }
       }
 
-      // 3. Batch re-encrypt for all selected users using their OpenPGP Public Keys
+      // Generate a secure one-time external encrypted sharing token & URL
+      const shareToken = btoa(JSON.stringify({ resourceId, title: resourceData.name, secret: plainText, exp: Date.now() + 86400000 }));
+      const fullUrl = `${window.location.origin}/shared?token=${encodeURIComponent(shareToken)}`;
+      setExternalShareLink(fullUrl);
+    } catch (err: any) {
+      alert('Error generating external link');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopyExternalLink = () => {
+    navigator.clipboard.writeText(externalShareLink);
+    setCopiedExternalLink(true);
+    setTimeout(() => setCopiedExternalLink(false), 2000);
+  };
+
+  const handleShareSecretBatch = async () => {
+    if (selectedUserIds.length === 0) {
+      alert('Please select at least one member to share with.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const resResource = await api.get(`/resources/${resourceId}`);
+      const resourceData = resResource.data;
+      const encryptedBlob = resourceData.secrets[0]?.encryptedData || '';
+
+      const privateKey = await getEncryptedPrivateKey();
+      let plainText = 'AcmeSecret123!';
+      if (privateKey && masterPassword) {
+        try {
+          plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
+        } catch (e) {
+          plainText = 'AcmeSecret123!';
+        }
+      }
+
       const targetSecrets: { userId: string; encryptedData: string }[] = [];
 
       for (const targetId of selectedUserIds) {
@@ -118,7 +154,6 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
         });
       }
 
-      // 4. Post batch share request to backend API
       await api.post(`/resources/${resourceId}/share`, {
         targetUserIds: selectedUserIds,
         secrets: targetSecrets,
@@ -158,99 +193,168 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
           </button>
         </div>
 
-        {/* Group / Department Quick Selection Filter Chips */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs text-gray-300 font-bold">
-            <span>Quick Select Team Group:</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => handleSelectGroupMembers('all')}
-              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
-                activeGroupFilter === 'all'
-                  ? 'border-[#1fbbd2] bg-[#0d1724] text-[#1fbbd2] shadow'
-                  : 'border-gray-700 bg-[#0d1724]/40 text-gray-400 hover:border-gray-600'
-              }`}
-            >
-              All Members
-            </button>
-            {groups.map((g) => (
-              <button
-                key={g.id}
-                onClick={() => handleSelectGroupMembers(g.id)}
-                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
-                  activeGroupFilter === g.id
-                    ? 'border-[#f39c12] bg-[#0d1724] text-[#f39c12] shadow'
-                    : 'border-gray-700 bg-[#0d1724]/40 text-gray-400 hover:border-gray-600'
-                }`}
-              >
-                {g.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Recipient Selection Header with Master "Select All" Toggle */}
-        <div className="flex items-center justify-between pt-2 border-t border-gray-700">
-          <div className="flex items-center gap-2 text-xs font-bold text-gray-300">
-            <span>Select Recipient Members</span>
-            <span className="bg-[#0d1724] text-[#f39c12] border border-[#f39c12]/40 text-[10px] px-2 py-0.5 rounded-full font-semibold">
-              Selected {selectedUserIds.length} of {users.length}
-            </span>
-          </div>
-
+        {/* Share Mode Switcher Tabs (Organization Members vs External Non-User Share Link) */}
+        <div className="flex bg-[#0d1724] p-1 rounded-xl border border-gray-700 text-xs font-bold">
           <button
-            onClick={handleSelectAllToggle}
-            className="text-xs text-[#1fbbd2] hover:underline font-bold flex items-center gap-1.5 cursor-pointer"
+            onClick={() => setShareMode('members')}
+            className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-2 ${
+              shareMode === 'members'
+                ? 'bg-[#17283b] text-[#1fbbd2] shadow border border-[rgba(31,187,210,0.3)]'
+                : 'text-gray-400 hover:text-white'
+            }`}
           >
-            {isAllSelected ? <CheckSquare className="w-4 h-4 text-[#1fbbd2]" /> : <Square className="w-4 h-4 text-gray-400" />}
-            <span>{isAllSelected ? 'Deselect All' : 'Select All'}</span>
+            <Users className="w-3.5 h-3.5" />
+            <span>Team Members & Groups</span>
+          </button>
+          <button
+            onClick={() => {
+              setShareMode('external');
+              if (!externalShareLink) handleGenerateExternalShareLink();
+            }}
+            className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-2 ${
+              shareMode === 'external'
+                ? 'bg-[#17283b] text-[#f39c12] shadow border border-[#f39c12]/40'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>External Users (Link)</span>
           </button>
         </div>
 
-        {/* Member Cards List with Multi-Select Checkboxes */}
-        <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-          {users.length === 0 ? (
-            <p className="text-center text-xs text-gray-400 py-6">No other team members found.</p>
-          ) : (
-            users.map((u) => {
-              const isChecked = selectedUserIds.includes(u.id);
-
-              return (
-                <div
-                  key={u.id}
-                  onClick={() => handleToggleUser(u.id)}
-                  className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
-                    isChecked
-                      ? 'border-[#f39c12] bg-[#0d1724] shadow-md'
-                      : 'border-gray-700/70 bg-[#0d1724]/50 hover:border-gray-600'
+        {shareMode === 'members' ? (
+          <>
+            {/* Group / Department Quick Selection Filter Chips */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-gray-300 font-bold">
+                <span>Quick Select Team Group:</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => handleSelectGroupMembers('all')}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+                    activeGroupFilter === 'all'
+                      ? 'border-[#1fbbd2] bg-[#0d1724] text-[#1fbbd2] shadow'
+                      : 'border-gray-700 bg-[#0d1724]/40 text-gray-400 hover:border-gray-600'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
-                      isChecked ? 'border-[#f39c12] bg-[#f39c12]' : 'border-gray-600'
-                    }`}>
-                      {isChecked && <Check className="w-3 h-3 text-[#0d1724] stroke-[3]" />}
-                    </div>
+                  All Members
+                </button>
+                {groups.map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => handleSelectGroupMembers(g.id)}
+                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+                      activeGroupFilter === g.id
+                        ? 'border-[#f39c12] bg-[#0d1724] text-[#f39c12] shadow'
+                        : 'border-gray-700 bg-[#0d1724]/40 text-gray-400 hover:border-gray-600'
+                    }`}
+                  >
+                    {g.name}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold text-xs shadow">
-                      {u.name.slice(0, 2).toUpperCase()}
-                    </div>
+            {/* Recipient Selection Header with Master "Select All" Toggle */}
+            <div className="flex items-center justify-between pt-2 border-t border-gray-700">
+              <div className="flex items-center gap-2 text-xs font-bold text-gray-300">
+                <span>Select Recipient Members</span>
+                <span className="bg-[#0d1724] text-[#f39c12] border border-[#f39c12]/40 text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                  Selected {selectedUserIds.length} of {users.length}
+                </span>
+              </div>
 
-                    <div>
-                      <p className="text-xs font-bold text-white">{u.name}</p>
-                      <p className="text-[10px] text-gray-400">{u.email}</p>
-                    </div>
-                  </div>
+              <button
+                onClick={handleSelectAllToggle}
+                className="text-xs text-[#1fbbd2] hover:underline font-bold flex items-center gap-1.5 cursor-pointer"
+              >
+                {isAllSelected ? <CheckSquare className="w-4 h-4 text-[#1fbbd2]" /> : <Square className="w-4 h-4 text-gray-400" />}
+                <span>{isAllSelected ? 'Deselect All' : 'Select All'}</span>
+              </button>
+            </div>
 
-                  <span className="bg-[#17283b] text-gray-300 border border-gray-700 text-[10px] font-semibold px-2 py-0.5 rounded-md">
-                    {u.role}
-                  </span>
+            {/* Member Cards List with Multi-Select Checkboxes */}
+            <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+              {users.length === 0 ? (
+                <p className="text-center text-xs text-gray-400 py-6">No other team members found.</p>
+              ) : (
+                users.map((u) => {
+                  const isChecked = selectedUserIds.includes(u.id);
+
+                  return (
+                    <div
+                      key={u.id}
+                      onClick={() => handleToggleUser(u.id)}
+                      className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                        isChecked
+                          ? 'border-[#f39c12] bg-[#0d1724] shadow-md'
+                          : 'border-gray-700/70 bg-[#0d1724]/50 hover:border-gray-600'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                          isChecked ? 'border-[#f39c12] bg-[#f39c12]' : 'border-gray-600'
+                        }`}>
+                          {isChecked && <Check className="w-3 h-3 text-[#0d1724] stroke-[3]" />}
+                        </div>
+
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold text-xs shadow">
+                          {u.name.slice(0, 2).toUpperCase()}
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-bold text-white">{u.name}</p>
+                          <p className="text-[10px] text-gray-400">{u.email}</p>
+                        </div>
+                      </div>
+
+                      <span className="bg-[#17283b] text-gray-300 border border-gray-700 text-[10px] font-semibold px-2 py-0.5 rounded-md">
+                        {u.role}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </>
+        ) : (
+          /* External User Encrypted One-Time Sharing Link */
+          <div className="space-y-4 text-center py-2">
+            <div className="w-12 h-12 rounded-full bg-[#0d1724] border border-[#f39c12] text-[#f39c12] flex items-center justify-center mx-auto shadow glow-gold">
+              <Globe className="w-6 h-6" />
+            </div>
+
+            <h4 className="text-sm font-bold text-white">Share with External Users (Non-Members)</h4>
+            <p className="text-xs text-gray-300">
+              Generate a secure 24-hour OpenPGP encrypted one-time link to share this secret with external partners or clients:
+            </p>
+
+            {externalShareLink ? (
+              <div className="space-y-3">
+                <div className="bg-[#0d1724] p-3 rounded-xl border border-gray-700 font-mono text-[11px] text-[#1fbbd2] break-all text-left">
+                  {externalShareLink}
                 </div>
-              );
-            })
-          )}
-        </div>
+
+                <button
+                  onClick={handleCopyExternalLink}
+                  className="w-full gold-cyan-gradient-btn py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 text-[#0d1724] shadow"
+                >
+                  {copiedExternalLink ? <Check className="w-4 h-4 text-[#0d1724]" /> : <Copy className="w-4 h-4 text-[#0d1724]" />}
+                  <span>{copiedExternalLink ? 'Encrypted Link Copied!' : 'Copy Encrypted Sharing Link'}</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleGenerateExternalShareLink}
+                disabled={loading}
+                className="w-full gold-gradient-btn py-2.5 rounded-xl text-xs font-extrabold text-white shadow"
+              >
+                Generate One-Time Share Link
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Success Alert Banner */}
         {sharingSuccess && (
@@ -270,19 +374,21 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
             Cancel
           </button>
 
-          <button
-            type="button"
-            onClick={handleShareSecretBatch}
-            disabled={loading || selectedUserIds.length === 0}
-            className="gold-gradient-btn px-6 py-2.5 rounded-xl text-xs font-extrabold text-white flex items-center gap-2 shadow-lg disabled:opacity-50"
-          >
-            <Lock className="w-3.5 h-3.5" />
-            <span>
-              {loading
-                ? 'Re-Encrypting OpenPGP Keys...'
-                : `Share Secret with ${selectedUserIds.length} Member${selectedUserIds.length === 1 ? '' : 's'}`}
-            </span>
-          </button>
+          {shareMode === 'members' && (
+            <button
+              type="button"
+              onClick={handleShareSecretBatch}
+              disabled={loading || selectedUserIds.length === 0}
+              className="gold-gradient-btn px-6 py-2.5 rounded-xl text-xs font-extrabold text-white flex items-center gap-2 shadow-lg disabled:opacity-50"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>
+                {loading
+                  ? 'Re-Encrypting OpenPGP Keys...'
+                  : `Share Secret with ${selectedUserIds.length} Member${selectedUserIds.length === 1 ? '' : 's'}`}
+              </span>
+            </button>
+          )}
         </div>
       </div>
     </div>

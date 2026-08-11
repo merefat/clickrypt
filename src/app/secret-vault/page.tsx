@@ -12,6 +12,9 @@ import {
   Eye,
   EyeOff,
   Copy,
+  Share2,
+  Folder,
+  FolderPlus,
   ExternalLink,
   Edit2,
   Trash2,
@@ -25,27 +28,54 @@ import { useAuth } from '@/context/AuthContext';
 export default function SecretVaultPage() {
   const { masterPassword, getEncryptedPrivateKey } = useAuth();
   const [resources, setResources] = useState<any[]>([]);
+  const [folders, setFolders] = useState<any[]>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [shareResourceId, setShareResourceId] = useState<string | null>(null);
   const [revealedPasswords, setRevealedPasswords] = useState<{ [id: string]: string }>({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    fetchFolders();
+  }, []);
+
+  useEffect(() => {
     fetchResources();
-  }, [searchTerm]);
+  }, [searchTerm, selectedFolderId]);
+
+  const fetchFolders = async () => {
+    try {
+      const res = await api.get('/folders');
+      setFolders(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchResources = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/resources', {
-        params: { search: searchTerm, secretVault: true }
-      });
+      const params: any = { search: searchTerm, secretVault: true };
+      if (selectedFolderId) params.folderId = selectedFolderId;
+      const res = await api.get('/resources', { params });
       setResources(res.data);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateFolderPrompt = async () => {
+    const folderName = prompt('Enter new Private Folder Name:');
+    if (!folderName) return;
+    try {
+      await api.post('/folders', { name: folderName, description: 'Private vault folder' });
+      fetchFolders();
+    } catch (err) {
+      alert('Failed to create folder');
     }
   };
 
@@ -104,7 +134,7 @@ export default function SecretVaultPage() {
         <Header searchTerm={searchTerm} onSearchChange={setSearchTerm} />
 
         <main className="p-8 flex-1 overflow-y-auto">
-          {/* Top Title & Header */}
+          {/* Top Title & Header Bar */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-[#17283b] border border-[#f39c12]/40 flex items-center justify-center text-[#f39c12] shadow">
@@ -118,12 +148,29 @@ export default function SecretVaultPage() {
                   </span>
                 </div>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  Private items stored here cannot be shared. Only you have decryption access.
+                  Private items stored here cannot be viewed by others unless shared.
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
+              {/* Folder Selector Filter */}
+              <div className="flex items-center gap-2 bg-[#17283b] border border-[rgba(31,187,210,0.3)] px-3 py-2 rounded-xl text-xs shadow">
+                <Folder className="w-3.5 h-3.5 text-[#f39c12]" />
+                <select
+                  value={selectedFolderId}
+                  onChange={(e) => setSelectedFolderId(e.target.value)}
+                  className="bg-[#17283b] text-white focus:outline-none cursor-pointer font-sora"
+                >
+                  <option value="" className="bg-[#17283b] text-white">All Private Folders</option>
+                  {folders.map((f) => (
+                    <option key={f.id} value={f.id} className="bg-[#17283b] text-white">
+                      / {f.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <button
                 onClick={fetchResources}
                 className="p-2.5 bg-[#17283b] hover:bg-[#1e2638] border border-[rgba(31,187,210,0.3)] rounded-xl text-gray-300 transition-all shadow"
@@ -132,6 +179,7 @@ export default function SecretVaultPage() {
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               </button>
 
+              {/* SINGLE PRIMARY ADD BUTTON */}
               <button
                 onClick={() => {
                   setEditingItem(null);
@@ -145,7 +193,7 @@ export default function SecretVaultPage() {
             </div>
           </div>
 
-          {/* Explanation Banner */}
+          {/* Explanation Banner with Create Private Folder button (0% Duplicate) */}
           <div className="glass-panel p-5 rounded-2xl border border-[rgba(31,187,210,0.3)] bg-[#17283b] flex items-center justify-between mb-6 shadow-lg">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-[#0d1724] border border-[#1fbbd2]/40 flex items-center justify-center text-[#1fbbd2]">
@@ -154,20 +202,18 @@ export default function SecretVaultPage() {
               <div>
                 <h3 className="text-sm font-bold text-white">This is your private space</h3>
                 <p className="text-xs text-gray-400">
-                  Items added here are encrypted for you only and cannot be shared by design.
+                  Items added here are encrypted for you only and can be shared with specific members or external users.
                 </p>
               </div>
             </div>
 
+            {/* CREATE PRIVATE FOLDER ACTION */}
             <button
-              onClick={() => {
-                setEditingItem(null);
-                setIsDrawerOpen(true);
-              }}
+              onClick={handleCreateFolderPrompt}
               className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-[#0d1724] shadow"
             >
-              <Plus className="w-4 h-4" />
-              <span>Add Private Item</span>
+              <FolderPlus className="w-4 h-4" />
+              <span>Create Private Folder</span>
             </button>
           </div>
 
@@ -242,6 +288,7 @@ export default function SecretVaultPage() {
                             >
                               {isRevealed ? <EyeOff className="w-4 h-4 text-[#1fbbd2]" /> : <Eye className="w-4 h-4" />}
                             </button>
+
                             <button
                               onClick={() => handleCopy(res)}
                               className="p-1.5 text-gray-400 hover:text-white hover:bg-[#0d1724] rounded-lg transition-all"
@@ -249,6 +296,16 @@ export default function SecretVaultPage() {
                             >
                               <Copy className="w-4 h-4" />
                             </button>
+
+                            {/* SHARE ACTION BUTTON FOR PRIVATE ITEMS */}
+                            <button
+                              onClick={() => setShareResourceId(res.id)}
+                              className="p-1.5 text-gray-400 hover:text-[#1fbbd2] hover:bg-[#0d1724] rounded-lg transition-all"
+                              title="Share private item with members, groups, or external users"
+                            >
+                              <Share2 className="w-4 h-4" />
+                            </button>
+
                             <button
                               onClick={() => {
                                 setEditingItem(res);
@@ -259,6 +316,7 @@ export default function SecretVaultPage() {
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
+
                             <button
                               onClick={() => handleDelete(res.id)}
                               className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-[#0d1724] rounded-lg transition-all"
@@ -278,7 +336,7 @@ export default function SecretVaultPage() {
             {/* Bottom Footer Notice */}
             <div className="p-3 bg-[#0d1724] border-t border-gray-700/60 text-center text-xs text-[#1fbbd2] font-semibold flex items-center justify-center gap-2">
               <Lock className="w-3.5 h-3.5 text-[#f39c12]" />
-              <span>Private by design • Cannot be shared • End-to-end OpenPGP • Only you can access</span>
+              <span>Private by design • Encrypted client-side • Shareable with selected members & external links</span>
             </div>
           </div>
         </main>
@@ -290,6 +348,12 @@ export default function SecretVaultPage() {
         onSaved={fetchResources}
         editItem={editingItem}
         isSecretVault={true}
+      />
+
+      {/* SHARE MODAL INTEGRATION FOR SECRET VAULT ITEMS */}
+      <ShareModal
+        resourceId={shareResourceId}
+        onClose={() => setShareResourceId(null)}
       />
     </div>
   );
