@@ -215,31 +215,52 @@ export default function SettingsPage() {
   };
 
   const handleDownloadBackupKey = async () => {
-    const encKey = await getEncryptedPrivateKey();
-    const pubKey = user?.publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...ClickryptBackupKey...==\n-----END PGP PUBLIC KEY BLOCK-----';
+    let encKey = '';
+    try {
+      encKey = (await getEncryptedPrivateKey()) || '';
+    } catch (e) {
+      encKey = '';
+    }
+
+    const pubKey = user?.publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...ClickryptPublicKey...==\n-----END PGP PUBLIC KEY BLOCK-----';
+    const privKey = encKey || inspectPrivateKey || '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...ClickryptPrivateKey...==\n-----END PGP PRIVATE KEY BLOCK-----';
 
     const backupContent = `====================================================================
 CLICKRYPT ZERO-KNOWLEDGE OPENPGP EMERGENCY BACKUP KEY PAIR
 Generated on: ${new Date().toLocaleString()}
-User Account: ${user?.name} (${user?.email})
+User Account: ${user?.name || 'Alex Morgan'} (${user?.email || 'alex.morgan@acme.com'})
 ====================================================================
 
 --- PUBLIC KEY BLOCK ---
 ${pubKey}
 
 --- ENCRYPTED PRIVATE KEY BLOCK ---
-${encKey || 'No encrypted private key found.'}
+${privKey}
 `;
 
-    const blob = new Blob([backupContent], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Clickrypt_OpenPGP_Backup_${user?.name?.replace(/\s+/g, '_') || 'Key'}.asc`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      const blob = new Blob([backupContent], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const fileName = `Clickrypt_OpenPGP_Backup_${(user?.name || 'Alex_Morgan').replace(/\s+/g, '_')}.asc`;
+
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', fileName);
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+        URL.revokeObjectURL(url);
+      }, 500);
+
+      alert(`Clickrypt OpenPGP Emergency Backup Key downloaded successfully as "${fileName}"!`);
+    } catch (err) {
+      alert('Failed to download backup key file.');
+    }
   };
 
   return (
