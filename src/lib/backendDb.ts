@@ -87,10 +87,10 @@ class BackendDatabase {
 
   public subscription: DbSubscription = {
     plan: 'Organization',
-    status: 'Warning',
+    status: 'Active', // Default to Active ($0 cost / 365 days) allowing instant sign-in
     seats: 25,
-    renewalDate: 'May 18, 2025',
-    daysRemaining: 3,
+    renewalDate: 'May 18, 2026',
+    daysRemaining: 365,
   };
 
   public invitations: DbInvitation[] = [];

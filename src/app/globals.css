@@ -15,10 +15,23 @@
     color: #ffffff;
     overflow-x: hidden;
   }
+
+  /* Explicit readable styling for select dropdown options */
+  select option {
+    background-color: #17283b !important;
+    color: #ffffff !important;
+    padding: 8px 12px;
+  }
 }
 
 .font-sora {
   font-family: 'Sora', sans-serif !important;
+}
+
+/* Dropdown Option Readability Utility */
+select option {
+  background-color: #17283b !important;
+  color: #ffffff !important;
 }
 
 /* Glassmorphism Panel with #17283b background */
