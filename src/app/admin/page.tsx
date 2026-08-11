@@ -185,6 +185,7 @@ export default function AdminPage() {
                 >
                   <option value="All" className="bg-[#17283b] text-white">All Status</option>
                   <option value="Active" className="bg-[#17283b] text-white">Active</option>
+                  <option value="Invited" className="bg-[#17283b] text-white">Invited</option>
                   <option value="Suspended" className="bg-[#17283b] text-white">Suspended</option>
                 </select>
               </div>
@@ -247,6 +248,11 @@ export default function AdminPage() {
                           <span className="inline-flex items-center gap-1.5 text-emerald-400 font-bold text-xs">
                             <span className="w-2 h-2 rounded-full bg-emerald-400 glow-green" />
                             Active
+                          </span>
+                        ) : u.status === 'Invited' ? (
+                          <span className="inline-flex items-center gap-1.5 text-[#1fbbd2] font-bold text-xs">
+                            <span className="w-2 h-2 rounded-full bg-[#1fbbd2]" />
+                            Invited
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 text-amber-400 font-bold text-xs">

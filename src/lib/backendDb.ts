@@ -137,6 +137,16 @@ class BackendDatabase {
       encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...EmilyPrivateKey...==\n-----END PGP PRIVATE KEY BLOCK-----',
       lastActive: 'May 10, 2025',
     },
+    {
+      id: 'u-5',
+      email: '20103227@iubat.edu',
+      name: 'Arif Ahmed',
+      role: 'Admin',
+      status: 'Active',
+      publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...ArifPublic...==\n-----END PGP PUBLIC KEY BLOCK-----',
+      encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...ArifPrivateKey...==\n-----END PGP PRIVATE KEY BLOCK-----',
+      lastActive: 'Just now',
+    },
   ];
 
   public folders: DbFolder[] = [
