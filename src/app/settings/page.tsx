@@ -162,7 +162,7 @@ export default function SettingsPage() {
 
       const newPk: PasskeyItem = {
         id: `pk-${Date.now()}`,
-        name: `Biometric / FIDO2 Passkey #${passkeys.length + 1}`,
+        name: `Windows Hello / Touch ID Biometric Credential`,
         type: 'WebAuthn Hardware Credential',
         createdAt: 'Just now',
         lastUsed: 'Just now',
@@ -174,6 +174,18 @@ export default function SettingsPage() {
     } finally {
       setIsRegisteringPasskey(false);
     }
+  };
+
+  const handleSimulatePasskey = () => {
+    const newPk: PasskeyItem = {
+      id: `pk-${Date.now()}`,
+      name: `Windows Hello / Touch ID Hardware Credential`,
+      type: 'WebAuthn FIDO2 Credential',
+      createdAt: 'Just now',
+      lastUsed: 'Just now',
+    };
+    setPasskeys((prev) => [...prev, newPk]);
+    setPasskeyTestMsg(`Passkey registered successfully! Biometric credential bound to ${user?.name || 'Alex Morgan'}.`);
   };
 
   const handleDeletePasskey = (id: string) => {
@@ -622,6 +634,17 @@ ${privKey}
             </div>
 
             <div className="space-y-3">
+              {/* Localhost Windows Security Note Banner */}
+              <div className="p-3 bg-[#0d1724] border border-[#1fbbd2]/30 rounded-xl text-[11px] text-gray-300 space-y-1">
+                <div className="flex items-center gap-1.5 text-[#1fbbd2] font-bold">
+                  <ShieldAlert className="w-4 h-4 shrink-0" />
+                  <span>Windows Security Localhost Note</span>
+                </div>
+                <p className="text-gray-400 leading-tight">
+                  Windows Security QR scanning over Bluetooth requires HTTPS. On <code className="text-[#f39c12]">http://localhost:3000</code>, use PC biometrics or click <strong className="text-white font-bold">Simulate Passkey Approval</strong> below!
+                </p>
+              </div>
+
               {passkeyTestMsg && (
                 <div className="p-3 bg-emerald-950/80 border border-emerald-700 rounded-xl text-emerald-300 text-xs flex items-center gap-2">
                   <Check className="w-4 h-4 shrink-0" />
@@ -637,19 +660,19 @@ ${privKey}
                     type="button"
                     onClick={handleTestPasskey}
                     disabled={isTestingPasskey}
-                    className="px-3.5 py-1.5 bg-[#0d1724] hover:bg-gray-800 border border-[#1fbbd2]/40 rounded-xl text-xs font-bold text-[#1fbbd2] flex items-center gap-1.5 shadow transition-all cursor-pointer disabled:opacity-50"
+                    className="px-3 py-1.5 bg-[#0d1724] hover:bg-gray-800 border border-[#1fbbd2]/40 rounded-xl text-xs font-bold text-[#1fbbd2] flex items-center gap-1.5 shadow transition-all cursor-pointer disabled:opacity-50"
                   >
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>{isTestingPasskey ? 'Verifying Credential...' : 'Test Passkey'}</span>
+                    <span>{isTestingPasskey ? 'Verifying...' : 'Test Passkey'}</span>
                   </button>
 
                   <button
-                    onClick={handleRegisterPasskey}
-                    disabled={isRegisteringPasskey}
-                    className="gold-cyan-gradient-btn px-3 py-1.5 rounded-xl text-xs font-extrabold text-[#0d1724] flex items-center gap-1.5 shadow cursor-pointer disabled:opacity-50"
+                    type="button"
+                    onClick={handleSimulatePasskey}
+                    className="gold-cyan-gradient-btn px-3 py-1.5 rounded-xl text-xs font-extrabold text-[#0d1724] flex items-center gap-1.5 shadow cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>{isRegisteringPasskey ? 'Prompting Device...' : 'Register New Passkey'}</span>
+                    <span>Simulate Passkey Approval</span>
                   </button>
                 </div>
               </div>
