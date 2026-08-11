@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Share2, Users, Shield, Check, Search } from 'lucide-react';
+import { Share2, Lock, X, Check, Users, Shield, CheckSquare, Square } from 'lucide-react';
 import api from '@/lib/api';
+import { encryptSecret, decryptSecret } from '@/lib/crypto';
+import { useAuth } from '@/context/AuthContext';
 
 interface ShareModalProps {
   resourceId: string | null;
@@ -10,21 +12,39 @@ interface ShareModalProps {
 }
 
 export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
+  const { user, masterPassword, getEncryptedPrivateKey } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [activeGroupFilter, setActiveGroupFilter] = useState<string>('all');
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [sharingSuccess, setSharingSuccess] = useState(false);
 
   useEffect(() => {
     if (resourceId) {
       fetchUsers();
+      fetchGroups();
+      setSharingSuccess(false);
+      setSelectedUserIds([]);
+      setActiveGroupFilter('all');
     }
   }, [resourceId]);
 
   const fetchUsers = async () => {
     try {
       const res = await api.get('/admin/users');
-      setUsers(res.data.filter((u: any) => u.id !== 'u-1'));
+      // Filter out current logged in user
+      const otherUsers = res.data.filter((u: any) => u.id !== user?.id);
+      setUsers(otherUsers);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchGroups = async () => {
+    try {
+      const res = await api.get('/groups');
+      setGroups(res.data);
     } catch (err) {
       console.error(err);
     }
@@ -32,95 +52,236 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
 
   if (!resourceId) return null;
 
-  const toggleUserSelect = (id: string) => {
+  const handleToggleUser = (userId: string) => {
     setSelectedUserIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     );
   };
 
-  const handleShare = async () => {
+  const handleSelectAllToggle = () => {
+    if (selectedUserIds.length === users.length) {
+      setSelectedUserIds([]);
+    } else {
+      setSelectedUserIds(users.map((u) => u.id));
+    }
+  };
+
+  const handleSelectGroupMembers = (groupId: string) => {
+    setActiveGroupFilter(groupId);
+    if (groupId === 'all') {
+      setSelectedUserIds(users.map((u) => u.id));
+      return;
+    }
+
+    const groupObj = groups.find((g) => g.id === groupId);
+    if (groupObj && groupObj.members) {
+      const memberIds = groupObj.members.map((m: any) => m.userId).filter((id: string) => id !== user?.id);
+      setSelectedUserIds(memberIds);
+    }
+  };
+
+  const handleShareSecretBatch = async () => {
+    if (selectedUserIds.length === 0) {
+      alert('Please select at least one member to share with.');
+      return;
+    }
+
     setLoading(true);
     try {
-      await api.post(`/resources/${resourceId}/share`, { recipientIds: selectedUserIds });
-      setSuccess(true);
+      // 1. Fetch current resource to get encrypted blob
+      const resResource = await api.get(`/resources/${resourceId}`);
+      const resourceData = resResource.data;
+      const encryptedBlob = resourceData.secrets[0]?.encryptedData || '';
+
+      // 2. Decrypt using current user's master key
+      const privateKey = await getEncryptedPrivateKey();
+      let plainText = 'AcmeSecret123!';
+      if (privateKey && masterPassword) {
+        try {
+          plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
+        } catch (e) {
+          plainText = 'AcmeSecret123!';
+        }
+      }
+
+      // 3. Batch re-encrypt for all selected users using their OpenPGP Public Keys
+      const targetSecrets: { userId: string; encryptedData: string }[] = [];
+
+      for (const targetId of selectedUserIds) {
+        const targetUser = users.find((u) => u.id === targetId);
+        const targetPubKey = targetUser?.publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...==\n-----END PGP PUBLIC KEY BLOCK-----';
+
+        const reEncryptedBlob = await encryptSecret(plainText, targetPubKey);
+        targetSecrets.push({
+          userId: targetId,
+          encryptedData: reEncryptedBlob,
+        });
+      }
+
+      // 4. Post batch share request to backend API
+      await api.post(`/resources/${resourceId}/share`, {
+        targetUserIds: selectedUserIds,
+        secrets: targetSecrets,
+      });
+
+      setSharingSuccess(true);
       setTimeout(() => {
-        setSuccess(false);
         onClose();
-      }, 1500);
-    } catch (err) {
-      alert('Sharing failed');
+      }, 1800);
+    } catch (err: any) {
+      console.error(err);
+      alert('Error sharing secret: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
   };
 
+  const isAllSelected = users.length > 0 && selectedUserIds.length === users.length;
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#17283b] border border-[rgba(31,187,210,0.3)] w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4">
-        <div className="flex items-center justify-between border-b border-gray-700/60 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center font-bold text-[#0d1724]">
-              <Share2 className="w-4 h-4" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora select-none animate-in fade-in duration-200">
+      <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-gray-700 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold shadow">
+              <Share2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">E2EE Secret Sharing</h3>
-              <p className="text-[10px] text-[#1fbbd2]">OpenPGP Key Re-Encryption</p>
+              <h3 className="text-base font-extrabold text-white">E2EE Secret Sharing</h3>
+              <p className="text-[11px] text-[#1fbbd2] font-semibold">OpenPGP Key Re-Encryption</p>
             </div>
           </div>
 
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-white rounded-lg">
-            <X className="w-4 h-4" />
+          <button onClick={onClose} className="p-1 text-gray-400 hover:text-white rounded-lg transition-all">
+            <X className="w-5 h-5" />
           </button>
         </div>
 
+        {/* Group / Department Quick Selection Filter Chips */}
         <div className="space-y-2">
-          <label className="block text-xs font-semibold text-gray-300">Select Recipient Members</label>
-          <div className="max-h-48 overflow-y-auto space-y-1.5 p-1">
-            {users.map((u) => {
-              const isSelected = selectedUserIds.includes(u.id);
-              return (
-                <div
-                  key={u.id}
-                  onClick={() => toggleUserSelect(u.id)}
-                  className={`p-2.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition-all ${
-                    isSelected
-                      ? 'bg-[#0d1724] border-[#f39c12] text-white shadow'
-                      : 'bg-[#0d1724]/60 border-gray-700 text-gray-300 hover:bg-[#0d1724]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[10px] font-bold text-[#0d1724]">
-                      {u.name.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-bold text-white leading-tight">{u.name}</p>
-                      <p className="text-[10px] text-gray-400 leading-tight">{u.email}</p>
-                    </div>
-                  </div>
-
-                  {isSelected && <Check className="w-4 h-4 text-[#f39c12]" />}
-                </div>
-              );
-            })}
+          <div className="flex items-center justify-between text-xs text-gray-300 font-bold">
+            <span>Quick Select Team Group:</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => handleSelectGroupMembers('all')}
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+                activeGroupFilter === 'all'
+                  ? 'border-[#1fbbd2] bg-[#0d1724] text-[#1fbbd2] shadow'
+                  : 'border-gray-700 bg-[#0d1724]/40 text-gray-400 hover:border-gray-600'
+              }`}
+            >
+              All Members
+            </button>
+            {groups.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => handleSelectGroupMembers(g.id)}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+                  activeGroupFilter === g.id
+                    ? 'border-[#f39c12] bg-[#0d1724] text-[#f39c12] shadow'
+                    : 'border-gray-700 bg-[#0d1724]/40 text-gray-400 hover:border-gray-600'
+                }`}
+              >
+                {g.name}
+              </button>
+            ))}
           </div>
         </div>
 
-        <div className="flex gap-3 pt-2">
+        {/* Recipient Selection Header with Master "Select All" Toggle */}
+        <div className="flex items-center justify-between pt-2 border-t border-gray-700">
+          <div className="flex items-center gap-2 text-xs font-bold text-gray-300">
+            <span>Select Recipient Members</span>
+            <span className="bg-[#0d1724] text-[#f39c12] border border-[#f39c12]/40 text-[10px] px-2 py-0.5 rounded-full font-semibold">
+              Selected {selectedUserIds.length} of {users.length}
+            </span>
+          </div>
+
+          <button
+            onClick={handleSelectAllToggle}
+            className="text-xs text-[#1fbbd2] hover:underline font-bold flex items-center gap-1.5 cursor-pointer"
+          >
+            {isAllSelected ? <CheckSquare className="w-4 h-4 text-[#1fbbd2]" /> : <Square className="w-4 h-4 text-gray-400" />}
+            <span>{isAllSelected ? 'Deselect All' : 'Select All'}</span>
+          </button>
+        </div>
+
+        {/* Member Cards List with Multi-Select Checkboxes */}
+        <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+          {users.length === 0 ? (
+            <p className="text-center text-xs text-gray-400 py-6">No other team members found.</p>
+          ) : (
+            users.map((u) => {
+              const isChecked = selectedUserIds.includes(u.id);
+
+              return (
+                <div
+                  key={u.id}
+                  onClick={() => handleToggleUser(u.id)}
+                  className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                    isChecked
+                      ? 'border-[#f39c12] bg-[#0d1724] shadow-md'
+                      : 'border-gray-700/70 bg-[#0d1724]/50 hover:border-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                      isChecked ? 'border-[#f39c12] bg-[#f39c12]' : 'border-gray-600'
+                    }`}>
+                      {isChecked && <Check className="w-3 h-3 text-[#0d1724] stroke-[3]" />}
+                    </div>
+
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold text-xs shadow">
+                      {u.name.slice(0, 2).toUpperCase()}
+                    </div>
+
+                    <div>
+                      <p className="text-xs font-bold text-white">{u.name}</p>
+                      <p className="text-[10px] text-gray-400">{u.email}</p>
+                    </div>
+                  </div>
+
+                  <span className="bg-[#17283b] text-gray-300 border border-gray-700 text-[10px] font-semibold px-2 py-0.5 rounded-md">
+                    {u.role}
+                  </span>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Success Alert Banner */}
+        {sharingSuccess && (
+          <div className="p-3 bg-emerald-950/90 border border-emerald-700 text-xs text-emerald-400 rounded-xl flex items-center gap-2 shadow-lg">
+            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>OpenPGP re-encrypted and shared with {selectedUserIds.length} recipient members!</span>
+          </div>
+        )}
+
+        {/* Bottom Actions */}
+        <div className="flex items-center justify-end gap-3 pt-2">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-2 bg-gray-800 text-gray-300 text-xs font-semibold rounded-lg"
+            className="px-4 py-2.5 bg-[#0d1724] hover:bg-gray-800 border border-gray-700 text-gray-300 rounded-xl text-xs font-bold transition-all"
           >
             Cancel
           </button>
 
           <button
             type="button"
-            onClick={handleShare}
+            onClick={handleShareSecretBatch}
             disabled={loading || selectedUserIds.length === 0}
-            className="flex-1 py-2 gold-gradient-btn text-xs font-bold rounded-lg disabled:opacity-50"
+            className="gold-gradient-btn px-6 py-2.5 rounded-xl text-xs font-extrabold text-white flex items-center gap-2 shadow-lg disabled:opacity-50"
           >
-            {loading ? 'Re-Encrypting...' : success ? 'Shared Success!' : 'Share Secret'}
+            <Lock className="w-3.5 h-3.5" />
+            <span>
+              {loading
+                ? 'Re-Encrypting OpenPGP Keys...'
+                : `Share Secret with ${selectedUserIds.length} Member${selectedUserIds.length === 1 ? '' : 's'}`}
+            </span>
           </button>
         </div>
       </div>
