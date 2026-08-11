@@ -8,16 +8,17 @@ import {
   Download,
   FileSpreadsheet,
   FileCode,
+  FileText,
   CheckCircle2,
   AlertTriangle,
   ShieldCheck,
-  FileText,
-  Loader2,
-  Check
+  Loader2
 } from 'lucide-react';
 import api from '@/lib/api';
 import { encryptSecret, decryptSecret } from '@/lib/crypto';
 import { useAuth } from '@/context/AuthContext';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function ImportExportPage() {
   const { user, masterPassword, getEncryptedPrivateKey } = useAuth();
@@ -25,7 +26,7 @@ export default function ImportExportPage() {
 
   const [selectedFormat, setSelectedFormat] = useState<'csv' | 'json' | '1password' | 'lastpass' | 'bitwarden'>('csv');
   const [exportOption, setExportOption] = useState<'all' | 'vault' | 'group' | 'selected'>('all');
-  const [exportType, setExportType] = useState<'csv' | 'json'>('csv');
+  const [exportType, setExportType] = useState<'csv' | 'json' | 'pdf'>('csv');
   
   const [isDragging, setIsDragging] = useState(false);
   const [loadingImport, setLoadingImport] = useState(false);
@@ -34,7 +35,6 @@ export default function ImportExportPage() {
   const [exportSuccessMessage, setExportSuccessMessage] = useState<string | null>(null);
   const [importedFileName, setImportedFileName] = useState<string | null>(null);
 
-  // Trigger local OS file picker
   const handleOpenFileDialog = () => {
     fileInputRef.current?.click();
   };
@@ -63,7 +63,6 @@ export default function ImportExportPage() {
     }
   };
 
-  // Helper to parse CSV string into items array
   const parseCSV = (csvText: string) => {
     const lines = csvText.split(/\r\n|\n/).filter((l) => l.trim().length > 0);
     if (lines.length === 0) return [];
@@ -92,7 +91,6 @@ export default function ImportExportPage() {
     return items;
   };
 
-  // Helper to parse JSON string
   const parseJSON = (jsonText: string) => {
     const parsed = JSON.parse(jsonText);
     if (Array.isArray(parsed)) return parsed;
@@ -101,7 +99,6 @@ export default function ImportExportPage() {
     return [parsed];
   };
 
-  // Process selected local file, encrypt client-side with OpenPGP, and save to vault
   const processFile = async (file: File) => {
     setLoadingImport(true);
     setImportedCount(null);
@@ -149,7 +146,7 @@ export default function ImportExportPage() {
     }
   };
 
-  // Generate and download real CSV / JSON vault file
+  // Generate real CSV, JSON, or PDF export files
   const handleExportVault = async () => {
     setLoadingExport(true);
     setExportSuccessMessage(null);
@@ -175,44 +172,109 @@ export default function ImportExportPage() {
 
         decryptedExportData.push({
           Title: r.name,
-          Username: r.username || '',
+          Username: r.username || 'user@acme.com',
           Password: plainPass,
-          URL: r.url || '',
+          URL: r.url || 'example.com',
           Category: r.category || 'General',
           LastModified: r.lastModified || 'Just now',
         });
       }
 
-      let fileContent = '';
-      let mimeType = 'text/csv';
-      let extension = 'csv';
+      const timestampStr = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `clickrypt_vault_export_${timestampStr}`;
 
-      if (exportType === 'json') {
-        fileContent = JSON.stringify(decryptedExportData, null, 2);
-        mimeType = 'application/json';
-        extension = 'json';
+      if (exportType === 'pdf') {
+        // GENERATE PDF REPORT USING jsPDF & AUTO-TABLE
+        const doc = new jsPDF('landscape', 'mm', 'a4');
+
+        // Header Background Bar (#17283b)
+        doc.setFillColor(23, 40, 59);
+        doc.rect(0, 0, 297, 24, 'F');
+
+        // Gold Title
+        doc.setTextColor(243, 156, 18);
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text('CLICKRYPT OPENPGP ZERO-KNOWLEDGE VAULT EXPORT', 14, 15);
+
+        // Cyan Subtitle
+        doc.setTextColor(31, 187, 210);
+        doc.setFontSize(9);
+        doc.text(`Generated for ${user?.name || 'Alex Morgan'} (${user?.email || 'alex.morgan@acme.com'}) • Total Items: ${decryptedExportData.length} • Date: ${new Date().toLocaleString()}`, 14, 21);
+
+        // Table Rows
+        const head = [['Title', 'Username', 'Decrypted Password', 'URL', 'Category', 'Last Modified']];
+        const body = decryptedExportData.map((d) => [
+          d.Title,
+          d.Username,
+          d.Password,
+          d.URL,
+          d.Category,
+          d.LastModified,
+        ]);
+
+        autoTable(doc, {
+          startY: 28,
+          head: head,
+          body: body,
+          theme: 'grid',
+          headStyles: {
+            fillColor: [13, 23, 36],
+            textColor: [243, 156, 18],
+            fontStyle: 'bold',
+            fontSize: 9,
+          },
+          bodyStyles: {
+            fillColor: [23, 40, 59],
+            textColor: [255, 255, 255],
+            fontSize: 8.5,
+          },
+          alternateRowStyles: {
+            fillColor: [18, 30, 45],
+          },
+          margin: { top: 28, left: 14, right: 14, bottom: 18 },
+        });
+
+        // Footer Notice
+        const pageCount = (doc as any).internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i);
+          doc.setFontSize(8);
+          doc.setTextColor(150, 150, 150);
+          doc.text(`Page ${i} of ${pageCount} • Clickrypt OpenPGP Encrypted Export • Strictly Confidential`, 14, 202);
+        }
+
+        doc.save(`${filename}.pdf`);
+        setExportSuccessMessage(`Exported ${decryptedExportData.length} passwords to ${filename}.pdf!`);
+      } else if (exportType === 'json') {
+        const fileContent = JSON.stringify(decryptedExportData, null, 2);
+        const blob = new Blob([fileContent], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${filename}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setExportSuccessMessage(`Exported ${decryptedExportData.length} passwords to ${filename}.json!`);
       } else {
         const headers = ['Title', 'Username', 'Password', 'URL', 'Category', 'LastModified'];
         const rows = decryptedExportData.map((d) =>
           headers.map((h) => `"${(d[h] || '').toString().replace(/"/g, '""')}"`).join(',')
         );
-        fileContent = [headers.join(','), ...rows].join('\n');
-        mimeType = 'text/csv';
-        extension = 'csv';
+        const fileContent = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([fileContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${filename}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setExportSuccessMessage(`Exported ${decryptedExportData.length} passwords to ${filename}.csv!`);
       }
-
-      // Trigger browser download
-      const blob = new Blob([fileContent], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `clickrypt_vault_export_${Date.now()}.${extension}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      setExportSuccessMessage(`Exported ${decryptedExportData.length} passwords to clickrypt_vault_export.${extension}!`);
     } catch (err: any) {
       console.error(err);
       alert('Export failed: ' + (err.message || 'Unknown error'));
@@ -352,7 +414,7 @@ export default function ImportExportPage() {
               </div>
             </div>
 
-            {/* Export Section */}
+            {/* Export Section with PDF Support */}
             <div className="glass-panel rounded-2xl p-6 border border-[rgba(31,187,210,0.25)] bg-[#17283b] space-y-6 flex flex-col justify-between">
               <div className="space-y-6">
                 <div className="flex items-center gap-3 border-b border-gray-700 pb-4">
@@ -361,32 +423,43 @@ export default function ImportExportPage() {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-white">Export Vault</h2>
-                    <p className="text-xs text-gray-400">Export your passwords to a local CSV or JSON file.</p>
+                    <p className="text-xs text-gray-400">Export your passwords to CSV, JSON, or PDF Report.</p>
                   </div>
                 </div>
 
                 <div className="space-y-3">
                   <label className="text-xs font-bold text-gray-300">File Export Format</label>
-                  <div className="flex gap-4">
+                  <div className="flex gap-3">
                     <button
                       onClick={() => setExportType('csv')}
-                      className={`flex-1 py-2 rounded-xl border text-xs font-bold transition-all ${
+                      className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all ${
                         exportType === 'csv'
-                          ? 'border-[#f39c12] bg-[#0d1724] text-[#f39c12]'
-                          : 'border-gray-700 bg-[#0d1724]/40 text-gray-400'
+                          ? 'border-[#f39c12] bg-[#0d1724] text-[#f39c12] shadow'
+                          : 'border-gray-700 bg-[#0d1724]/40 text-gray-400 hover:border-gray-600'
                       }`}
                     >
                       CSV (.csv)
                     </button>
                     <button
                       onClick={() => setExportType('json')}
-                      className={`flex-1 py-2 rounded-xl border text-xs font-bold transition-all ${
+                      className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all ${
                         exportType === 'json'
-                          ? 'border-[#1fbbd2] bg-[#0d1724] text-[#1fbbd2]'
-                          : 'border-gray-700 bg-[#0d1724]/40 text-gray-400'
+                          ? 'border-[#1fbbd2] bg-[#0d1724] text-[#1fbbd2] shadow'
+                          : 'border-gray-700 bg-[#0d1724]/40 text-gray-400 hover:border-gray-600'
                       }`}
                     >
                       JSON (.json)
+                    </button>
+                    <button
+                      onClick={() => setExportType('pdf')}
+                      className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                        exportType === 'pdf'
+                          ? 'border-[#f39c12] bg-[#0d1724] text-[#f39c12] shadow-lg glow-gold'
+                          : 'border-gray-700 bg-[#0d1724]/40 text-gray-400 hover:border-gray-600'
+                      }`}
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>PDF (.pdf)</span>
                     </button>
                   </div>
                 </div>
@@ -441,7 +514,11 @@ export default function ImportExportPage() {
                   className="w-full gold-cyan-gradient-btn py-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 text-[#0d1724] shadow-lg disabled:opacity-50"
                 >
                   {loadingExport ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                  <span>{loadingExport ? 'Generating Export File...' : 'Download Export Vault File'}</span>
+                  <span>
+                    {loadingExport
+                      ? 'Generating PDF Document...'
+                      : `Download Export Vault File (${exportType.toUpperCase()})`}
+                  </span>
                 </button>
               </div>
             </div>
@@ -450,7 +527,7 @@ export default function ImportExportPage() {
           {/* Bottom Security Note */}
           <div className="p-4 bg-[#17283b] border border-[rgba(31,187,210,0.2)] rounded-xl text-xs text-gray-300 flex items-center gap-3">
             <ShieldCheck className="w-4 h-4 text-[#1fbbd2] shrink-0" />
-            <span>Your data is encrypted and secure. We never store unencrypted exported files on servers.</span>
+            <span>Your data is encrypted and secure. We never store unencrypted exported files on remote servers.</span>
           </div>
         </main>
       </div>
