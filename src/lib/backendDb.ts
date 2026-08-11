@@ -48,6 +48,7 @@ export interface DbFolder {
   description?: string;
   itemCount: number;
   lastModified: string;
+  isPrivateOnly?: boolean;
 }
 
 export interface DbGroupMember {
@@ -87,7 +88,7 @@ class BackendDatabase {
 
   public subscription: DbSubscription = {
     plan: 'Organization',
-    status: 'Active', // Default to Active ($0 cost / 365 days) allowing instant sign-in
+    status: 'Active',
     seats: 25,
     renewalDate: 'May 18, 2026',
     daysRemaining: 365,
@@ -139,9 +140,10 @@ class BackendDatabase {
   ];
 
   public folders: DbFolder[] = [
-    { id: 'f-1', name: 'Infrastructure', description: 'Servers, cloud providers, and deployment secrets', itemCount: 12, lastModified: '1h ago' },
-    { id: 'f-2', name: 'Credentials', description: 'API keys, tokens, and service accounts', itemCount: 8, lastModified: '3h ago' },
-    { id: 'f-3', name: 'Shared Notes', description: 'Team notes and reference documentation', itemCount: 5, lastModified: '1d ago' },
+    { id: 'f-1', name: 'Infrastructure', description: 'Servers, cloud providers, and deployment secrets', itemCount: 12, lastModified: '1h ago', isPrivateOnly: false },
+    { id: 'f-2', name: 'Credentials', description: 'API keys, tokens, and service accounts', itemCount: 8, lastModified: '3h ago', isPrivateOnly: false },
+    { id: 'f-3', name: 'Shared Notes', description: 'Team notes and reference documentation', itemCount: 5, lastModified: '1d ago', isPrivateOnly: false },
+    { id: 'f-secret-1', name: 'Private Financial Secrets', description: 'Owner private bank and crypto credentials', itemCount: 2, lastModified: 'Just now', isPrivateOnly: true },
   ];
 
   public resources: DbResource[] = [
@@ -195,6 +197,7 @@ class BackendDatabase {
       url: 'amazon.com',
       category: 'Password',
       ownerId: 'u-1',
+      folderId: 'f-secret-1',
       isPrivateOnly: true,
       score: 92,
       strength: 'Strong',

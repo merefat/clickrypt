@@ -25,7 +25,7 @@ export default function FoldersPage() {
   const fetchFolders = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/folders');
+      const res = await api.get('/folders', { params: { secretVault: false } });
       setFolders(res.data);
       if (res.data.length > 0 && !selectedFolderId) {
         setSelectedGroupId(res.data[0].id);
@@ -75,7 +75,16 @@ export default function FoldersPage() {
             </div>
 
             <button
-              onClick={() => alert('Create Folder modal')}
+              onClick={async () => {
+                const folderName = prompt('Enter new Workplace Folder Name:');
+                if (!folderName) return;
+                try {
+                  await api.post('/folders', { name: folderName, isPrivateOnly: false });
+                  fetchFolders();
+                } catch (e) {
+                  alert('Error creating folder');
+                }
+              }}
               className="gold-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow"
             >
               <FolderPlus className="w-4 h-4" />
@@ -88,38 +97,42 @@ export default function FoldersPage() {
             {/* Left: Folders List */}
             <div className="glass-panel rounded-2xl p-5 border border-[rgba(31,187,210,0.25)] bg-[#17283b] space-y-3">
               <div className="flex items-center justify-between text-xs font-bold text-gray-300 pb-2 border-b border-gray-700">
-                <span>YOUR FOLDERS ({folders.length})</span>
+                <span>WORKPLACE FOLDERS ({folders.length})</span>
               </div>
 
               <div className="space-y-2">
-                {folders.map((f) => {
-                  const isSelected = f.id === selectedFolderId;
-                  return (
-                    <div
-                      key={f.id}
-                      onClick={() => setSelectedFolderId(f.id)}
-                      className={`p-4 rounded-xl cursor-pointer transition-all border ${
-                        isSelected
-                          ? 'bg-[#0d1724] border-[#f39c12] shadow-lg'
-                          : 'bg-[#0d1724]/60 border-gray-700/60 hover:border-gray-600'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <Folder className={`w-5 h-5 ${isSelected ? 'text-[#f39c12]' : 'text-gray-400'}`} />
-                          <div>
-                            <h3 className="text-sm font-bold text-white">{f.name}</h3>
-                            <p className="text-[11px] text-gray-400 line-clamp-1">{f.description}</p>
+                {folders.length === 0 ? (
+                  <p className="text-xs text-gray-400 py-6 text-center">No workplace folders found.</p>
+                ) : (
+                  folders.map((f) => {
+                    const isSelected = f.id === selectedFolderId;
+                    return (
+                      <div
+                        key={f.id}
+                        onClick={() => setSelectedFolderId(f.id)}
+                        className={`p-4 rounded-xl cursor-pointer transition-all border ${
+                          isSelected
+                            ? 'bg-[#0d1724] border-[#f39c12] shadow-lg'
+                            : 'bg-[#0d1724]/60 border-gray-700/60 hover:border-gray-600'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Folder className={`w-5 h-5 ${isSelected ? 'text-[#f39c12]' : 'text-gray-400'}`} />
+                            <div>
+                              <h3 className="text-sm font-bold text-white">{f.name}</h3>
+                              <p className="text-[11px] text-gray-400 line-clamp-1">{f.description}</p>
+                            </div>
                           </div>
-                        </div>
 
-                        <span className="bg-[#17283b] text-[#1fbbd2] border border-[#1fbbd2]/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                          {f.itemCount} items
-                        </span>
+                          <span className="bg-[#17283b] text-[#1fbbd2] border border-[#1fbbd2]/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            {f.itemCount} items
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
 
