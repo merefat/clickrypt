@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
+import PasswordDrawer from '@/components/PasswordDrawer';
 import { Folder, Plus, FolderPlus, Trash2, Edit2, Shield, Eye, EyeOff, Copy } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -11,6 +12,7 @@ export default function FoldersPage() {
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [folderItems, setFolderItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   useEffect(() => {
     fetchFolders();
@@ -28,7 +30,7 @@ export default function FoldersPage() {
       const res = await api.get('/folders', { params: { secretVault: false } });
       setFolders(res.data);
       if (res.data.length > 0 && !selectedFolderId) {
-        setSelectedGroupId(res.data[0].id);
+        setSelectedFolderId(res.data[0].id);
       }
     } catch (err) {
       console.error(err);
@@ -37,16 +39,19 @@ export default function FoldersPage() {
     }
   };
 
-  const setSelectedGroupId = (id: string) => {
-    setSelectedFolderId(id);
-  };
-
   const fetchFolderItems = async (folderId: string) => {
     try {
       const res = await api.get('/resources', { params: { folderId } });
       setFolderItems(res.data);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleSavedItem = () => {
+    fetchFolders();
+    if (selectedFolderId) {
+      fetchFolderItems(selectedFolderId);
     }
   };
 
@@ -85,7 +90,7 @@ export default function FoldersPage() {
                   alert('Error creating folder');
                 }
               }}
-              className="gold-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow"
+              className="gold-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow cursor-pointer"
             >
               <FolderPlus className="w-4 h-4" />
               <span>Create Folder</span>
@@ -137,7 +142,7 @@ export default function FoldersPage() {
             </div>
 
             {/* Right: Selected Folder Items */}
-            {selectedFolder && (
+            {selectedFolder ? (
               <div className="lg:col-span-2 glass-panel rounded-2xl p-6 border border-[rgba(31,187,210,0.25)] bg-[#17283b] flex flex-col">
                 <div className="flex items-center justify-between pb-6 border-b border-gray-700">
                   <div className="flex items-center gap-3">
@@ -150,7 +155,11 @@ export default function FoldersPage() {
                     </div>
                   </div>
 
-                  <button className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-[#0d1724] shadow">
+                  {/* ADD ITEM TO FOLDER BUTTON */}
+                  <button
+                    onClick={() => setIsDrawerOpen(true)}
+                    className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-[#0d1724] shadow cursor-pointer"
+                  >
                     <Plus className="w-4 h-4" />
                     <span>Add Item to Folder</span>
                   </button>
@@ -178,7 +187,7 @@ export default function FoldersPage() {
                           folderItems.map((item) => (
                             <tr key={item.id} className="hover:bg-[#0d1724]/60 transition-all border-b border-gray-700/40">
                               <td className="py-3.5 px-4 font-bold text-white">{item.name}</td>
-                              <td className="py-3.5 px-4 text-gray-300">{item.username || 'alex.doe'}</td>
+                              <td className="py-3.5 px-4 text-gray-300">{item.username || 'alex.morgan'}</td>
                               <td className="py-3.5 px-4 font-mono text-gray-400">••••••••</td>
                               <td className="py-3.5 px-4 text-right">
                                 <button className="p-1 text-gray-400 hover:text-white">
@@ -193,10 +202,24 @@ export default function FoldersPage() {
                   </div>
                 </div>
               </div>
+            ) : (
+              <div className="lg:col-span-2 glass-panel rounded-2xl p-12 text-center text-gray-400 text-xs bg-[#17283b]">
+                <Folder className="w-12 h-12 text-gray-500 mx-auto mb-3 opacity-50" />
+                <p>No workplace folders available. Click "Create Folder" to organize items.</p>
+              </div>
             )}
           </div>
         </main>
       </div>
+
+      {/* PASSWORD DRAWER INTEGRATION */}
+      <PasswordDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        onSaved={handleSavedItem}
+        isSecretVault={false}
+        defaultFolderId={selectedFolderId}
+      />
     </div>
   );
 }

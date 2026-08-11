@@ -24,6 +24,7 @@ interface PasswordDrawerProps {
   onSaved: () => void;
   editItem?: any | null;
   isSecretVault?: boolean;
+  defaultFolderId?: string;
 }
 
 export default function PasswordDrawer({
@@ -32,6 +33,7 @@ export default function PasswordDrawer({
   onSaved,
   editItem = null,
   isSecretVault = false,
+  defaultFolderId = '',
 }: PasswordDrawerProps) {
   const { user, masterPassword } = useAuth();
   const [name, setName] = useState('');
@@ -64,20 +66,19 @@ export default function PasswordDrawer({
       setUrl(editItem.url || '');
       setPassword('');
       setCategory(editItem.category || 'Developer');
-      setFolderId(editItem.folderId || '');
+      setFolderId(editItem.folderId || defaultFolderId || '');
     } else {
       setName('');
       setUsername('');
       setUrl('');
       setPassword('');
       setCategory('Developer');
-      setFolderId('');
+      setFolderId(defaultFolderId || '');
     }
-  }, [editItem, isOpen]);
+  }, [editItem, isOpen, defaultFolderId]);
 
   const fetchFolders = async () => {
     try {
-      // Pass secretVault flag so Secret Vault items ONLY fetch Secret Vault private folders
       const res = await api.get('/folders', { params: { secretVault: !!isSecretVault } });
       setFolders(res.data);
     } catch (err) {
