@@ -18,7 +18,8 @@ import {
   ChevronRight,
   ShieldAlert,
   Copy,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -79,6 +80,18 @@ export default function AdminPage() {
       fetchAuditLogs();
     } catch (err) {
       alert('Failed to update user status');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`Are you sure you want to permanently delete member "${userName}"? This action cannot be undone.`)) return;
+
+    try {
+      await api.delete(`/admin/users?id=${userId}`);
+      fetchUsers();
+      fetchAuditLogs();
+    } catch (err) {
+      alert('Failed to delete user');
     }
   };
 
@@ -278,8 +291,13 @@ export default function AdminPage() {
                               {u.status === 'Active' ? 'Suspend' : 'Activate'}
                             </button>
 
-                            <button className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-[#0d1724] rounded-lg transition-all">
-                              <XCircle className="w-4 h-4" />
+                            <button
+                              onClick={() => handleDeleteUser(u.id, u.name)}
+                              className="px-2.5 py-1 bg-rose-950/60 hover:bg-rose-900 border border-rose-700/60 text-rose-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow cursor-pointer"
+                              title="Permanently delete user"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete</span>
                             </button>
                           </div>
                         )}
