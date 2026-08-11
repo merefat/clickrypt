@@ -23,6 +23,23 @@ export async function POST(request: Request) {
 
     db.invitations.push(newInvite);
 
+    // Also add invited user to team members table if not already present
+    const existingUser = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    if (!existingUser) {
+      const nameParts = email.split('@')[0].split('.');
+      const formattedName = nameParts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+      db.users.push({
+        id: `u-invited-${Date.now()}`,
+        email,
+        name: formattedName || email,
+        role: newInvite.role,
+        status: 'Invited' as any,
+        publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...==\n-----END PGP PUBLIC KEY BLOCK-----',
+        encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...==\n-----END PGP PRIVATE KEY BLOCK-----',
+        lastActive: 'Pending Onboarding',
+      });
+    }
+
     db.auditLogs.unshift({
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),
@@ -31,10 +48,15 @@ export async function POST(request: Request) {
       details: `Generated invitation for ${email} as ${newInvite.role}`,
     });
 
+    const host = request.headers.get('host') || 'localhost:3000';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const inviteUrl = `${protocol}://${host}/register?inviteToken=${token}&email=${encodeURIComponent(email)}&role=${newInvite.role}`;
+
     return NextResponse.json({
       success: true,
       invite: newInvite,
-      inviteUrl: `http://localhost:3000/register?inviteToken=${token}&email=${encodeURIComponent(email)}&role=${newInvite.role}`,
+      inviteUrl,
+      inviteLink: inviteUrl,
     });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to create invite' }, { status: 500 });

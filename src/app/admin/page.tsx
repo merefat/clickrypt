@@ -88,7 +88,9 @@ export default function AdminPage() {
 
     try {
       const res = await api.post('/admin/invite', { email: inviteEmail, role: inviteRole });
-      setInviteLink(res.data.inviteLink);
+      const generatedLink = res.data.inviteLink || res.data.inviteUrl || `${window.location.origin}/register?inviteToken=${res.data.invite?.token}&email=${encodeURIComponent(inviteEmail)}&role=${inviteRole}`;
+      setInviteLink(generatedLink);
+      fetchUsers();
       fetchAuditLogs();
     } catch (err) {
       alert('Failed to send invitation');
