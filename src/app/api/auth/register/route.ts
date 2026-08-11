@@ -8,26 +8,46 @@ export async function POST(request: Request) {
   try {
     const { name, email, password, publicKey, encryptedPrivateKey } = await request.json();
 
-    const existingUser = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-    if (existingUser) {
-      return NextResponse.json({ error: 'User already exists' }, { status: 400 });
+    if (!email) {
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
-    const newUser = {
-      id: `u-${Date.now()}`,
-      email,
-      name: name || email.split('@')[0],
-      role: 'User' as const,
-      status: 'Active' as const,
-      publicKey: publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n...',
-      encryptedPrivateKey: encryptedPrivateKey || '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n...',
-      lastActive: 'Just now',
-    };
+    const existingUser = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
 
-    db.users.push(newUser);
+    let targetUser: any;
+
+    if (existingUser) {
+      if (existingUser.status === 'Active') {
+        return NextResponse.json({ error: 'User already exists and is active. Please login.' }, { status: 400 });
+      }
+
+      // User exists as 'Invited' or 'Suspended' or 'Pending' -> Activate profile!
+      existingUser.name = name || existingUser.name || email.split('@')[0];
+      existingUser.status = 'Active';
+      if (publicKey) existingUser.publicKey = publicKey;
+      if (encryptedPrivateKey) existingUser.encryptedPrivateKey = encryptedPrivateKey;
+      existingUser.lastActive = 'Just now';
+
+      targetUser = existingUser;
+    } else {
+      // Create brand new user
+      const newUser = {
+        id: `u-${Date.now()}`,
+        email,
+        name: name || email.split('@')[0],
+        role: 'User' as const,
+        status: 'Active' as const,
+        publicKey: publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n...',
+        encryptedPrivateKey: encryptedPrivateKey || '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n...',
+        lastActive: 'Just now',
+      };
+
+      db.users.push(newUser);
+      targetUser = newUser;
+    }
 
     const token = jwt.sign(
-      { userId: newUser.id, email: newUser.email, role: newUser.role },
+      { userId: targetUser.id, email: targetUser.email, role: targetUser.role },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -36,20 +56,20 @@ export async function POST(request: Request) {
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'REGISTER_SUCCESS',
-      userId: newUser.id,
-      details: `New account registered for ${newUser.email}`,
+      userId: targetUser.id,
+      details: `Account registered & activated for ${targetUser.email}`,
     });
 
     const response = NextResponse.json({
       success: true,
       token,
       user: {
-        id: newUser.id,
-        email: newUser.email,
-        name: newUser.name,
-        role: newUser.role,
-        publicKey: newUser.publicKey,
-        encryptedPrivateKey: newUser.encryptedPrivateKey,
+        id: targetUser.id,
+        email: targetUser.email,
+        name: targetUser.name,
+        role: targetUser.role,
+        publicKey: targetUser.publicKey,
+        encryptedPrivateKey: targetUser.encryptedPrivateKey,
       },
     });
 
