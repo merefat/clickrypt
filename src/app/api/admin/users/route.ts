@@ -14,6 +14,10 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    if (user.role === 'Owner') {
+      return NextResponse.json({ error: 'Organization Owner account cannot be modified.' }, { status: 403 });
+    }
+
     if (role) user.role = role;
     if (status) user.status = status;
 

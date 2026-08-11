@@ -22,11 +22,24 @@ import {
   Trash2
 } from 'lucide-react';
 import api from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 export default function AdminPage() {
+  const { user } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+
+  const canManageUser = (targetUser: any) => {
+    if (!user) return false;
+    if (targetUser.role === 'Owner') return false; // Nobody can modify/delete Owner
+    if (user.role === 'Owner') return true; // Owner can manage both Admins and Users
+    if (user.role === 'Admin') {
+      // Admin can manage standard Users, but CANNOT manage Admins or Owner
+      return targetUser.role === 'User';
+    }
+    return false;
+  };
   const [roleFilter, setRoleFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [inviteEmail, setInviteEmail] = useState('');
@@ -244,7 +257,7 @@ export default function AdminPage() {
                           <span className="bg-[#0d1724] text-[#f39c12] border border-[#f39c12]/50 text-[10px] font-extrabold px-3 py-1 rounded-full shadow">
                             Owner
                           </span>
-                        ) : (
+                        ) : canManageUser(u) ? (
                           <select
                             value={u.role}
                             onChange={(e) => handleRoleChange(u.id, e.target.value)}
@@ -253,6 +266,10 @@ export default function AdminPage() {
                             <option value="Admin" className="bg-[#17283b] text-white">Admin</option>
                             <option value="User" className="bg-[#17283b] text-white">User</option>
                           </select>
+                        ) : (
+                          <span className="bg-[#0d1724] text-[#1fbbd2] border border-[#1fbbd2]/50 text-[10px] font-extrabold px-3 py-1 rounded-full shadow">
+                            {u.role}
+                          </span>
                         )}
                       </td>
 
@@ -278,7 +295,7 @@ export default function AdminPage() {
                       <td className="py-4 px-4 text-gray-400 text-[11px]">{u.lastActive}</td>
 
                       <td className="py-4 px-4 text-right">
-                        {u.role !== 'Owner' && (
+                        {canManageUser(u) ? (
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => handleStatusToggle(u.id, u.status)}
@@ -300,6 +317,8 @@ export default function AdminPage() {
                               <span>Delete</span>
                             </button>
                           </div>
+                        ) : (
+                          <span className="text-[11px] text-gray-500 italic">Protected</span>
                         )}
                       </td>
                     </tr>
