@@ -17,11 +17,7 @@ export async function POST(request: Request) {
     let targetUser: any;
 
     if (existingUser) {
-      if (existingUser.status === 'Active') {
-        return NextResponse.json({ error: 'User already exists and is active. Please login.' }, { status: 400 });
-      }
-
-      // User exists as 'Invited' or 'Suspended' or 'Pending' -> Activate profile!
+      // User exists as 'Invited', 'Active' or 'Suspended' -> Update & Activate profile!
       existingUser.name = name || existingUser.name || email.split('@')[0];
       existingUser.status = 'Active';
       if (publicKey) existingUser.publicKey = publicKey;
