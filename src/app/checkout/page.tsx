@@ -32,6 +32,34 @@ export default function StandaloneCheckoutPage() {
   const pricePerUserPerMonth = 6;
   const annualTotal = seats * pricePerUserPerMonth * 12;
 
+  const getCardBrand = (num: string) => {
+    const clean = num.replace(/\s+/g, '');
+    if (clean.startsWith('4')) return 'Visa';
+    if (/^5[1-5]/.test(clean) || /^2[2-7]/.test(clean)) return 'Mastercard';
+    if (/^3[47]/.test(clean)) return 'Amex';
+    if (/^6(?:011|5)/.test(clean)) return 'Discover';
+    return '';
+  };
+
+  const handleFillTestCard = (type: 'visa' | 'mastercard' | 'amex') => {
+    if (type === 'visa') {
+      setCardNumber('4242 4242 4242 4242');
+      setExpiry('12 / 28');
+      setCvc('123');
+      setZipCode('10001');
+    } else if (type === 'mastercard') {
+      setCardNumber('5555 5555 5555 4444');
+      setExpiry('08 / 29');
+      setCvc('456');
+      setZipCode('90210');
+    } else if (type === 'amex') {
+      setCardNumber('3782 822468 30005');
+      setExpiry('11 / 27');
+      setCvc('8888');
+      setZipCode('30301');
+    }
+  };
+
   const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value.replace(/\D/g, '');
     if (val.length > 16) val = val.slice(0, 16);
@@ -159,17 +187,55 @@ export default function StandaloneCheckoutPage() {
 
             {/* Credit Card Details Card */}
             <div className="glass-panel-gold p-6 rounded-2xl border border-[rgba(243,156,18,0.4)] bg-[#17283b] shadow-2xl">
-              <div className="flex items-center justify-between mb-6 pb-3 border-b border-gray-700/60">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-700/60">
                 <div className="flex items-center gap-2">
                   <CreditCard className="w-5 h-5 text-[#f39c12]" />
                   <h2 className="text-sm font-bold text-white">Stripe Credit Card Payment</h2>
                 </div>
 
                 <div className="flex items-center gap-1.5 text-[10px] font-extrabold">
-                  <span className="bg-blue-900/60 text-blue-300 border border-blue-700 px-2 py-0.5 rounded">VISA</span>
-                  <span className="bg-rose-900/60 text-rose-300 border border-rose-700 px-2 py-0.5 rounded">MASTERCARD</span>
-                  <span className="bg-cyan-900/60 text-cyan-300 border border-cyan-700 px-2 py-0.5 rounded">AMEX</span>
+                  <span className={`px-2 py-0.5 rounded border transition-all ${
+                    getCardBrand(cardNumber) === 'Visa'
+                      ? 'bg-blue-600 text-white border-blue-400 font-extrabold shadow glow-cyan'
+                      : 'bg-blue-900/60 text-blue-300 border-blue-700'
+                  }`}>VISA</span>
+                  <span className={`px-2 py-0.5 rounded border transition-all ${
+                    getCardBrand(cardNumber) === 'Mastercard'
+                      ? 'bg-rose-600 text-white border-rose-400 font-extrabold shadow'
+                      : 'bg-rose-900/60 text-rose-300 border-rose-700'
+                  }`}>MASTERCARD</span>
+                  <span className={`px-2 py-0.5 rounded border transition-all ${
+                    getCardBrand(cardNumber) === 'Amex'
+                      ? 'bg-cyan-600 text-white border-cyan-400 font-extrabold shadow glow-cyan'
+                      : 'bg-cyan-900/60 text-cyan-300 border-cyan-700'
+                  }`}>AMEX</span>
                 </div>
+              </div>
+
+              {/* 1-Click Test Cards Quick Fill Preset Bar */}
+              <div className="flex flex-wrap items-center gap-2 mb-4 bg-[#0d1724] p-3 rounded-xl border border-gray-700/80">
+                <span className="text-xs font-bold text-gray-300 mr-1">1-Click Test Presets:</span>
+                <button
+                  type="button"
+                  onClick={() => handleFillTestCard('visa')}
+                  className="px-2.5 py-1 bg-[#17283b] hover:bg-blue-950 border border-blue-500/60 text-blue-300 text-[10px] font-extrabold rounded-lg transition-all shadow cursor-pointer"
+                >
+                  Visa (4242)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleFillTestCard('mastercard')}
+                  className="px-2.5 py-1 bg-[#17283b] hover:bg-rose-950 border border-rose-500/60 text-rose-300 text-[10px] font-extrabold rounded-lg transition-all shadow cursor-pointer"
+                >
+                  Mastercard (5555)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleFillTestCard('amex')}
+                  className="px-2.5 py-1 bg-[#17283b] hover:bg-cyan-950 border border-cyan-500/60 text-cyan-300 text-[10px] font-extrabold rounded-lg transition-all shadow cursor-pointer"
+                >
+                  Amex (3782)
+                </button>
               </div>
 
               <form onSubmit={handleSubmitPayment} className="space-y-4">
