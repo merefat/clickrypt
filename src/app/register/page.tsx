@@ -62,7 +62,7 @@ function RegisterForm() {
   const strength = evaluatePasswordStrength(password);
 
   const handleAutoGenerate = () => {
-    const generated = generatePassword({ type: 'passphrase' });
+    const generated = generatePassword({ type: 'password', length: 16 });
     setPassword(generated);
     setShowPassword(true);
   };
@@ -239,7 +239,7 @@ function RegisterForm() {
             className="w-full py-2 bg-[#0b0f17] hover:bg-[#1a202c] border border-purple-900/50 text-purple-300 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            Auto-generate strong passphrase
+            Auto-generate strong password
           </button>
 
           {/* Embedded Stripe Credit Card Section for Organization Mode */}

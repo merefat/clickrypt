@@ -23,7 +23,7 @@ export function generatePassword(options: GeneratorOptions = {}): string {
     useLowercase = true,
     useNumbers = true,
     useSymbols = true,
-    type = 'passphrase'
+    type = 'password'
   } = options;
 
   if (type === 'passphrase') {
