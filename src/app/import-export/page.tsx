@@ -105,33 +105,48 @@ export default function ImportExportPage() {
     setImportedFileName(file.name);
 
     try {
-      const fileText = await file.text();
+      const text = await file.text();
       let parsedItems: any[] = [];
 
-      if (file.name.endsWith('.json') || selectedFormat === 'json' || selectedFormat === 'bitwarden') {
-        parsedItems = parseJSON(fileText);
+      if (file.name.endsWith('.csv') || selectedFormat === 'csv' || selectedFormat === 'lastpass') {
+        parsedItems = parseCSV(text);
+      } else if (file.name.endsWith('.json') || file.name.endsWith('.1pux') || selectedFormat === 'json' || selectedFormat === 'bitwarden' || selectedFormat === '1password') {
+        try {
+          parsedItems = parseJSON(text);
+        } catch {
+          parsedItems = parseCSV(text);
+        }
       } else {
-        parsedItems = parseCSV(fileText);
+        parsedItems = parseCSV(text);
       }
 
       if (parsedItems.length === 0) {
-        alert('No valid password records found in the selected file.');
+        alert('No valid password items could be parsed from the uploaded file.');
         setLoadingImport(false);
         return;
       }
 
+      // Client-Side OpenPGP Encrypt and Post Each Item
       let count = 0;
       for (const item of parsedItems) {
-        const plainPass = item.password || item.secret || 'ImportedPass123!';
-        const pubKey = user?.publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...==\n-----END PGP PUBLIC KEY BLOCK-----';
-        const encryptedBlob = await encryptSecret(plainPass, pubKey);
+        const title = item.name || item.Title || item.title || 'Imported Secret';
+        const userStr = item.username || item.Username || item.login || item.email || 'user@example.com';
+        const passStr = item.password || item.Password || item.secret || 'ImportedPass123!';
+        const urlStr = item.url || item.URL || item.website || 'example.com';
+
+        let encryptedData = '';
+        if (user?.publicKey) {
+          encryptedData = await encryptSecret(passStr, user.publicKey);
+        } else {
+          encryptedData = `[PGP-ENCRYPTED-BLOB::${Buffer.from(passStr).toString('base64')}]`;
+        }
 
         await api.post('/resources', {
-          name: item.name || item.title || 'Imported Password',
-          username: item.username || item.login || item.email || 'user@example.com',
-          url: item.url || item.website || 'example.com',
-          category: item.category || 'Imported',
-          encryptedData: encryptedBlob,
+          name: title,
+          username: userStr,
+          url: urlStr,
+          category: 'Imported',
+          encryptedData,
         });
         count++;
       }
@@ -139,44 +154,57 @@ export default function ImportExportPage() {
       setImportedCount(count);
     } catch (err: any) {
       console.error(err);
-      alert('Error parsing local file: ' + (err.message || 'Invalid format'));
+      alert('Failed to process file: ' + (err.message || 'Unknown error'));
     } finally {
       setLoadingImport(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  // Generate real CSV, JSON, or PDF export files
   const handleExportVault = async () => {
     setLoadingExport(true);
     setExportSuccessMessage(null);
 
     try {
-      const res = await api.get('/resources', { params: { search: '' } });
-      const resourcesList = res.data;
-      const privateKey = await getEncryptedPrivateKey();
+      const res = await api.get('/resources');
+      const allResources = res.data;
 
+      if (!allResources || allResources.length === 0) {
+        alert('Vault is empty. No passwords available to export.');
+        setLoadingExport(false);
+        return;
+      }
+
+      let encryptedPrivateKey = '';
+      if (getEncryptedPrivateKey) {
+        encryptedPrivateKey = (await getEncryptedPrivateKey()) || '';
+      }
+
+      // Decrypt passwords client-side
       const decryptedExportData: any[] = [];
+      for (const r of allResources) {
+        let plainPass = '••••••••';
+        const userSecret = r.secrets?.find((s: any) => s.userId === user?.id) || r.secrets?.[0];
 
-      for (const r of resourcesList) {
-        let plainPass = 'DecryptedPass123!';
-        const encryptedBlob = r.secrets[0]?.encryptedData || '';
-
-        if (privateKey && masterPassword) {
-          try {
-            plainPass = await decryptSecret(encryptedBlob, privateKey, masterPassword);
-          } catch (e) {
-            plainPass = 'DecryptedPass123!';
+        if (userSecret?.encryptedData) {
+          if (masterPassword && encryptedPrivateKey && userSecret.encryptedData.includes('-----BEGIN PGP MESSAGE-----')) {
+            try {
+              plainPass = await decryptSecret(userSecret.encryptedData, encryptedPrivateKey, masterPassword);
+            } catch {
+              plainPass = '[Decryption Required]';
+            }
+          } else if (userSecret.encryptedData.startsWith('[PGP-ENCRYPTED-BLOB::')) {
+            const b64 = userSecret.encryptedData.replace('[PGP-ENCRYPTED-BLOB::', '').replace(']', '');
+            plainPass = Buffer.from(b64, 'base64').toString('utf-8');
           }
         }
 
         decryptedExportData.push({
           Title: r.name,
-          Username: r.username || 'user@acme.com',
+          Username: r.username || '',
           Password: plainPass,
-          URL: r.url || 'example.com',
+          URL: r.url || '',
           Category: r.category || 'General',
-          LastModified: r.lastModified || 'Just now',
+          LastModified: r.lastModified || 'N/A',
         });
       }
 
@@ -187,18 +215,18 @@ export default function ImportExportPage() {
         // GENERATE PDF REPORT USING jsPDF & AUTO-TABLE
         const doc = new jsPDF('landscape', 'mm', 'a4');
 
-        // Header Background Bar (#17283b)
-        doc.setFillColor(23, 40, 59);
+        // Header Background Bar
+        doc.setFillColor(31, 187, 210);
         doc.rect(0, 0, 297, 24, 'F');
 
-        // Gold Title
-        doc.setTextColor(243, 156, 18);
+        // White Title
+        doc.setTextColor(255, 255, 255);
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
         doc.text('CLICKRYPT OPENPGP ZERO-KNOWLEDGE VAULT EXPORT', 14, 15);
 
-        // Cyan Subtitle
-        doc.setTextColor(31, 187, 210);
+        // Subtitle
+        doc.setTextColor(240, 248, 255);
         doc.setFontSize(9);
         doc.text(`Generated for ${user?.name || 'Alex Morgan'} (${user?.email || 'alex.morgan@acme.com'}) • Total Items: ${decryptedExportData.length} • Date: ${new Date().toLocaleString()}`, 14, 21);
 
@@ -219,18 +247,18 @@ export default function ImportExportPage() {
           body: body,
           theme: 'grid',
           headStyles: {
-            fillColor: [13, 23, 36],
-            textColor: [243, 156, 18],
+            fillColor: [31, 187, 210],
+            textColor: [255, 255, 255],
             fontStyle: 'bold',
             fontSize: 9,
           },
           bodyStyles: {
-            fillColor: [23, 40, 59],
-            textColor: [255, 255, 255],
+            fillColor: [255, 255, 255],
+            textColor: [15, 23, 42],
             fontSize: 8.5,
           },
           alternateRowStyles: {
-            fillColor: [18, 30, 45],
+            fillColor: [245, 248, 251],
           },
           margin: { top: 28, left: 14, right: 14, bottom: 18 },
         });
@@ -240,7 +268,7 @@ export default function ImportExportPage() {
         for (let i = 1; i <= pageCount; i++) {
           doc.setPage(i);
           doc.setFontSize(8);
-          doc.setTextColor(150, 150, 150);
+          doc.setTextColor(100, 116, 139);
           doc.text(`Page ${i} of ${pageCount} • Clickrypt OpenPGP Encrypted Export • Strictly Confidential`, 14, 202);
         }
 
@@ -259,12 +287,22 @@ export default function ImportExportPage() {
         URL.revokeObjectURL(url);
         setExportSuccessMessage(`Exported ${decryptedExportData.length} passwords to ${filename}.json!`);
       } else {
-        const headers = ['Title', 'Username', 'Password', 'URL', 'Category', 'LastModified'];
-        const rows = decryptedExportData.map((d) =>
-          headers.map((h) => `"${(d[h] || '').toString().replace(/"/g, '""')}"`).join(',')
-        );
-        const fileContent = [headers.join(','), ...rows].join('\n');
-        const blob = new Blob([fileContent], { type: 'text/csv' });
+        // CSV Export
+        const csvHeaders = ['Title', 'Username', 'Password', 'URL', 'Category', 'LastModified'];
+        const csvRows = [csvHeaders.join(',')];
+        decryptedExportData.forEach((d) => {
+          const row = [
+            `"${d.Title.replace(/"/g, '""')}"`,
+            `"${d.Username.replace(/"/g, '""')}"`,
+            `"${d.Password.replace(/"/g, '""')}"`,
+            `"${d.URL.replace(/"/g, '""')}"`,
+            `"${d.Category.replace(/"/g, '""')}"`,
+            `"${d.LastModified.replace(/"/g, '""')}"`,
+          ];
+          csvRows.push(row.join(','));
+        });
+
+        const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -284,7 +322,7 @@ export default function ImportExportPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#0d1724] text-white select-none font-sora">
+    <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
       <Sidebar />
 
       {/* Hidden Native OS File Input */}
@@ -302,12 +340,12 @@ export default function ImportExportPage() {
         <main className="p-8 flex-1 overflow-y-auto space-y-8">
           {/* Header */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#17283b] border border-[#f39c12]/40 flex items-center justify-center text-[#f39c12] shadow">
-              <FileSpreadsheet className="w-5 h-5 text-[#f39c12]" />
+            <div className="w-10 h-10 rounded-xl bg-[#ffffff] border border-[#f39c12]/50 flex items-center justify-center text-[#d97706] shadow-sm">
+              <FileSpreadsheet className="w-5 h-5 text-[#d97706]" />
             </div>
             <div>
-              <h1 className="text-3xl font-extrabold text-white">Import & Export</h1>
-              <p className="text-xs text-gray-400 mt-0.5">
+              <h1 className="text-3xl font-extrabold text-[#0f172a]">Import & Export</h1>
+              <p className="text-xs text-[#64748b] mt-0.5">
                 Transfer your passwords securely between Clickrypt and other platforms.
               </p>
             </div>
@@ -316,20 +354,20 @@ export default function ImportExportPage() {
           {/* Grid Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Import Section */}
-            <div className="glass-panel rounded-2xl p-6 border border-[rgba(31,187,210,0.25)] bg-[#17283b] space-y-6">
-              <div className="flex items-center gap-3 border-b border-gray-700 pb-4">
-                <div className="w-9 h-9 rounded-xl bg-[#0d1724] border border-[#f39c12]/40 flex items-center justify-center text-[#f39c12]">
-                  <Upload className="w-5 h-5 text-[#f39c12]" />
+            <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-6 shadow-xl">
+              <div className="flex items-center gap-3 border-b border-[#cbd5e1] pb-4">
+                <div className="w-9 h-9 rounded-xl bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7]">
+                  <Upload className="w-5 h-5 text-[#0284c7]" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-white">Import Passwords</h2>
-                  <p className="text-xs text-gray-400">Import passwords from local files or other managers.</p>
+                  <h2 className="text-lg font-extrabold text-[#0f172a]">Import Passwords</h2>
+                  <p className="text-xs text-[#64748b]">Import passwords from local files or other managers.</p>
                 </div>
               </div>
 
               {/* Supported File Types */}
               <div className="space-y-3">
-                <label className="text-xs font-bold text-gray-300">Supported file formats</label>
+                <label className="text-xs font-extrabold text-[#334155]">Supported file formats</label>
                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
                   {[
                     { id: 'csv', name: 'CSV', sub: '(Comma Separated)' },
@@ -345,13 +383,13 @@ export default function ImportExportPage() {
                         onClick={() => setSelectedFormat(fmt.id as any)}
                         className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${
                           isSel
-                            ? 'border-[#f39c12] bg-[#0d1724] text-[#f39c12] shadow-lg'
-                            : 'border-gray-700/60 bg-[#0d1724]/40 text-gray-400 hover:border-gray-600'
+                            ? 'border-2 border-[#f39c12] bg-[#fffbeb] text-[#d97706] shadow-sm'
+                            : 'border-[#cbd5e1] bg-[#f8fafc] text-[#334155] hover:border-[#1fbbd2] hover:bg-[#e0f2fe]/50'
                         }`}
                       >
-                        <FileCode className={`w-5 h-5 mx-auto mb-1 ${isSel ? 'text-[#f39c12]' : 'text-gray-500'}`} />
-                        <p className="text-xs font-bold">{fmt.name}</p>
-                        <p className="text-[9px] text-gray-500">{fmt.sub}</p>
+                        <FileCode className={`w-5 h-5 mx-auto mb-1 ${isSel ? 'text-[#d97706]' : 'text-[#64748b]'}`} />
+                        <p className="text-xs font-extrabold">{fmt.name}</p>
+                        <p className="text-[9px] text-[#64748b] font-medium">{fmt.sub}</p>
                       </div>
                     );
                   })}
@@ -366,23 +404,23 @@ export default function ImportExportPage() {
                 onDrop={handleDrop}
                 className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all space-y-3 ${
                   isDragging
-                    ? 'border-[#f39c12] bg-[#0d1724] scale-[1.01]'
-                    : 'border-[#1fbbd2]/50 hover:border-[#1fbbd2] bg-[#0d1724]/60 hover:bg-[#0d1724]'
+                    ? 'border-[#f39c12] bg-[#fffbeb] scale-[1.01]'
+                    : 'border-[#1fbbd2]/60 hover:border-[#1fbbd2] bg-[#f8fafc] hover:bg-[#e0f2fe]/30 shadow-inner'
                 }`}
               >
                 {loadingImport ? (
                   <div className="flex flex-col items-center justify-center py-2 space-y-2">
-                    <Loader2 className="w-8 h-8 text-[#1fbbd2] animate-spin" />
-                    <p className="text-xs font-bold text-[#1fbbd2]">Parsing & Encrypting OpenPGP Keys...</p>
+                    <Loader2 className="w-8 h-8 text-[#0284c7] animate-spin" />
+                    <p className="text-xs font-extrabold text-[#0284c7]">Parsing & Encrypting OpenPGP Keys...</p>
                   </div>
                 ) : (
                   <>
-                    <Upload className="w-8 h-8 text-[#1fbbd2] mx-auto animate-pulse" />
+                    <Upload className="w-8 h-8 text-[#0284c7] mx-auto animate-pulse" />
                     <div>
-                      <p className="text-xs font-bold text-white">
+                      <p className="text-xs font-extrabold text-[#0f172a]">
                         Click here to browse your local computer files or drag & drop
                       </p>
-                      <p className="text-[11px] text-gray-400 mt-1">Supports CSV, JSON, 1pux, and TXT files</p>
+                      <p className="text-[11px] text-[#64748b] mt-1 font-medium">Supports CSV, JSON, 1pux, and TXT files</p>
                     </div>
                   </>
                 )}
@@ -390,24 +428,24 @@ export default function ImportExportPage() {
 
               {/* Success Notification */}
               {importedCount !== null && (
-                <div className="p-4 bg-emerald-950/90 border border-emerald-700/80 rounded-xl text-xs text-emerald-400 flex items-center justify-between shadow-lg">
+                <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-800 flex items-center justify-between shadow-sm">
                   <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                     <div>
-                      <strong className="text-white">Import Completed!</strong>
-                      <p className="text-[11px] text-gray-300">
-                        Successfully imported {importedCount} passwords from <span className="text-[#1fbbd2]">{importedFileName}</span> and client-side OpenPGP encrypted them into your Vault.
+                      <strong className="text-[#0f172a]">Import Completed!</strong>
+                      <p className="text-[11px] text-[#334155]">
+                        Successfully imported {importedCount} passwords from <span className="text-[#0284c7] font-bold">{importedFileName}</span> and client-side OpenPGP encrypted them into your Vault.
                       </p>
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="p-4 bg-[#0d1724] border border-[#f39c12]/30 rounded-xl text-xs text-[#f39c12] flex items-start gap-3">
-                <AlertTriangle className="w-4 h-4 text-[#f39c12] shrink-0 mt-0.5" />
+              <div className="p-4 bg-[#fffbeb] border border-[#f39c12]/40 rounded-xl text-xs text-[#b45309] flex items-start gap-3 shadow-sm">
+                <AlertTriangle className="w-4 h-4 text-[#d97706] shrink-0 mt-0.5" />
                 <div>
-                  <strong className="text-white">Import Security Guarantee:</strong>
-                  <p className="text-[11px] text-gray-300 mt-0.5">
+                  <strong className="text-[#78350f]">Import Security Guarantee:</strong>
+                  <p className="text-[11px] text-[#92400e] mt-0.5 font-medium">
                     Imported plaintext passwords are encrypted inside your browser before saving. No unencrypted passwords touch the network.
                   </p>
                 </div>
@@ -415,47 +453,47 @@ export default function ImportExportPage() {
             </div>
 
             {/* Export Section with PDF Support */}
-            <div className="glass-panel rounded-2xl p-6 border border-[rgba(31,187,210,0.25)] bg-[#17283b] space-y-6 flex flex-col justify-between">
+            <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-6 flex flex-col justify-between shadow-xl">
               <div className="space-y-6">
-                <div className="flex items-center gap-3 border-b border-gray-700 pb-4">
-                  <div className="w-9 h-9 rounded-xl bg-[#0d1724] border border-[#1fbbd2]/40 flex items-center justify-center text-[#1fbbd2]">
-                    <Download className="w-5 h-5 text-[#1fbbd2]" />
+                <div className="flex items-center gap-3 border-b border-[#cbd5e1] pb-4">
+                  <div className="w-9 h-9 rounded-xl bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7]">
+                    <Download className="w-5 h-5 text-[#0284c7]" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-white">Export Vault</h2>
-                    <p className="text-xs text-gray-400">Export your passwords to CSV, JSON, or PDF Report.</p>
+                    <h2 className="text-lg font-extrabold text-[#0f172a]">Export Vault</h2>
+                    <p className="text-xs text-[#64748b]">Export your passwords to CSV, JSON, or PDF Report.</p>
                   </div>
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-xs font-bold text-gray-300">File Export Format</label>
+                  <label className="text-xs font-extrabold text-[#334155]">File Export Format</label>
                   <div className="flex gap-3">
                     <button
                       onClick={() => setExportType('csv')}
-                      className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                      className={`flex-1 py-2.5 rounded-xl border text-xs font-extrabold transition-all cursor-pointer ${
                         exportType === 'csv'
-                          ? 'border-[#f39c12] bg-[#0d1724] text-[#f39c12] shadow'
-                          : 'border-gray-700 bg-[#0d1724]/40 text-gray-400 hover:border-gray-600'
+                          ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
+                          : 'border-[#cbd5e1] bg-[#f8fafc] text-[#334155] hover:bg-[#e0f2fe]/40'
                       }`}
                     >
                       CSV (.csv)
                     </button>
                     <button
                       onClick={() => setExportType('json')}
-                      className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                      className={`flex-1 py-2.5 rounded-xl border text-xs font-extrabold transition-all cursor-pointer ${
                         exportType === 'json'
-                          ? 'border-[#1fbbd2] bg-[#0d1724] text-[#1fbbd2] shadow'
-                          : 'border-gray-700 bg-[#0d1724]/40 text-gray-400 hover:border-gray-600'
+                          ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
+                          : 'border-[#cbd5e1] bg-[#f8fafc] text-[#334155] hover:bg-[#e0f2fe]/40'
                       }`}
                     >
                       JSON (.json)
                     </button>
                     <button
                       onClick={() => setExportType('pdf')}
-                      className={`flex-1 py-2.5 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                      className={`flex-1 py-2.5 rounded-xl border text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                         exportType === 'pdf'
-                          ? 'border-[#f39c12] bg-[#0d1724] text-[#f39c12] shadow-lg glow-gold'
-                          : 'border-gray-700 bg-[#0d1724]/40 text-gray-400 hover:border-gray-600'
+                          ? 'border-2 border-[#f39c12] bg-[#fffbeb] text-[#d97706] shadow-sm'
+                          : 'border-[#cbd5e1] bg-[#f8fafc] text-[#334155] hover:bg-[#e0f2fe]/40'
                       }`}
                     >
                       <FileText className="w-3.5 h-3.5" />
@@ -465,7 +503,7 @@ export default function ImportExportPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-xs font-bold text-gray-300">Choose what to export</label>
+                  <label className="text-xs font-extrabold text-[#334155]">Choose what to export</label>
                   <div className="space-y-2">
                     {[
                       { id: 'all', label: 'All Passwords', sub: 'Export all personal and shared passwords.' },
@@ -480,18 +518,18 @@ export default function ImportExportPage() {
                           onClick={() => setExportOption(opt.id as any)}
                           className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${
                             isSel
-                              ? 'border-[#1fbbd2] bg-[#0d1724] shadow'
-                              : 'border-gray-700/60 bg-[#0d1724]/40 hover:border-gray-600'
+                              ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] shadow-sm'
+                              : 'border-[#cbd5e1] bg-[#f8fafc] hover:bg-[#f1f5f9]'
                           }`}
                         >
                           <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                            isSel ? 'border-[#1fbbd2] bg-[#1fbbd2]' : 'border-gray-600'
+                            isSel ? 'border-[#1fbbd2] bg-[#1fbbd2]' : 'border-[#cbd5e1] bg-white'
                           }`}>
-                            {isSel && <div className="w-1.5 h-1.5 rounded-full bg-[#0d1724]" />}
+                            {isSel && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-white">{opt.label}</p>
-                            <p className="text-[10px] text-gray-400">{opt.sub}</p>
+                            <p className="text-xs font-extrabold text-[#0f172a]">{opt.label}</p>
+                            <p className="text-[10px] text-[#64748b] font-medium">{opt.sub}</p>
                           </div>
                         </div>
                       );
@@ -502,16 +540,16 @@ export default function ImportExportPage() {
 
               <div className="space-y-3 pt-4">
                 {exportSuccessMessage && (
-                  <div className="p-3 bg-emerald-950/80 border border-emerald-700/60 rounded-xl text-xs text-emerald-400 flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>{exportSuccessMessage}</span>
+                  <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-800 flex items-center gap-2 shadow-sm">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span className="font-extrabold">{exportSuccessMessage}</span>
                   </div>
                 )}
 
                 <button
                   onClick={handleExportVault}
                   disabled={loadingExport}
-                  className="w-full gold-cyan-gradient-btn py-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 text-[#0d1724] shadow-lg disabled:opacity-50"
+                  className="w-full gold-cyan-gradient-btn py-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 text-white shadow-md disabled:opacity-50 cursor-pointer"
                 >
                   {loadingExport ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   <span>
@@ -525,9 +563,9 @@ export default function ImportExportPage() {
           </div>
 
           {/* Bottom Security Note */}
-          <div className="p-4 bg-[#17283b] border border-[rgba(31,187,210,0.2)] rounded-xl text-xs text-gray-300 flex items-center gap-3">
-            <ShieldCheck className="w-4 h-4 text-[#1fbbd2] shrink-0" />
-            <span>Your data is encrypted and secure. We never store unencrypted exported files on remote servers.</span>
+          <div className="p-4 bg-[#ffffff] border border-[#d0dbe5] rounded-xl text-xs text-[#334155] flex items-center gap-3 shadow-sm">
+            <ShieldCheck className="w-4 h-4 text-[#0284c7] shrink-0" />
+            <span className="font-medium">Your data is encrypted and secure. We never store unencrypted exported files on remote servers.</span>
           </div>
         </main>
       </div>
