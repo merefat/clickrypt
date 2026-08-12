@@ -342,13 +342,13 @@ export default function AdminPage() {
                           <select
                             value={u.role}
                             onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                            className="bg-[#0d1724] border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-[#1fbbd2] cursor-pointer"
+                            className="bg-[#ffffff] border border-[#cbd5e1] rounded-lg px-2.5 py-1 text-xs text-[#0f172a] font-extrabold focus:outline-none focus:border-[#1fbbd2] cursor-pointer shadow-xs"
                           >
-                            <option value="Admin" className="bg-[#17283b] text-white">Admin</option>
-                            <option value="User" className="bg-[#17283b] text-white">User</option>
+                            <option value="Admin" className="bg-white text-[#0f172a]">Admin</option>
+                            <option value="User" className="bg-white text-[#0f172a]">User</option>
                           </select>
                         ) : (
-                          <span className="bg-[#0d1724] text-[#1fbbd2] border border-[#1fbbd2]/50 text-[10px] font-extrabold px-3 py-1 rounded-full shadow">
+                          <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/50 text-[10px] font-extrabold px-3 py-1 rounded-full shadow-xs">
                             {u.role}
                           </span>
                         )}
@@ -356,34 +356,34 @@ export default function AdminPage() {
 
                       <td className="py-4 px-4">
                         {u.status === 'Active' ? (
-                          <span className="inline-flex items-center gap-1.5 text-emerald-400 font-bold text-xs">
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 glow-green" />
+                          <span className="inline-flex items-center gap-1.5 text-emerald-700 font-extrabold text-xs">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
                             Active
                           </span>
                         ) : u.status === 'Invited' ? (
-                          <span className="inline-flex items-center gap-1.5 text-[#1fbbd2] font-bold text-xs">
+                          <span className="inline-flex items-center gap-1.5 text-[#0284c7] font-extrabold text-xs">
                             <span className="w-2 h-2 rounded-full bg-[#1fbbd2]" />
                             Invited
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 text-amber-400 font-bold text-xs">
-                            <span className="w-2 h-2 rounded-full bg-amber-400" />
+                          <span className="inline-flex items-center gap-1.5 text-[#d97706] font-extrabold text-xs">
+                            <span className="w-2 h-2 rounded-full bg-[#f39c12]" />
                             Suspended
                           </span>
                         )}
                       </td>
 
-                      <td className="py-4 px-4 text-gray-400 text-[11px]">{u.lastActive}</td>
+                      <td className="py-4 px-4 text-[#64748b] text-[11px] font-medium">{u.lastActive}</td>
 
                       <td className="py-4 px-4 text-right">
                         {canManageUser(u) ? (
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => handleStatusToggle(u.id, u.status)}
-                              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all border ${
+                              className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all border shadow-xs cursor-pointer ${
                                 u.status === 'Active'
-                                  ? 'border-amber-500/50 text-amber-400 hover:bg-amber-500/10'
-                                  : 'border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10'
+                                  ? 'bg-[#ffffff] hover:bg-[#fffbeb] border-[#f39c12] text-[#d97706]'
+                                  : 'bg-[#ffffff] hover:bg-[#ecfdf5] border-emerald-500 text-emerald-700'
                               }`}
                             >
                               {u.status === 'Active' ? 'Suspend' : 'Activate'}
@@ -391,7 +391,7 @@ export default function AdminPage() {
 
                             <button
                               onClick={() => handleDeleteUser(u.id, u.name)}
-                              className="px-2.5 py-1 bg-rose-950/60 hover:bg-rose-900 border border-rose-700/60 text-rose-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow cursor-pointer"
+                              className="px-2.5 py-1 bg-[#fff1f2] hover:bg-[#ffe4e6] border border-rose-300 text-rose-700 rounded-lg text-xs font-extrabold transition-all flex items-center gap-1 shadow-xs cursor-pointer"
                               title="Permanently delete user"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -399,7 +399,7 @@ export default function AdminPage() {
                             </button>
                           </div>
                         ) : (
-                          <span className="text-[11px] text-gray-500 italic">Protected</span>
+                          <span className="text-[11px] text-[#64748b] italic font-medium">Protected</span>
                         )}
                       </td>
                     </tr>
