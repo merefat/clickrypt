@@ -329,7 +329,7 @@ export default function GroupsPage() {
     : [];
 
   return (
-    <div className="flex min-h-screen bg-[#0d1724] text-white select-none font-sora">
+    <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -339,12 +339,12 @@ export default function GroupsPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#17283b] border border-[#1fbbd2]/40 flex items-center justify-center text-[#1fbbd2] shadow">
-                <Users className="w-5 h-5 text-[#1fbbd2]" />
+              <div className="w-10 h-10 rounded-xl bg-[#ffffff] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7] shadow-sm">
+                <Users className="w-5 h-5 text-[#0284c7]" />
               </div>
               <div>
-                <h1 className="text-3xl font-extrabold text-white">Groups Management</h1>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <h1 className="text-3xl font-extrabold text-[#0f172a]">Groups Management</h1>
+                <p className="text-xs text-[#64748b] mt-0.5">
                   Organize users and manage shared access to vaults, folders, and secrets.
                 </p>
               </div>
@@ -352,7 +352,7 @@ export default function GroupsPage() {
 
             <button
               onClick={() => setShowCreateModal(true)}
-              className="gold-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow cursor-pointer"
+              className="gold-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow-md cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Create Group</span>
@@ -362,7 +362,7 @@ export default function GroupsPage() {
           {/* Main Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left: Groups List */}
-            <div className="glass-panel rounded-2xl p-5 border border-[rgba(31,187,210,0.25)] bg-[#17283b] space-y-4">
+            <div className="glass-panel rounded-2xl p-5 border border-[#d0dbe5] bg-[#ffffff] space-y-4 shadow-xl">
               <div className="relative">
                 <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -370,7 +370,7 @@ export default function GroupsPage() {
                   placeholder="Search groups..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#1fbbd2]"
+                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl pl-9 pr-4 py-2 text-xs text-[#0f172a] placeholder-gray-400 focus:outline-none focus:border-[#1fbbd2] shadow-sm"
                 />
               </div>
 
@@ -385,25 +385,25 @@ export default function GroupsPage() {
                         onClick={() => setSelectedGroupId(g.id)}
                         className={`p-4 rounded-xl cursor-pointer transition-all border ${
                           isSelected
-                            ? 'bg-[#0d1724] border-[#f39c12] shadow-lg'
-                            : 'bg-[#0d1724]/60 border-gray-700/60 hover:border-gray-600'
+                            ? 'bg-[#f5f8fb] border-[#1fbbd2] shadow-md'
+                            : 'bg-[#ffffff] border-[#cbd5e1] hover:border-[#1fbbd2]'
                         }`}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
-                              isSelected ? 'bg-[#f39c12] text-[#0d1724]' : 'bg-[#0d1724] border border-gray-700 text-[#1fbbd2]'
+                              isSelected ? 'bg-[#1fbbd2] text-white' : 'bg-[#f1f5f9] border border-[#cbd5e1] text-[#0284c7]'
                             }`}>
                               <Users className="w-4 h-4" />
                             </div>
                             <div>
-                              <h3 className="text-sm font-bold text-white">{g.name}</h3>
-                              <p className="text-[11px] text-gray-400 line-clamp-1">{g.description}</p>
+                              <h3 className="text-sm font-extrabold text-[#0f172a]">{g.name}</h3>
+                              <p className="text-[11px] text-[#64748b] line-clamp-1">{g.description}</p>
                             </div>
                           </div>
-                          <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-[#f39c12]' : 'text-gray-600'}`} />
+                          <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-[#1fbbd2]' : 'text-gray-400'}`} />
                         </div>
-                        <div className="mt-3 flex items-center justify-between text-[10px] text-gray-400">
+                        <div className="mt-3 flex items-center justify-between text-[10px] text-[#64748b]">
                           <span>{g.members.length} members</span>
                           <span>Active {g.lastActive}</span>
                         </div>
@@ -415,16 +415,16 @@ export default function GroupsPage() {
 
             {/* Right: Selected Group Details */}
             {selectedGroup ? (
-              <div className="lg:col-span-2 glass-panel rounded-2xl p-6 border border-[rgba(31,187,210,0.25)] bg-[#17283b] flex flex-col">
+              <div className="lg:col-span-2 glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] flex flex-col shadow-xl">
                 {/* Group Header */}
-                <div className="flex items-center justify-between pb-6 border-b border-gray-700">
+                <div className="flex items-center justify-between pb-6 border-b border-[#cbd5e1]">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold shadow">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold shadow">
                       <Users className="w-6 h-6" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-white">{selectedGroup.name}</h2>
-                      <p className="text-xs text-gray-400">{selectedGroup.description}</p>
+                      <h2 className="text-xl font-extrabold text-[#0f172a]">{selectedGroup.name}</h2>
+                      <p className="text-xs text-[#64748b]">{selectedGroup.description}</p>
                     </div>
                   </div>
 
@@ -434,15 +434,15 @@ export default function GroupsPage() {
                         setAddMemberUserId('');
                         setShowAddMemberModal(true);
                       }}
-                      className="px-3 py-1.5 bg-[#0d1724] hover:bg-gray-800 border border-gray-700 hover:border-[#1fbbd2] rounded-xl text-xs font-bold text-white flex items-center gap-1.5 transition-all cursor-pointer"
+                      className="px-3 py-1.5 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-xs font-extrabold text-[#0f172a] flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
                     >
-                      <UserPlus className="w-3.5 h-3.5 text-[#1fbbd2]" />
+                      <UserPlus className="w-3.5 h-3.5 text-[#0284c7]" />
                       <span>Add Member</span>
                     </button>
 
                     <button
                       onClick={handleDeleteGroup}
-                      className="p-2 text-gray-400 hover:text-rose-400 bg-[#0d1724] border border-gray-700 hover:border-rose-500 rounded-xl transition-all cursor-pointer"
+                      className="p-2 text-gray-500 hover:text-rose-600 bg-[#ffffff] border border-[#cbd5e1] hover:border-rose-400 rounded-xl transition-all cursor-pointer shadow-sm"
                       title="Delete Group"
                     >
                       <Trash2 className="w-4 h-4" />

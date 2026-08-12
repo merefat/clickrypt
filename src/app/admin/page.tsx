@@ -201,7 +201,7 @@ export default function AdminPage() {
   });
 
   return (
-    <div className="flex min-h-screen bg-[#0d1724] text-white select-none font-sora">
+    <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -211,30 +211,30 @@ export default function AdminPage() {
           {/* Header & Tabs */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#17283b] border border-[#1fbbd2]/40 flex items-center justify-center text-[#1fbbd2] shadow">
-                <UserCheck className="w-5 h-5 text-[#1fbbd2]" />
+              <div className="w-10 h-10 rounded-xl bg-[#ffffff] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7] shadow-sm">
+                <UserCheck className="w-5 h-5 text-[#0284c7]" />
               </div>
               <div>
-                <h1 className="text-3xl font-extrabold text-white">Administration</h1>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <h1 className="text-3xl font-extrabold text-[#0f172a]">Administration</h1>
+                <p className="text-xs text-[#64748b] mt-0.5">
                   Team members, Account Recovery requests, and organization security logs.
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 bg-[#17283b] p-1.5 rounded-xl border border-gray-700">
+            <div className="flex items-center gap-2 bg-[#ffffff] p-1.5 rounded-xl border border-[#cbd5e1] shadow-sm">
               <button
                 onClick={() => setActiveTab('members')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  activeTab === 'members' ? 'bg-[#1fbbd2] text-[#0d1724]' : 'text-gray-400 hover:text-white'
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
+                  activeTab === 'members' ? 'bg-[#1fbbd2] text-white shadow-sm' : 'text-[#475569] hover:bg-[#f1f5f9]'
                 }`}
               >
                 Members ({users.length})
               </button>
               <button
                 onClick={() => setActiveTab('recovery')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  activeTab === 'recovery' ? 'bg-[#f39c12] text-[#0d1724]' : 'text-gray-400 hover:text-white'
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === 'recovery' ? 'bg-[#f39c12] text-white shadow-sm' : 'text-[#475569] hover:bg-[#f1f5f9]'
                 }`}
               >
                 <KeyRound className="w-3.5 h-3.5" />
@@ -247,7 +247,7 @@ export default function AdminPage() {
                 setInviteEmail('');
                 setShowInviteModal(true);
               }}
-              className="gold-cyan-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-[#0d1724] shadow-lg"
+              className="gold-cyan-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow-md cursor-pointer"
             >
               <UserPlus className="w-4 h-4" />
               <span>Invite Member</span>
@@ -258,86 +258,84 @@ export default function AdminPage() {
             <>
               {/* Controls Bar */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            {/* Search Input */}
-            <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search members..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-[#17283b] border border-gray-700 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#1fbbd2]"
-              />
-            </div>
+                {/* Search Input */}
+                <div className="relative w-full sm:w-80">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search members..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl pl-10 pr-4 py-2 text-xs text-[#0f172a] placeholder-gray-400 focus:outline-none focus:border-[#1fbbd2] shadow-sm"
+                  />
+                </div>
 
-            {/* Filters */}
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <div className="flex items-center gap-2 bg-[#17283b] border border-gray-700 px-3 py-2 rounded-xl text-xs">
-                <Filter className="w-3.5 h-3.5 text-[#f39c12]" />
-                <select
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
-                  className="bg-[#17283b] text-white focus:outline-none cursor-pointer"
-                >
-                  <option value="All" className="bg-[#17283b] text-white">All Roles</option>
-                  <option value="Owner" className="bg-[#17283b] text-white">Owner</option>
-                  <option value="Admin" className="bg-[#17283b] text-white">Admin</option>
-                  <option value="User" className="bg-[#17283b] text-white">User</option>
-                </select>
+                {/* Filters */}
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="flex items-center gap-2 bg-[#ffffff] border border-[#cbd5e1] px-3 py-2 rounded-xl text-xs shadow-sm">
+                    <Filter className="w-3.5 h-3.5 text-[#f39c12]" />
+                    <select
+                      value={roleFilter}
+                      onChange={(e) => setRoleFilter(e.target.value)}
+                      className="bg-[#ffffff] text-[#0f172a] font-bold focus:outline-none cursor-pointer"
+                    >
+                      <option value="All" className="bg-[#ffffff] text-[#0f172a]">All Roles</option>
+                      <option value="Owner" className="bg-[#ffffff] text-[#0f172a]">Owner</option>
+                      <option value="Admin" className="bg-[#ffffff] text-[#0f172a]">Admin</option>
+                      <option value="User" className="bg-[#ffffff] text-[#0f172a]">User</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2 bg-[#ffffff] border border-[#cbd5e1] px-3 py-2 rounded-xl text-xs shadow-sm">
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="bg-[#ffffff] text-[#0f172a] font-bold focus:outline-none cursor-pointer"
+                    >
+                      <option value="All" className="bg-[#ffffff] text-[#0f172a]">All Status</option>
+                      <option value="Active" className="bg-[#ffffff] text-[#0f172a]">Active</option>
+                      <option value="Invited" className="bg-[#ffffff] text-[#0f172a]">Invited</option>
+                      <option value="Suspended" className="bg-[#ffffff] text-[#0f172a]">Suspended</option>
+                    </select>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 bg-[#17283b] border border-gray-700 px-3 py-2 rounded-xl text-xs">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="bg-[#17283b] text-white focus:outline-none cursor-pointer"
-                >
-                  <option value="All" className="bg-[#17283b] text-white">All Status</option>
-                  <option value="Active" className="bg-[#17283b] text-white">Active</option>
-                  <option value="Invited" className="bg-[#17283b] text-white">Invited</option>
-                  <option value="Suspended" className="bg-[#17283b] text-white">Suspended</option>
-                </select>
-              </div>
-            </div>
-          </div>
+              {/* Members Table */}
+              <div className="glass-panel rounded-2xl border border-[#d0dbe5] overflow-hidden shadow-xl bg-[#ffffff]">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#e6eff7] text-[#334155] font-extrabold uppercase tracking-wider border-b border-[#cbd5e1]">
+                      <tr>
+                        <th className="py-3.5 px-6">Name</th>
+                        <th className="py-3.5 px-4">Email</th>
+                        <th className="py-3.5 px-4">Role</th>
+                        <th className="py-3.5 px-4">Status</th>
+                        <th className="py-3.5 px-4">Last Active</th>
+                        <th className="py-3.5 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
 
-          {/* Members Table */}
-          <div className="glass-panel rounded-2xl border border-[rgba(31,187,210,0.25)] overflow-hidden shadow-2xl bg-[#17283b]">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-[#0d1724]/90 text-gray-300 font-bold uppercase tracking-wider border-b border-gray-700">
-                  <tr>
-                    <th className="py-3.5 px-6">Name</th>
-                    <th className="py-3.5 px-4">Email</th>
-                    <th className="py-3.5 px-4">Role</th>
-                    <th className="py-3.5 px-4">Status</th>
-                    <th className="py-3.5 px-4">Last Active</th>
-                    <th className="py-3.5 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
+                    <tbody className="divide-y divide-[#e2e8f0]">
+                      {filteredUsers.map((u) => (
+                        <tr key={u.id} className="hover:bg-[#f1f6fb] transition-all border-b border-gray-100">
+                          <td className="py-4 px-6">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold text-xs shadow">
+                                {u.name.slice(0, 2).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="font-bold text-[#0f172a] text-sm">{u.name}</p>
+                                {u.role === 'Owner' && <span className="text-[10px] text-[#d97706] font-bold">Organization Owner</span>}
+                              </div>
+                            </div>
+                          </td>
 
-                <tbody className="divide-y divide-gray-700/60">
-                  {filteredUsers.map((u) => (
-                    <tr key={u.id} className="hover:bg-[#0d1724]/60 transition-all border-b border-gray-700/40">
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          {/* Gold-Cyan Gradient Avatar (0% Purple) */}
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold text-xs shadow">
-                            {u.name.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="font-bold text-white text-sm">{u.name}</p>
-                            {u.role === 'Owner' && <span className="text-[10px] text-[#f39c12]">Organization Owner</span>}
-                          </div>
-                        </div>
-                      </td>
+                          <td className="py-4 px-4 text-[#334155]">{u.email}</td>
 
-                      <td className="py-4 px-4 text-gray-300">{u.email}</td>
-
-                      <td className="py-4 px-4">
-                        {u.role === 'Owner' ? (
-                          /* Gold Owner Badge (0% Purple) */
-                          <span className="bg-[#0d1724] text-[#f39c12] border border-[#f39c12]/50 text-[10px] font-extrabold px-3 py-1 rounded-full shadow">
+                          <td className="py-4 px-4">
+                            {u.role === 'Owner' ? (
+                              <span className="bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/50 text-[10px] font-extrabold px-3 py-1 rounded-full shadow-sm">
                             Owner
                           </span>
                         ) : canManageUser(u) ? (

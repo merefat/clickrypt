@@ -418,7 +418,7 @@ ${privKey}
   };
 
   return (
-    <div className="flex min-h-screen bg-[#0d1724] text-white select-none font-sora">
+    <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -428,23 +428,23 @@ ${privKey}
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-extrabold text-white">Profile Settings</h1>
-              <p className="text-xs text-gray-400 mt-0.5">
+              <h1 className="text-3xl font-extrabold text-[#0f172a]">Profile Settings</h1>
+              <p className="text-xs text-[#64748b] mt-0.5">
                 Manage your personal information, security, and preferences.
               </p>
             </div>
 
-            {/* Gold Owner Crown Badge (0% Purple) */}
-            <div className="flex items-center gap-1.5 bg-[#17283b] border border-[#f39c12]/50 px-3 py-1.5 rounded-full text-xs text-[#f39c12] font-bold shadow">
-              <Crown className="w-4 h-4 text-[#f39c12]" />
+            {/* Gold Owner Crown Badge */}
+            <div className="flex items-center gap-1.5 bg-[#ffffff] border border-[#f39c12]/50 px-3 py-1.5 rounded-full text-xs text-[#d97706] font-extrabold shadow-sm">
+              <Crown className="w-4 h-4 text-[#d97706]" />
               <span>Owner</span>
             </div>
           </div>
 
           {/* Personal Information Card */}
-          <div className="glass-panel rounded-2xl p-6 border border-[rgba(31,187,210,0.25)] bg-[#17283b] space-y-6">
-            <div className="flex items-center gap-2 text-sm font-bold text-white border-b border-gray-700 pb-3">
-              <User className="w-4 h-4 text-[#1fbbd2]" />
+          <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-6 shadow-xl">
+            <div className="flex items-center gap-2 text-sm font-extrabold text-[#0f172a] border-b border-[#cbd5e1] pb-3">
+              <User className="w-4 h-4 text-[#0284c7]" />
               <span>Personal Information</span>
             </div>
 
@@ -464,11 +464,11 @@ ${privKey}
                     <img
                       src={avatarUrl}
                       alt={name}
-                      className="w-16 h-16 rounded-full object-cover shadow-lg border-2 border-[#1fbbd2]"
+                      className="w-16 h-16 rounded-full object-cover shadow-md border-2 border-[#1fbbd2]"
                     />
                   </div>
                 ) : (
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold text-lg shadow-lg border-2 border-[#1fbbd2]/50">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold text-lg shadow-md border-2 border-[#1fbbd2]">
                     {name.slice(0, 2).toUpperCase()}
                   </div>
                 )}
@@ -478,7 +478,7 @@ ${privKey}
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="px-4 py-2 bg-[#0d1724] hover:bg-gray-800 border border-[#1fbbd2]/40 rounded-xl text-xs font-bold text-white transition-all cursor-pointer shadow"
+                      className="px-4 py-2 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl text-xs font-extrabold text-[#0f172a] transition-all cursor-pointer shadow-sm"
                     >
                       Upload Avatar
                     </button>
@@ -487,38 +487,34 @@ ${privKey}
                       <button
                         type="button"
                         onClick={handleRemoveAvatar}
-                        className="px-3 py-2 bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 rounded-xl text-xs font-bold text-rose-300 transition-all cursor-pointer shadow"
+                        className="px-3 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded-xl text-xs font-extrabold text-rose-600 transition-all cursor-pointer shadow-sm"
                       >
                         Remove Avatar
                       </button>
                     )}
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-1">JPG, PNG, WEBP or GIF. Max 2MB</p>
+                  <p className="text-[10px] text-[#64748b] mt-1">JPG, PNG, WEBP or GIF. Max 2MB</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">
-                    Name
-                  </label>
+                  <label className="block text-xs font-extrabold text-[#334155] mb-1">Full Name</label>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#1fbbd2]"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-3.5 py-2 text-xs text-[#0f172a] focus:outline-none focus:border-[#1fbbd2] shadow-sm font-bold"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">
-                    Email
-                  </label>
+                  <label className="block text-xs font-extrabold text-[#334155] mb-1">Email Address</label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#1fbbd2]"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-3.5 py-2 text-xs text-[#0f172a] focus:outline-none focus:border-[#1fbbd2] shadow-sm font-bold"
                   />
                 </div>
               </div>

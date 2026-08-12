@@ -25,6 +25,7 @@ interface PasswordDrawerProps {
   editItem?: any | null;
   isSecretVault?: boolean;
   defaultFolderId?: string;
+  initialFolderId?: string;
 }
 
 export default function PasswordDrawer({
@@ -34,6 +35,7 @@ export default function PasswordDrawer({
   editItem = null,
   isSecretVault = false,
   defaultFolderId = '',
+  initialFolderId = '',
 }: PasswordDrawerProps) {
   const { user, masterPassword } = useAuth();
   const [name, setName] = useState('');

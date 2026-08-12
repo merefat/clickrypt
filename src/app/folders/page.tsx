@@ -58,7 +58,7 @@ export default function FoldersPage() {
   const selectedFolder = folders.find((f) => f.id === selectedFolderId) || folders[0];
 
   return (
-    <div className="flex min-h-screen bg-[#0d1724] text-white select-none font-sora">
+    <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -68,12 +68,12 @@ export default function FoldersPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#17283b] border border-[#f39c12]/40 flex items-center justify-center text-[#f39c12] shadow">
-                <Folder className="w-5 h-5 text-[#f39c12]" />
+              <div className="w-10 h-10 rounded-xl bg-[#ffffff] border border-[#f39c12]/50 flex items-center justify-center text-[#d97706] shadow-sm">
+                <Folder className="w-5 h-5 text-[#d97706]" />
               </div>
               <div>
-                <h1 className="text-3xl font-extrabold text-white">Folders Management</h1>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <h1 className="text-3xl font-extrabold text-[#0f172a]">Folders Management</h1>
+                <p className="text-xs text-[#64748b] mt-0.5">
                   Organize password items into structured categories and teams.
                 </p>
               </div>
@@ -90,7 +90,7 @@ export default function FoldersPage() {
                   alert('Error creating folder');
                 }
               }}
-              className="gold-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow cursor-pointer"
+              className="gold-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow-md cursor-pointer"
             >
               <FolderPlus className="w-4 h-4" />
               <span>Create Folder</span>
@@ -100,14 +100,14 @@ export default function FoldersPage() {
           {/* Main Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left: Folders List */}
-            <div className="glass-panel rounded-2xl p-5 border border-[rgba(31,187,210,0.25)] bg-[#17283b] space-y-3">
-              <div className="flex items-center justify-between text-xs font-bold text-gray-300 pb-2 border-b border-gray-700">
+            <div className="glass-panel rounded-2xl p-5 border border-[#d0dbe5] bg-[#ffffff] space-y-3 shadow-xl">
+              <div className="flex items-center justify-between text-xs font-extrabold text-[#334155] pb-2 border-b border-[#cbd5e1]">
                 <span>WORKPLACE FOLDERS ({folders.length})</span>
               </div>
 
               <div className="space-y-2">
                 {folders.length === 0 ? (
-                  <p className="text-xs text-gray-400 py-6 text-center">No workplace folders found.</p>
+                  <p className="text-xs text-[#64748b] py-6 text-center">No workplace folders found.</p>
                 ) : (
                   folders.map((f) => {
                     const isSelected = f.id === selectedFolderId;
@@ -117,20 +117,20 @@ export default function FoldersPage() {
                         onClick={() => setSelectedFolderId(f.id)}
                         className={`p-4 rounded-xl cursor-pointer transition-all border ${
                           isSelected
-                            ? 'bg-[#0d1724] border-[#f39c12] shadow-lg'
-                            : 'bg-[#0d1724]/60 border-gray-700/60 hover:border-gray-600'
+                            ? 'bg-[#f5f8fb] border-[#1fbbd2] shadow-md'
+                            : 'bg-[#ffffff] border-[#cbd5e1] hover:border-[#1fbbd2]'
                         }`}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <Folder className={`w-5 h-5 ${isSelected ? 'text-[#f39c12]' : 'text-gray-400'}`} />
+                            <Folder className={`w-5 h-5 ${isSelected ? 'text-[#1fbbd2]' : 'text-[#64748b]'}`} />
                             <div>
-                              <h3 className="text-sm font-bold text-white">{f.name}</h3>
-                              <p className="text-[11px] text-gray-400 line-clamp-1">{f.description}</p>
+                              <h3 className="text-sm font-extrabold text-[#0f172a]">{f.name}</h3>
+                              <p className="text-[11px] text-[#64748b] line-clamp-1">{f.description}</p>
                             </div>
                           </div>
 
-                          <span className="bg-[#17283b] text-[#1fbbd2] border border-[#1fbbd2]/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
                             {f.itemCount} items
                           </span>
                         </div>
@@ -141,58 +141,59 @@ export default function FoldersPage() {
               </div>
             </div>
 
-            {/* Right: Selected Folder Items */}
-            {selectedFolder ? (
-              <div className="lg:col-span-2 glass-panel rounded-2xl p-6 border border-[rgba(31,187,210,0.25)] bg-[#17283b] flex flex-col">
-                <div className="flex items-center justify-between pb-6 border-b border-gray-700">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold shadow">
-                      <Folder className="w-6 h-6" />
-                    </div>
+            {/* Right: Selected Folder Details & Items */}
+            <div className="lg:col-span-2 space-y-6">
+              {selectedFolder ? (
+                <div className="glass-panel rounded-2xl border border-[#d0dbe5] overflow-hidden shadow-xl bg-[#ffffff]">
+                  <div className="p-6 border-b border-[#cbd5e1] flex items-center justify-between">
                     <div>
-                      <h2 className="text-xl font-bold text-white">/ {selectedFolder.name}</h2>
-                      <p className="text-xs text-gray-400">{selectedFolder.description}</p>
+                      <h2 className="text-xl font-extrabold text-[#0f172a]">{selectedFolder.name}</h2>
+                      <p className="text-xs text-[#64748b] mt-0.5">{selectedFolder.description}</p>
                     </div>
+
+                    <button
+                      onClick={() => setIsDrawerOpen(true)}
+                      className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Add Item to Folder</span>
+                    </button>
                   </div>
 
-                  {/* ADD ITEM TO FOLDER BUTTON */}
-                  <button
-                    onClick={() => setIsDrawerOpen(true)}
-                    className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-[#0d1724] shadow cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Add Item to Folder</span>
-                  </button>
-                </div>
-
-                <div className="mt-6 flex-1">
+                  {/* Folder Items Table */}
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-[#0d1724]/90 text-gray-300 font-bold uppercase tracking-wider border-b border-gray-700">
+                      <thead className="bg-[#e6eff7] text-[#334155] font-extrabold uppercase tracking-wider border-b border-[#cbd5e1]">
                         <tr>
-                          <th className="py-3 px-4">Name</th>
+                          <th className="py-3 px-6">Resource Name</th>
                           <th className="py-3 px-4">Username</th>
-                          <th className="py-3 px-4">Password</th>
+                          <th className="py-3 px-4">Category</th>
                           <th className="py-3 px-4 text-right">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-700/60">
+
+                      <tbody className="divide-y divide-[#e2e8f0]">
                         {folderItems.length === 0 ? (
                           <tr>
-                            <td colSpan={4} className="py-12 text-center text-gray-400 text-xs">
-                              No items in this folder yet. Click "Add Item to Folder" to organize secrets.
+                            <td colSpan={4} className="py-12 text-center text-[#64748b] text-xs">
+                              No password items stored inside this folder yet.
                             </td>
                           </tr>
                         ) : (
                           folderItems.map((item) => (
-                            <tr key={item.id} className="hover:bg-[#0d1724]/60 transition-all border-b border-gray-700/40">
-                              <td className="py-3.5 px-4 font-bold text-white">{item.name}</td>
-                              <td className="py-3.5 px-4 text-gray-300">{item.username || 'alex.morgan'}</td>
-                              <td className="py-3.5 px-4 font-mono text-gray-400">••••••••</td>
-                              <td className="py-3.5 px-4 text-right">
-                                <button className="p-1 text-gray-400 hover:text-white">
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
+                            <tr key={item.id} className="hover:bg-[#f1f6fb] transition-all border-b border-gray-100">
+                              <td className="py-4 px-6 font-bold text-[#0f172a]">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold text-xs shadow-sm">
+                                    {item.name.slice(0, 2).toUpperCase()}
+                                  </div>
+                                  <span>{item.name}</span>
+                                </div>
+                              </td>
+                              <td className="py-4 px-4 text-[#334155]">{item.username || 'N/A'}</td>
+                              <td className="py-4 px-4 text-[#64748b]">{item.category || 'General'}</td>
+                              <td className="py-4 px-4 text-right">
+                                <span className="text-[#0284c7] font-extrabold text-[11px]">In Folder</span>
                               </td>
                             </tr>
                           ))
@@ -201,24 +202,22 @@ export default function FoldersPage() {
                     </table>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="lg:col-span-2 glass-panel rounded-2xl p-12 text-center text-gray-400 text-xs bg-[#17283b]">
-                <Folder className="w-12 h-12 text-gray-500 mx-auto mb-3 opacity-50" />
-                <p>No workplace folders available. Click "Create Folder" to organize items.</p>
-              </div>
-            )}
+              ) : (
+                <div className="glass-panel p-12 text-center rounded-2xl border border-[#cbd5e1] text-[#64748b] bg-[#ffffff]">
+                  Select or create a folder to manage items.
+                </div>
+              )}
+            </div>
           </div>
         </main>
       </div>
 
-      {/* PASSWORD DRAWER INTEGRATION */}
+      {/* Password Drawer for adding item to this folder */}
       <PasswordDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
         onSaved={handleSavedItem}
-        isSecretVault={false}
-        defaultFolderId={selectedFolderId}
+        initialFolderId={selectedFolderId}
       />
     </div>
   );

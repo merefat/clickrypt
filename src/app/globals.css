@@ -4,22 +4,22 @@
   :root {
     --font-sora: 'Sora', sans-serif;
     --color-gold: #f39c12;
-    --color-navy-panel: #17283b;
     --color-cyan: #1fbbd2;
-    --color-bg-dark: #0d1724;
+    --color-bg-light: #dfe6ed;
+    --color-panel-light: #f5f8fb;
   }
 
   body {
     font-family: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background-color: #0d1724;
-    color: #ffffff;
+    background-color: #dfe6ed;
+    color: #0f172a;
     overflow-x: hidden;
   }
 
   /* Explicit readable styling for select dropdown options */
   select option {
-    background-color: #17283b !important;
-    color: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
     padding: 8px 12px;
   }
 }
@@ -30,72 +30,65 @@
 
 /* Dropdown Option Readability Utility */
 select option {
-  background-color: #17283b !important;
-  color: #ffffff !important;
+  background-color: #ffffff !important;
+  color: #0f172a !important;
 }
 
-/* Glassmorphism Panel with #17283b background */
+/* Soft Elevated Panel matching Reference UI */
 .glass-panel {
-  background: rgba(23, 40, 59, 0.95);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(31, 187, 210, 0.2);
+  background: #f5f8fb;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid #d0dbe5;
+  box-shadow: 0 10px 25px -5px rgba(160, 178, 198, 0.35), 0 4px 10px -2px rgba(160, 178, 198, 0.15);
 }
 
 .glass-panel-gold {
-  background: rgba(23, 40, 59, 0.95);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(243, 156, 18, 0.3);
+  background: #ffffff;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(243, 156, 18, 0.4);
+  box-shadow: 0 10px 25px -5px rgba(243, 156, 18, 0.15);
 }
 
-/* Custom Gold-Cyan Gradient Buttons */
+/* Custom Gold-Cyan Gradient & Solid Accent Buttons */
 .purple-gradient-btn,
 .gold-cyan-gradient-btn {
-  background: linear-gradient(135deg, #f39c12 0%, #1fbbd2 100%);
-  color: #0d1724;
+  background: linear-gradient(135deg, #1fbbd2 0%, #179cb0 100%);
+  color: #ffffff;
   font-weight: 800;
   transition: all 0.25s ease;
-  box-shadow: 0 4px 15px rgba(243, 156, 18, 0.3);
+  box-shadow: 0 4px 15px rgba(31, 187, 210, 0.3);
 }
 
 .purple-gradient-btn:hover,
 .gold-cyan-gradient-btn:hover {
-  filter: brightness(1.1);
+  filter: brightness(1.08);
   transform: translateY(-1px);
   box-shadow: 0 6px 20px rgba(31, 187, 210, 0.4);
 }
 
 .gold-gradient-btn {
-  background: linear-gradient(135deg, #f39c12 0%, #d35400 100%);
+  background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
   color: #ffffff;
   font-weight: 700;
   box-shadow: 0 4px 15px rgba(243, 156, 18, 0.35);
 }
 
 .cyan-gradient-btn {
-  background: linear-gradient(135deg, #1fbbd2 0%, #0984e3 100%);
-  color: #0d1724;
+  background: linear-gradient(135deg, #1fbbd2 0%, #17a2b8 100%);
+  color: #ffffff;
   font-weight: 700;
   box-shadow: 0 4px 15px rgba(31, 187, 210, 0.35);
 }
 
 /* Glow Utilities */
-.glow-purple,
 .glow-gold {
-  text-shadow: 0 0 12px rgba(243, 156, 18, 0.5);
+  text-shadow: 0 0 10px rgba(243, 156, 18, 0.4);
 }
 
 .glow-cyan {
-  text-shadow: 0 0 12px rgba(31, 187, 210, 0.6);
-}
-
-.glow-green {
-  box-shadow: 0 0 10px rgba(46, 204, 113, 0.6);
-}
-
-.glow-red {
-  box-shadow: 0 0 12px rgba(231, 76, 60, 0.6);
+  text-shadow: 0 0 10px rgba(31, 187, 210, 0.4);
 }
 
 /* Custom Scrollbars */
@@ -104,12 +97,12 @@ select option {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0d1724;
+  background: #dfe6ed;
 }
 ::-webkit-scrollbar-thumb {
-  background: #17283b;
+  background: #cbd5e1;
   border-radius: 9999px;
-  border: 1px solid rgba(31, 187, 210, 0.2);
+  border: 1px solid #b0c4de;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #1fbbd2;

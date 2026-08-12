@@ -107,14 +107,14 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-[#17283b]/95 backdrop-blur-md border-b border-[rgba(31,187,210,0.2)] px-8 py-3.5 flex flex-col gap-2 font-sora">
+    <header className="sticky top-0 z-30 bg-[#f5f8fb]/95 backdrop-blur-md border-b border-[#cbd5e1] px-8 py-3.5 flex flex-col gap-2 font-sora">
       {/* Dynamic 7-Second Auto-Dismissing Renewal Notice Banner */}
       {showBanner && subscription && (
-        <div className="bg-gradient-to-r from-[#17283b] via-[#2c1d11] to-[#17283b] border border-[#f39c12]/60 rounded-xl px-4 py-2 flex items-center justify-between text-xs text-[#f39c12] shadow-lg animate-in slide-in-from-top-2 duration-300">
+        <div className="bg-gradient-to-r from-[#fff7ed] via-[#ffedd5] to-[#fff7ed] border border-[#f39c12] rounded-xl px-4 py-2 flex items-center justify-between text-xs text-[#c2410c] shadow-lg animate-in slide-in-from-top-2 duration-300">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-[#f39c12] shrink-0 animate-bounce" />
+            <AlertTriangle className="w-4 h-4 text-[#d97706] shrink-0 animate-bounce" />
             <span>
-              <strong className="text-white">Subscription Renewal Notice:</strong> Your credit is almost finished ({subscription.daysRemaining} days left until {subscription.renewalDate}). Renew now to prevent vault lock out.
+              <strong className="text-[#9a3412]">Subscription Renewal Notice:</strong> Your credit is almost finished ({subscription.daysRemaining} days left until {subscription.renewalDate}). Renew now to prevent vault lock out.
             </span>
           </div>
 
@@ -129,7 +129,7 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
 
             <button
               onClick={handleDismissManual}
-              className="p-1 text-gray-400 hover:text-white rounded-lg transition-all"
+              className="p-1 text-gray-500 hover:text-black rounded-lg transition-all"
               title="Dismiss notice"
             >
               <X className="w-4 h-4" />
@@ -148,9 +148,9 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
             placeholder="Search passwords, resources, tags..."
             value={searchTerm}
             onChange={(e) => onSearchChange?.(e.target.value)}
-            className="w-full bg-[#0d1724] border border-[rgba(31,187,210,0.25)] rounded-xl pl-10 pr-10 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#1fbbd2] transition-all"
+            className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl pl-10 pr-10 py-2 text-xs text-[#0f172a] placeholder-gray-400 focus:outline-none focus:border-[#1fbbd2] shadow-sm transition-all"
           />
-          <kbd className="absolute right-3 top-1/2 -translate-y-1/2 bg-[#17283b] text-gray-400 text-[10px] font-mono px-1.5 py-0.5 rounded border border-gray-700">
+          <kbd className="absolute right-3 top-1/2 -translate-y-1/2 bg-[#f1f5f9] text-gray-500 text-[10px] font-mono px-1.5 py-0.5 rounded border border-gray-300">
             ⌘K
           </kbd>
         </div>
@@ -158,14 +158,14 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
         {/* Status Indicators & Profile */}
         <div className="flex items-center gap-3">
           {/* Supabase Status Indicator */}
-          <div className="flex items-center gap-1.5 bg-[#0d1724] border border-[#f39c12]/40 px-3 py-1.5 rounded-full text-xs text-[#f39c12] font-semibold">
-            <Database className="w-3.5 h-3.5 text-[#f39c12]" />
+          <div className="flex items-center gap-1.5 bg-[#ffffff] border border-[#f39c12]/50 px-3 py-1.5 rounded-full text-xs text-[#d97706] font-bold shadow-sm">
+            <Database className="w-3.5 h-3.5 text-[#d97706]" />
             <span>Supabase Connected</span>
           </div>
 
           {/* OpenPGP Vault Indicator */}
-          <div className="flex items-center gap-2 bg-[#0d1724] border border-[rgba(31,187,210,0.3)] px-3 py-1.5 rounded-full text-xs text-[#1fbbd2] font-semibold">
-            <span className="w-2 h-2 rounded-full bg-[#1fbbd2] glow-cyan" />
+          <div className="flex items-center gap-2 bg-[#ffffff] border border-[#1fbbd2]/50 px-3 py-1.5 rounded-full text-xs text-[#0284c7] font-bold shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-[#1fbbd2] animate-pulse" />
             <span>OpenPGP Vault Ready</span>
           </div>
 
@@ -173,25 +173,25 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
           <div className="relative" ref={popoverRef}>
             <button
               onClick={() => setShowNotifications((prev) => !prev)}
-              className="p-2 text-gray-400 hover:text-white relative bg-[#0d1724] border border-gray-700 hover:border-[#1fbbd2] rounded-xl transition-all shadow cursor-pointer"
+              className="p-2 text-gray-600 hover:text-black relative bg-[#ffffff] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl transition-all shadow-sm cursor-pointer"
               title="Notifications"
             >
               <Bell className="w-4 h-4" />
               {unreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-[#f39c12] rounded-full glow-gold animate-pulse" />
+                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-[#f39c12] rounded-full animate-pulse" />
               )}
             </button>
 
             {/* Floating Notifications Popover Dropdown */}
             {showNotifications && (
-              <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl shadow-2xl z-50 overflow-hidden animate-in slide-in-from-top-2 duration-200">
+              <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-[#ffffff] border border-[#cbd5e1] rounded-2xl shadow-2xl z-50 overflow-hidden animate-in slide-in-from-top-2 duration-200">
                 {/* Popover Header */}
-                <div className="p-4 bg-[#0d1724] border-b border-gray-700 flex items-center justify-between">
+                <div className="p-4 bg-[#f8fafc] border-b border-[#cbd5e1] flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-[#f39c12]" />
-                    <h3 className="text-xs font-extrabold text-white">Vault Notifications</h3>
+                    <Bell className="w-4 h-4 text-[#d97706]" />
+                    <h3 className="text-xs font-extrabold text-[#0f172a]">Vault Notifications</h3>
                     {unreadCount > 0 && (
-                      <span className="bg-[#f39c12]/20 text-[#f39c12] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#f39c12]/30">
+                      <span className="bg-[#f39c12]/20 text-[#d97706] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#f39c12]/30">
                         {unreadCount} new
                       </span>
                     )}
@@ -200,7 +200,7 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
                   {unreadCount > 0 && (
                     <button
                       onClick={handleMarkAllAsRead}
-                      className="text-[11px] text-[#1fbbd2] hover:underline font-bold"
+                      className="text-[11px] text-[#0284c7] hover:underline font-bold"
                     >
                       Mark all as read
                     </button>
@@ -208,26 +208,26 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
                 </div>
 
                 {/* Notifications List */}
-                <div className="max-h-80 overflow-y-auto divide-y divide-gray-700/60">
+                <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
                   {notifications.map((notif) => (
                     <div
                       key={notif.id}
-                      className={`p-4 transition-all hover:bg-[#0d1724]/60 ${
-                        notif.unread ? 'bg-[#0d1724]/40 border-l-2 border-l-[#f39c12]' : ''
+                      className={`p-4 transition-all hover:bg-[#f1f5f9] ${
+                        notif.unread ? 'bg-[#fffbeb] border-l-2 border-l-[#f39c12]' : ''
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          {notif.type === 'warning' && <AlertTriangle className="w-4 h-4 text-[#f39c12] shrink-0" />}
-                          {notif.type === 'share' && <Share2 className="w-4 h-4 text-[#1fbbd2] shrink-0" />}
-                          {notif.type === 'supabase' && <Database className="w-4 h-4 text-[#f39c12] shrink-0" />}
-                          {notif.type === 'security' && <Shield className="w-4 h-4 text-[#1fbbd2] shrink-0" />}
-                          <h4 className="text-xs font-bold text-white">{notif.title}</h4>
+                          {notif.type === 'warning' && <AlertTriangle className="w-4 h-4 text-[#d97706] shrink-0" />}
+                          {notif.type === 'share' && <Share2 className="w-4 h-4 text-[#0284c7] shrink-0" />}
+                          {notif.type === 'supabase' && <Database className="w-4 h-4 text-[#d97706] shrink-0" />}
+                          {notif.type === 'security' && <Shield className="w-4 h-4 text-[#0284c7] shrink-0" />}
+                          <h4 className="text-xs font-bold text-[#0f172a]">{notif.title}</h4>
                         </div>
-                        <span className="text-[10px] text-gray-500 shrink-0">{notif.time}</span>
+                        <span className="text-[10px] text-gray-400 shrink-0">{notif.time}</span>
                       </div>
 
-                      <p className="text-[11px] text-gray-300 mt-1 pl-6 leading-relaxed">
+                      <p className="text-[11px] text-gray-600 mt-1 pl-6 leading-relaxed">
                         {notif.desc}
                       </p>
 
@@ -236,7 +236,7 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
                           <Link
                             href={notif.actionUrl}
                             onClick={() => setShowNotifications(false)}
-                            className="inline-flex items-center gap-1 text-[11px] font-bold text-[#f39c12] hover:text-white transition-colors"
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-[#d97706] hover:text-[#b45309] transition-colors"
                           >
                             <span>{notif.actionText}</span>
                             <ArrowRight className="w-3 h-3" />
@@ -248,11 +248,11 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
                 </div>
 
                 {/* Popover Footer */}
-                <div className="p-3 bg-[#0d1724] border-t border-gray-700 text-center">
+                <div className="p-3 bg-[#f8fafc] border-t border-[#cbd5e1] text-center">
                   <Link
                     href="/admin"
                     onClick={() => setShowNotifications(false)}
-                    className="text-xs text-[#1fbbd2] font-bold hover:underline inline-flex items-center gap-1.5"
+                    className="text-xs text-[#0284c7] font-bold hover:underline inline-flex items-center gap-1.5"
                   >
                     <span>View All Security Audit Logs</span>
                     <ExternalLink className="w-3 h-3" />
@@ -262,23 +262,23 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
             )}
           </div>
 
-          <div className="h-6 w-px bg-gray-700" />
+          <div className="h-6 w-px bg-[#cbd5e1]" />
 
           <div className="flex items-center gap-3">
             {user?.avatarUrl ? (
               <img
                 src={user.avatarUrl}
                 alt={user.name}
-                className="w-8 h-8 rounded-full object-cover shadow-md border border-[#1fbbd2]"
+                className="w-8 h-8 rounded-full object-cover shadow-sm border border-[#1fbbd2]"
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-xs font-bold text-[#0d1724] shadow-md border border-[#1fbbd2]/50">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-xs font-extrabold text-[#0f172a] shadow-sm border border-[#1fbbd2]">
                 {user?.name ? user.name.slice(0, 2).toUpperCase() : 'AM'}
               </div>
             )}
             <div className="text-left hidden sm:block">
-              <p className="text-xs font-bold text-white leading-tight">{user?.name || 'Alex Morgan'}</p>
-              <p className="text-[10px] text-[#f39c12] font-semibold leading-tight">{user?.role || 'Owner'}</p>
+              <p className="text-xs font-bold text-[#0f172a] leading-tight">{user?.name || 'Alex Morgan'}</p>
+              <p className="text-[10px] text-[#1fbbd2] font-extrabold leading-tight">{user?.role || 'Owner'}</p>
             </div>
           </div>
         </div>
