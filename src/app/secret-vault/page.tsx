@@ -19,7 +19,8 @@ import {
   Edit2,
   Trash2,
   ShieldAlert,
-  Info
+  Info,
+  Globe
 } from 'lucide-react';
 import api from '@/lib/api';
 import { decryptSecret } from '@/lib/crypto';
@@ -268,9 +269,20 @@ export default function SecretVaultPage() {
                                 {res.name.slice(0, 2).toUpperCase()}
                               </div>
                               <div>
-                                <p className="font-bold text-white text-sm group-hover:text-[#1fbbd2] transition-colors">
-                                  {res.name}
-                                </p>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-bold text-white text-sm group-hover:text-[#1fbbd2] transition-colors">
+                                    {res.name}
+                                  </p>
+                                  {res.isExternalShared && (
+                                    <span
+                                      className="bg-amber-950/80 text-amber-400 border border-amber-600/60 text-[10px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1 shadow"
+                                      title="Shared externally with a non-application member"
+                                    >
+                                      <Globe className="w-3 h-3 text-amber-400" />
+                                      <span>Shared Externally</span>
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-[11px] text-gray-400">{res.username || 'amazon.com'}</p>
                               </div>
                             </div>

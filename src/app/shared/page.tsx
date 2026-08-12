@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
-import { Share2, RefreshCw, Eye, EyeOff, Copy, User } from 'lucide-react';
+import { Share2, RefreshCw, Eye, EyeOff, Copy, User, Globe } from 'lucide-react';
 import api from '@/lib/api';
 
 export default function SharedPage() {
@@ -71,7 +71,20 @@ export default function SharedPage() {
                 <tbody className="divide-y divide-gray-700/60">
                   {resources.map((res) => (
                     <tr key={res.id} className="hover:bg-[#0d1724]/60 transition-all border-b border-gray-700/40">
-                      <td className="py-4 px-6 font-bold text-white">{res.name}</td>
+                      <td className="py-4 px-6 font-bold text-white">
+                        <div className="flex items-center gap-2">
+                          <span>{res.name}</span>
+                          {res.isExternalShared && (
+                            <span
+                              className="bg-amber-950/80 text-amber-400 border border-amber-600/60 text-[10px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1 shadow"
+                              title="Shared externally with a non-application member"
+                            >
+                              <Globe className="w-3 h-3 text-amber-400" />
+                              <span>Shared Externally</span>
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-4 px-4 text-gray-300">
                         <div className="flex items-center gap-2">
                           <User className="w-3.5 h-3.5 text-[#f39c12]" />

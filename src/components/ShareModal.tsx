@@ -124,6 +124,9 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
 
       const fullUrl = `${window.location.origin}/shared?token=${encodeURIComponent(encodedPayload)}`;
       setExternalShareLink(fullUrl);
+
+      // Tag resource as externally shared with non-application member
+      await api.post(`/resources/${resourceId}/share`, { isExternalShared: true });
     } catch (err: any) {
       console.error('Error generating external link:', err);
       alert('Error generating external link: ' + (err.message || 'Unknown error'));

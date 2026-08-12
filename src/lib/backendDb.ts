@@ -34,6 +34,8 @@ export interface DbResource {
   ownerId: string;
   folderId?: string | null;
   isPrivateOnly?: boolean;
+  isExternalShared?: boolean;
+  externalShareEmail?: string;
   score?: number;
   strength?: 'Strong' | 'Better' | 'Weak';
   lastModified: string;
@@ -194,6 +196,8 @@ class BackendDatabase {
       category: 'Productivity',
       ownerId: 'u-1',
       strength: 'Strong',
+      isExternalShared: true,
+      externalShareEmail: 'external.partner@vendor.com',
       lastModified: 'May 22, 2025 09:07 AM',
       tags: ['Workspace'],
       secrets: [

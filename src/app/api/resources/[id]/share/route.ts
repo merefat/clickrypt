@@ -8,11 +8,16 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { targetUserId, targetUserIds, encryptedData, secrets } = body;
+    const { targetUserId, targetUserIds, encryptedData, secrets, isExternalShared, externalShareEmail } = body;
 
     const resource = db.resources.find((r) => r.id === id);
     if (!resource) {
       return NextResponse.json({ error: 'Resource not found' }, { status: 404 });
+    }
+
+    if (isExternalShared !== undefined) {
+      resource.isExternalShared = isExternalShared;
+      if (externalShareEmail) resource.externalShareEmail = externalShareEmail;
     }
 
     // Handle batch targetUserIds and secrets
