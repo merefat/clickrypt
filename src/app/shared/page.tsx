@@ -76,11 +76,10 @@ export default function SharedPage() {
                           <span>{res.name}</span>
                           {res.isExternalShared && (
                             <span
-                              className="bg-amber-950/80 text-amber-400 border border-amber-600/60 text-[10px] font-extrabold px-2 py-0.5 rounded-md flex items-center gap-1 shadow"
+                              className="p-1 rounded-lg bg-amber-950/80 border border-amber-500/60 text-amber-400 inline-flex items-center justify-center shadow"
                               title="Shared externally with a non-application member"
                             >
-                              <Globe className="w-3 h-3 text-amber-400" />
-                              <span>Shared Externally</span>
+                              <Globe className="w-3.5 h-3.5 text-amber-400" />
                             </span>
                           )}
                         </div>
