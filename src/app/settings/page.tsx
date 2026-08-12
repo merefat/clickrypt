@@ -22,9 +22,12 @@ import {
   QrCode,
   Copy,
   RefreshCw,
-  SlidersHorizontal
+  SlidersHorizontal,
+  KeyRound,
+  Globe
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import api from '@/lib/api';
 
 interface PasskeyItem {
   id: string;
@@ -47,6 +50,88 @@ export default function SettingsPage() {
     if (user?.email) setEmail(user.email);
     if (user?.avatarUrl) setAvatarUrl(user.avatarUrl);
   }, [user]);
+
+  // Account Recovery & SSO state
+  const [recPolicy, setRecPolicy] = useState<'disabled' | 'opt-in' | 'opt-out' | 'mandatory'>('opt-in');
+  const [orgPublicKeyArmored, setOrgPublicKeyArmored] = useState('');
+  const [showRecPolicyModal, setShowRecPolicyModal] = useState(false);
+
+  const [ssoProvider, setSsoProvider] = useState<'google' | 'azure' | 'oauth2'>('google');
+  const [ssoClientId, setSsoClientId] = useState('');
+  const [ssoClientSecret, setSsoClientSecret] = useState('');
+  const [showSsoConfigModal, setShowSsoConfigModal] = useState(false);
+  const [ssoSettingsList, setSsoSettingsList] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchRecPolicy();
+    fetchSsoSettings();
+  }, []);
+
+  const fetchRecPolicy = async () => {
+    try {
+      const res = await api.get('/account-recovery/organization-policies');
+      if (res.data?.policy) setRecPolicy(res.data.policy);
+    } catch (e) {}
+  };
+
+  const fetchSsoSettings = async () => {
+    try {
+      const res = await api.get('/sso/settings');
+      if (res.data?.settings) setSsoSettingsList(res.data.settings);
+    } catch (e) {}
+  };
+
+  const handleSaveRecPolicy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post('/account-recovery/organization-policies', {
+        policy: recPolicy,
+        armoredKey: orgPublicKeyArmored,
+      });
+      alert('Account Recovery organization policy saved!');
+      setShowRecPolicyModal(false);
+    } catch (err: any) {
+      alert('Error saving recovery policy: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleSaveDraftSso = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.post('/sso/settings', {
+        provider: ssoProvider,
+        clientId: ssoClientId,
+        clientSecret: ssoClientSecret,
+      });
+      alert('Draft SSO Configuration saved! You can now run a mandatory Dry Run test to activate.');
+      setShowSsoConfigModal(false);
+      fetchSsoSettings();
+    } catch (err: any) {
+      alert('Error saving SSO settings: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleRunSsoDryRun = async (settingId: string, provider: string) => {
+    try {
+      const res = await api.post(`/sso/${provider}/login/dry-run`, {
+        draftSettingId: settingId,
+        adminUserId: user?.id,
+      });
+      window.location.href = res.data.url;
+    } catch (err: any) {
+      alert('Dry Run error: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleActivateSsoSetting = async (settingId: string) => {
+    try {
+      await api.put(`/sso/settings/${settingId}`, { action: 'activate' });
+      alert('SSO configuration activated successfully!');
+      fetchSsoSettings();
+    } catch (err: any) {
+      alert('Activation error: ' + (err.response?.data?.error || err.message));
+    }
+  };
 
   // Modals state
   const [showChangePassModal, setShowChangePassModal] = useState(false);
@@ -565,6 +650,48 @@ ${privKey}
                   </button>
                 </div>
               </div>
+
+              {/* Account Recovery Organization Policy Section */}
+              <div className="flex items-center justify-between p-4 bg-[#0d1724] rounded-xl border border-gray-700">
+                <div>
+                  <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                    <KeyRound className="w-4 h-4 text-[#f39c12]" />
+                    <span>Account Recovery Policy (Zero-Knowledge Escrow)</span>
+                  </h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Configure organization recovery key and policy: <span className="text-[#1fbbd2] font-bold uppercase">{recPolicy}</span>.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setShowRecPolicyModal(true)}
+                  className="px-4 py-2 bg-[#17283b] hover:bg-[#1e2638] border border-[#f39c12]/40 rounded-xl text-xs font-bold text-[#f39c12] flex items-center gap-2 transition-all shadow cursor-pointer"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span>Configure Policy</span>
+                </button>
+              </div>
+
+              {/* Single Sign-On (SSO) Integration Section */}
+              <div className="flex items-center justify-between p-4 bg-[#0d1724] rounded-xl border border-gray-700">
+                <div>
+                  <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-[#1fbbd2]" />
+                    <span>Single Sign-On (SSO) Providers</span>
+                  </h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Configure Google, Azure AD, or OAuth2. Mandatory Dry-Run test required prior to activation. ({ssoSettingsList.length} configs)
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setShowSsoConfigModal(true)}
+                  className="px-4 py-2 bg-[#17283b] hover:bg-[#1e2638] border border-[#1fbbd2]/40 rounded-xl text-xs font-bold text-[#1fbbd2] flex items-center gap-2 transition-all shadow cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Manage SSO</span>
+                </button>
+              </div>
             </div>
           </div>
         </main>
@@ -969,6 +1096,200 @@ ${privKey}
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ACCOUNT RECOVERY POLICY MODAL */}
+      {showRecPolicyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
+          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Account Recovery Policy Configuration</h3>
+                  <p className="text-[10px] text-gray-400">Zero-Knowledge Organization Key Escrow</p>
+                </div>
+              </div>
+              <button onClick={() => setShowRecPolicyModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRecPolicy} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-gray-300 mb-1">Organization Policy Mode</label>
+                <select
+                  value={recPolicy}
+                  onChange={(e) => setRecPolicy(e.target.value as any)}
+                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-3 text-white font-bold focus:border-[#1fbbd2] outline-none"
+                >
+                  <option value="disabled">Disabled (No recovery allowed)</option>
+                  <option value="opt-in">Opt-In (Users choose during setup)</option>
+                  <option value="opt-out">Opt-Out (Enrolled by default, opt-out allowed)</option>
+                  <option value="mandatory">Mandatory (All users must escrow key during setup)</option>
+                </select>
+              </div>
+
+              {recPolicy !== 'disabled' && (
+                <div>
+                  <label className="block font-bold text-[#f39c12] mb-1">Organization Recovery Public Key (OpenPGP)</label>
+                  <textarea
+                    rows={6}
+                    value={orgPublicKeyArmored}
+                    onChange={(e) => setOrgPublicKeyArmored(e.target.value)}
+                    placeholder="-----BEGIN PGP PUBLIC KEY BLOCK----- ..."
+                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-3 font-mono text-[10px] text-gray-300 focus:border-[#1fbbd2] outline-none"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Enter the organization's ASCII-armored OpenPGP public key. The server validates structure and fingerprint.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => setShowRecPolicyModal(false)}
+                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="gold-cyan-gradient-btn px-5 py-2 rounded-xl text-xs font-extrabold text-[#0d1724] shadow-lg"
+                >
+                  Save Policy
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SSO CONFIGURATION & DRY-RUN MODAL */}
+      {showSsoConfigModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
+          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
+                  <Globe className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">SSO Providers & Mandatory Dry-Run Testing</h3>
+                  <p className="text-[10px] text-gray-400">Configure Identity Providers with required dry-run verification</p>
+                </div>
+              </div>
+              <button onClick={() => setShowSsoConfigModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* List of existing SSO Configs */}
+            {ssoSettingsList.length > 0 && (
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                <h4 className="text-xs font-bold text-gray-300">Configured Providers</h4>
+                {ssoSettingsList.map((cfg) => (
+                  <div key={cfg.id} className="p-3 bg-[#0d1724] rounded-xl border border-gray-700 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="font-bold text-white uppercase">{cfg.provider}</span>
+                      <span className={`ml-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                        cfg.status === 'active'
+                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-600'
+                          : 'bg-amber-950 text-amber-400 border border-amber-600'
+                      }`}>
+                        {cfg.status.toUpperCase()}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {cfg.status === 'draft' && (
+                        <button
+                          type="button"
+                          onClick={() => handleRunSsoDryRun(cfg.id, cfg.provider)}
+                          className="px-3 py-1 bg-gradient-to-r from-[#f39c12] to-[#1fbbd2] text-[#0d1724] font-bold rounded-lg text-[10px]"
+                        >
+                          Run Dry-Run Test
+                        </button>
+                      )}
+                      {cfg.status === 'draft' && (
+                        <button
+                          type="button"
+                          onClick={() => handleActivateSsoSetting(cfg.id)}
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[10px]"
+                        >
+                          Activate
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add New Draft Config */}
+            <form onSubmit={handleSaveDraftSso} className="space-y-4 text-xs border-t border-gray-700 pt-4">
+              <h4 className="font-bold text-white">Add New SSO Draft Configuration</h4>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-gray-300 mb-1">Provider Type</label>
+                  <select
+                    value={ssoProvider}
+                    onChange={(e) => setSsoProvider(e.target.value as any)}
+                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white font-bold outline-none"
+                  >
+                    <option value="google">Google Workspace</option>
+                    <option value="azure">Microsoft Azure AD</option>
+                    <option value="oauth2">Corporate OAuth2 / OIDC</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-gray-300 mb-1">Client ID</label>
+                  <input
+                    type="text"
+                    required
+                    value={ssoClientId}
+                    onChange={(e) => setSsoClientId(e.target.value)}
+                    placeholder="e.g. client_9281039812.apps.googleusercontent.com"
+                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-300 mb-1">Client Secret (Encrypted at rest)</label>
+                <input
+                  type="password"
+                  required
+                  value={ssoClientSecret}
+                  onChange={(e) => setSsoClientSecret(e.target.value)}
+                  placeholder="••••••••••••••••••••••••••••"
+                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white outline-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSsoConfigModal(false)}
+                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                >
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  className="gold-cyan-gradient-btn px-5 py-2 rounded-xl text-xs font-extrabold text-[#0d1724] shadow-lg"
+                >
+                  Save Draft Config
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -12,7 +12,9 @@ import {
   ArrowRight,
   CreditCard,
   AlertTriangle,
-  Lock as LockIcon
+  Lock as LockIcon,
+  Globe,
+  KeyRound
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
@@ -30,7 +32,46 @@ export default function LoginPage() {
 
   useEffect(() => {
     fetchSubscription();
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const ssoSuccess = searchParams.get('ssoSuccess');
+    const token = searchParams.get('token');
+    const userIdParam = searchParams.get('userId');
+
+    if (ssoSuccess && token && userIdParam) {
+      handleSsoCallbackLogin(token, userIdParam);
+    }
   }, []);
+
+  const handleSsoCallbackLogin = async (token: string, userId: string) => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/sso/keys/sso-key-1/${userId}/${token}`);
+      if (res.data.success) {
+        await login(email, password);
+        router.push('/vault');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.error || 'SSO authentication failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInitiateSso = async (provider: string) => {
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      const res = await api.post(`/sso/${provider}/login`, { email, userId: 'u-1' });
+      if (res.data.url) {
+        window.location.href = res.data.url;
+      }
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.error || `Failed to initiate ${provider} SSO login`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchSubscription = async () => {
     try {
@@ -210,12 +251,50 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 purple-gradient-btn text-xs font-extrabold rounded-xl flex items-center justify-center gap-2 mt-4 shadow-xl text-[#0d1724]"
+            className="w-full py-3.5 gold-cyan-gradient-btn text-xs font-extrabold rounded-xl flex items-center justify-center gap-2 mt-4 shadow-xl text-[#0d1724]"
           >
             <span>{loading ? 'Authenticating & Verifying Bill...' : 'Sign In to Vault'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
+
+        {/* Forgot Passphrase / Account Recovery Link */}
+        <div className="mt-4 text-center">
+          <Link
+            href="/recover"
+            className="text-xs text-gray-400 hover:text-[#1fbbd2] transition-colors flex items-center justify-center gap-1.5"
+          >
+            <KeyRound className="w-3.5 h-3.5 text-[#f39c12]" />
+            <span>Forgot Master Password? Recover Account</span>
+          </Link>
+        </div>
+
+        {/* Single Sign-On (SSO) Buttons Section */}
+        <div className="mt-6 pt-5 border-t border-gray-700/60 space-y-3">
+          <div className="text-center text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+            Or Sign In via Corporate SSO
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => handleInitiateSso('google')}
+              className="py-2.5 px-3 bg-[#0d1724] hover:bg-[#121f30] border border-gray-700 rounded-xl text-xs font-bold text-gray-300 flex items-center justify-center gap-2 transition-all"
+            >
+              <Globe className="w-3.5 h-3.5 text-[#f39c12]" />
+              <span>Google</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleInitiateSso('azure')}
+              className="py-2.5 px-3 bg-[#0d1724] hover:bg-[#121f30] border border-gray-700 rounded-xl text-xs font-bold text-gray-300 flex items-center justify-center gap-2 transition-all"
+            >
+              <Globe className="w-3.5 h-3.5 text-[#1fbbd2]" />
+              <span>Azure AD</span>
+            </button>
+          </div>
+        </div>
 
         <div className="mt-6 pt-4 border-t border-gray-700/60 flex items-center justify-between text-[11px]">
           <span className="text-gray-400">Need to pay subscription bill?</span>

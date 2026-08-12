@@ -250,6 +250,126 @@ class BackendDatabase {
     { id: 'al-3', timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(), action: 'CREATE_RESOURCE', userId: 'u-1', resourceId: 'r-2', details: 'Created new password resource AWS Console' },
     { id: 'al-4', timestamp: new Date(Date.now() - 1000 * 60 * 360).toISOString(), action: 'SUPABASE_SYNC', userId: 'u-1', details: 'Supabase PostgreSQL Cloud database connected' },
   ];
+
+  // Account Recovery & SSO Tables
+  public accountRecoveryPolicies: DbAccountRecoveryOrgPolicy[] = [
+    {
+      id: 'arp-1',
+      policy: 'opt-in',
+      publicKeyId: null,
+      createdAt: new Date().toISOString(),
+      modifiedAt: new Date().toISOString(),
+    }
+  ];
+  public accountRecoveryOrgPublicKeys: DbAccountRecoveryOrgPublicKey[] = [];
+  public accountRecoveryUserSettings: DbAccountRecoveryUserSetting[] = [];
+  public accountRecoveryPrivateKeys: DbAccountRecoveryPrivateKey[] = [];
+  public accountRecoveryPrivateKeyPasswords: DbAccountRecoveryPrivateKeyPassword[] = [];
+  public accountRecoveryRequests: DbAccountRecoveryRequest[] = [];
+  public accountRecoveryResponses: DbAccountRecoveryResponse[] = [];
+
+  public ssoSettings: DbSsoSetting[] = [];
+  public ssoKeys: DbSsoKey[] = [];
+  public ssoStates: DbSsoState[] = [];
+  public ssoTokens: DbSsoToken[] = [];
+}
+
+export interface DbAccountRecoveryOrgPolicy {
+  id: string;
+  policy: 'disabled' | 'opt-in' | 'opt-out' | 'mandatory';
+  publicKeyId?: string | null;
+  createdAt: string;
+  modifiedAt: string;
+  deletedAt?: string | null;
+}
+
+export interface DbAccountRecoveryOrgPublicKey {
+  id: string;
+  armoredKey: string;
+  fingerprint: string;
+  createdAt: string;
+}
+
+export interface DbAccountRecoveryUserSetting {
+  id: string;
+  userId: string;
+  status: 'approved' | 'rejected';
+  createdAt: string;
+}
+
+export interface DbAccountRecoveryPrivateKey {
+  id: string;
+  userId: string;
+  data: string;
+  createdAt: string;
+}
+
+export interface DbAccountRecoveryPrivateKeyPassword {
+  id: string;
+  privateKeyId: string;
+  recipientFingerprint: string;
+  data: string;
+  createdAt: string;
+}
+
+export interface DbAccountRecoveryRequest {
+  id: string;
+  userId: string;
+  armoredKey?: string | null;
+  fingerprint?: string | null;
+  tokenId: string;
+  status: 'pending' | 'approved' | 'rejected' | 'completed';
+  createdAt: string;
+  modifiedAt: string;
+}
+
+export interface DbAccountRecoveryResponse {
+  id: string;
+  accountRecoveryRequestId: string;
+  responderForeignKey: string;
+  data?: string | null;
+  status: 'approved' | 'rejected';
+  createdAt: string;
+}
+
+export interface DbSsoSetting {
+  id: string;
+  provider: 'google' | 'azure' | 'oauth2' | 'adfs' | 'pingone';
+  data: string;
+  status: 'draft' | 'active' | 'disabled';
+  createdAt: string;
+  modifiedAt: string;
+}
+
+export interface DbSsoKey {
+  id: string;
+  userId: string;
+  data: string;
+  createdAt: string;
+}
+
+export interface DbSsoState {
+  id: string;
+  nonce: string;
+  type: 'sso_get_key' | 'sso_set_settings' | 'sso_recover';
+  state: string;
+  ssoSettingsId: string;
+  userId?: string | null;
+  userAgent?: string;
+  ip?: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface DbSsoToken {
+  id: string;
+  token: string;
+  userId: string;
+  type: 'sso_get_key' | 'sso_dry_run';
+  active: boolean;
+  ssoSettingsId: string;
+  createdAt: string;
+  expiresAt: string;
 }
 
 export const db = new BackendDatabase();

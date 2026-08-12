@@ -19,21 +19,25 @@ import {
   ShieldAlert,
   Copy,
   Check,
-  Trash2
+  Trash2,
+  KeyRound
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { reEncryptPgpMessage } from '@/lib/crypto';
 
 export default function AdminPage() {
   const { user } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [recoveryRequests, setRecoveryRequests] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'members' | 'recovery' | 'audit'>('members');
   const [searchTerm, setSearchTerm] = useState('');
 
   const canManageUser = (targetUser: any) => {
     if (!user) return false;
     if (targetUser.role === 'Owner') return false; // Nobody can modify/delete Owner
-    if (user.role === 'Owner') return true; // Owner can manage both Admins and Users
+    if (user.role === 'Owner') return true; // Owner manages both Admins & Users
     if (user.role === 'Admin') {
       // Admin can manage standard Users, but CANNOT manage Admins or Owner
       return targetUser.role === 'User';
@@ -52,7 +56,17 @@ export default function AdminPage() {
   useEffect(() => {
     fetchUsers();
     fetchAuditLogs();
+    fetchRecoveryRequests();
   }, []);
+
+  const fetchRecoveryRequests = async () => {
+    try {
+      const res = await api.get('/account-recovery/requests');
+      setRecoveryRequests(res.data.requests || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -129,10 +143,58 @@ export default function AdminPage() {
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
+  const handleApproveRecovery = async (reqId: string) => {
+    try {
+      const orgKeyPass = prompt('Enter Organization Recovery Key Passphrase to unlock escrow payload:');
+      if (!orgKeyPass) return;
+
+      const detailRes = await api.get(`/account-recovery/requests/${reqId}`);
+      const { escrowedPrivateKey, request } = detailRes.data;
+
+      if (!escrowedPrivateKey || !request?.armoredKey) {
+        alert('Missing escrowed key or target public key for this request.');
+        return;
+      }
+
+      const reEncryptedPayload = await reEncryptPgpMessage(
+        escrowedPrivateKey,
+        escrowedPrivateKey,
+        orgKeyPass,
+        request.armoredKey
+      );
+
+      await api.post('/account-recovery/responses', {
+        requestId: reqId,
+        status: 'approved',
+        data: reEncryptedPayload,
+        adminId: user?.id,
+      });
+
+      alert('Recovery request approved successfully!');
+      fetchRecoveryRequests();
+      fetchAuditLogs();
+    } catch (err: any) {
+      alert('Error approving recovery request: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleRejectRecovery = async (reqId: string) => {
+    if (!confirm('Are you sure you want to reject this recovery request?')) return;
+    try {
+      await api.post('/account-recovery/responses', {
+        requestId: reqId,
+        status: 'rejected',
+        adminId: user?.id,
+      });
+      fetchRecoveryRequests();
+      fetchAuditLogs();
+    } catch (err: any) {
+      alert('Failed to reject recovery request');
+    }
+  };
+
   const filteredUsers = users.filter((u) => {
-    const matchesSearch =
-      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = roleFilter === 'All' || u.role === roleFilter;
     const matchesStatus = statusFilter === 'All' || u.status === statusFilter;
     return matchesSearch && matchesRole && matchesStatus;
@@ -146,20 +208,39 @@ export default function AdminPage() {
         <Header />
 
         <main className="p-8 flex-1 overflow-y-auto space-y-8">
-          {/* Header */}
-          <div className="flex items-center justify-between">
+          {/* Header & Tabs */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-[#17283b] border border-[#1fbbd2]/40 flex items-center justify-center text-[#1fbbd2] shadow">
                 <UserCheck className="w-5 h-5 text-[#1fbbd2]" />
               </div>
               <div>
-                <h1 className="text-3xl font-extrabold text-white">Team Members</h1>
+                <h1 className="text-3xl font-extrabold text-white">Administration</h1>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  Manage your team, roles, and access to the password vault.
+                  Team members, Account Recovery requests, and organization security logs.
                 </p>
               </div>
             </div>
 
+            <div className="flex items-center gap-2 bg-[#17283b] p-1.5 rounded-xl border border-gray-700">
+              <button
+                onClick={() => setActiveTab('members')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  activeTab === 'members' ? 'bg-[#1fbbd2] text-[#0d1724]' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Members ({users.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('recovery')}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  activeTab === 'recovery' ? 'bg-[#f39c12] text-[#0d1724]' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>Recovery Requests ({recoveryRequests.filter((r) => r.status === 'pending').length})</span>
+              </button>
+            </div>
             <button
               onClick={() => {
                 setInviteLink('');
@@ -173,8 +254,10 @@ export default function AdminPage() {
             </button>
           </div>
 
-          {/* Controls Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          {activeTab === 'members' && (
+            <>
+              {/* Controls Bar */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             {/* Search Input */}
             <div className="relative w-full sm:w-80">
               <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -326,24 +409,103 @@ export default function AdminPage() {
                 </tbody>
               </table>
             </div>
-
-            {/* Pagination with Gold-Cyan active button (0% Purple) */}
-            <div className="p-4 bg-[#0d1724]/80 border-t border-gray-700 flex items-center justify-between text-xs text-gray-400">
-              <span>Showing 1 to {filteredUsers.length} of {filteredUsers.length} members</span>
-
-              <div className="flex items-center gap-1.5">
-                <button className="p-1.5 bg-[#17283b] border border-gray-700 rounded-lg hover:bg-gray-800">
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button className="w-7 h-7 gold-cyan-gradient-btn text-[#0d1724] font-extrabold rounded-lg flex items-center justify-center shadow">
-                  1
-                </button>
-                <button className="p-1.5 bg-[#17283b] border border-gray-700 rounded-lg hover:bg-gray-800">
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
           </div>
+        </>
+      )}
+
+          {/* Account Recovery Requests Tab */}
+          {activeTab === 'recovery' && (
+            <div className="glass-panel rounded-2xl border border-[rgba(31,187,210,0.25)] overflow-hidden shadow-2xl bg-[#17283b] space-y-4 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
+                    <KeyRound className="w-5 h-5 text-[#f39c12]" />
+                    <span>Account Recovery Requests</span>
+                  </h2>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Review and approve zero-knowledge account recovery requests using the Organization Recovery Key.
+                  </p>
+                </div>
+              </div>
+
+              {recoveryRequests.length === 0 ? (
+                <div className="text-center py-12 bg-[#0d1724]/60 rounded-xl border border-gray-700/60 text-xs text-gray-400">
+                  No active or past recovery requests found.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#0d1724]/90 text-gray-300 font-bold uppercase tracking-wider border-b border-gray-700">
+                      <tr>
+                        <th className="py-3.5 px-6">User</th>
+                        <th className="py-3.5 px-4">Fingerprint</th>
+                        <th className="py-3.5 px-4">Requested Date</th>
+                        <th className="py-3.5 px-4">Status</th>
+                        <th className="py-3.5 px-6 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700/60">
+                      {recoveryRequests.map((req) => (
+                        <tr key={req.id} className="hover:bg-[#0d1724]/60 transition-all border-b border-gray-700/40">
+                          <td className="py-4 px-6 font-bold text-white">
+                            <div>
+                              <p className="text-white text-sm">{req.userName || 'User'}</p>
+                              <p className="text-[11px] text-gray-400 font-mono">{req.userEmail}</p>
+                            </div>
+                          </td>
+                          <td className="py-4 px-4 font-mono text-gray-300 text-[11px]">
+                            {req.fingerprint ? `${req.fingerprint.slice(0, 16)}...` : 'Pending Key'}
+                          </td>
+                          <td className="py-4 px-4 text-gray-400">
+                            {new Date(req.createdAt).toLocaleDateString()} {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td className="py-4 px-4">
+                            {req.status === 'pending' ? (
+                              <span className="bg-amber-950/80 text-amber-400 border border-amber-600/60 px-2.5 py-1 rounded-full font-bold text-[10px]">
+                                Pending Review
+                              </span>
+                            ) : req.status === 'approved' ? (
+                              <span className="bg-emerald-950/80 text-emerald-400 border border-emerald-600/60 px-2.5 py-1 rounded-full font-bold text-[10px]">
+                                Approved
+                              </span>
+                            ) : req.status === 'completed' ? (
+                              <span className="bg-cyan-950/80 text-[#1fbbd2] border border-[#1fbbd2]/60 px-2.5 py-1 rounded-full font-bold text-[10px]">
+                                Completed
+                              </span>
+                            ) : (
+                              <span className="bg-red-950/80 text-red-400 border border-red-600/60 px-2.5 py-1 rounded-full font-bold text-[10px]">
+                                Rejected
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-4 px-6 text-right">
+                            {req.status === 'pending' ? (
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleApproveRecovery(req.id)}
+                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs shadow transition-all"
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => handleRejectRecovery(req.id)}
+                                  className="px-3 py-1.5 bg-red-950 hover:bg-red-900 border border-red-700/60 text-red-300 rounded-lg font-bold text-xs shadow transition-all"
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-gray-500 italic">No Action Needed</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Audit Logs Card with Gold & Cyan badges (0% Purple) */}
           <div className="glass-panel rounded-2xl p-6 border border-[rgba(31,187,210,0.25)] bg-[#17283b] space-y-4">

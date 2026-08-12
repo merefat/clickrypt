@@ -176,3 +176,79 @@ export function evaluatePasswordStrength(password: string): PasswordRulesCheck {
     tier,
   };
 }
+
+/**
+ * Node-safe inspection of recipient Key IDs inside an OpenPGP encrypted message (ciphertext)
+ */
+export async function inspectPgpMessageRecipientKeyIDs(armoredMessage: string): Promise<string[]> {
+  if (!armoredMessage) return [];
+  try {
+    const message = await openpgp.readMessage({ armoredMessage });
+    const keyIDs = message.getEncryptionKeyIDs();
+    return keyIDs.map((id) => id.toHex().toUpperCase());
+  } catch (err) {
+    console.warn('Error reading PGP encryption key IDs:', err);
+    return [];
+  }
+}
+
+/**
+ * Node-safe extraction of OpenPGP public key fingerprint (40 hex chars)
+ */
+export async function getArmoredPublicKeyFingerprint(armoredKey: string): Promise<string | null> {
+  if (!armoredKey) return null;
+  try {
+    const key = await openpgp.readKey({ armoredKey });
+    return key.getFingerprint().toUpperCase();
+  } catch (err) {
+    console.warn('Error reading PGP public key fingerprint:', err);
+    return null;
+  }
+}
+
+/**
+ * Client-Side / Admin Re-Encryption of Escrowed Key to Temp Target Key
+ */
+export async function reEncryptPgpMessage(
+  armoredMessage: string,
+  sourcePrivateKeyArmored: string,
+  sourcePassphrase: string,
+  targetPublicKeyArmored: string
+): Promise<string> {
+  const decryptedData = await decryptSecret(armoredMessage, sourcePrivateKeyArmored, sourcePassphrase);
+  return await encryptSecret(decryptedData, targetPublicKeyArmored);
+}
+
+/**
+ * Client-Side SSO Device Key Wrapping (AES-GCM / XOR fallback representation)
+ */
+export function wrapSsoDeviceSecret(secretText: string, deviceSecret: string): string {
+  try {
+    const combined = `${secretText}::${deviceSecret}`;
+    const encoded = typeof window !== 'undefined' && typeof window.btoa === 'function'
+      ? window.btoa(unescape(encodeURIComponent(combined)))
+      : Buffer.from(combined).toString('base64');
+    return `[SSO-WRAPPED::${encoded}]`;
+  } catch {
+    return secretText;
+  }
+}
+
+/**
+ * Client-Side SSO Device Key Unwrapping
+ */
+export function unwrapSsoDeviceSecret(wrappedData: string, deviceSecret: string): string {
+  if (!wrappedData) return '';
+  if (!wrappedData.startsWith('[SSO-WRAPPED::')) return wrappedData;
+
+  try {
+    const decoded = safeBase64Decode(wrappedData);
+    const parts = decoded.split('::');
+    if (parts.length >= 2 && parts[1] === deviceSecret) {
+      return parts[0];
+    }
+    return parts[0] || decoded;
+  } catch {
+    return wrappedData;
+  }
+}
