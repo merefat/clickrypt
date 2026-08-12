@@ -472,7 +472,7 @@ export default function GroupsPage() {
                   {/* TAB 1: MEMBERS */}
                   {activeTab === 'members' && (
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+                      <div className="flex items-center justify-between text-xs text-[#64748b] font-extrabold mb-2">
                         <span>Group Members ({selectedGroup.members.length})</span>
                       </div>
 
@@ -485,26 +485,26 @@ export default function GroupsPage() {
                         return (
                           <div
                             key={m.userId}
-                            className="p-3 bg-[#0d1724] border border-gray-700/60 rounded-xl flex items-center justify-between"
+                            className="p-3.5 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl flex items-center justify-between shadow-sm transition-all"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[10px] font-extrabold text-[#0d1724]">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[10px] font-extrabold text-[#0f172a] shadow-xs">
                                 {userObj.name.slice(0, 2).toUpperCase()}
                               </div>
                               <div>
-                                <p className="text-xs font-bold text-white">{userObj.name}</p>
-                                <p className="text-[10px] text-gray-400">{userObj.email}</p>
+                                <p className="text-xs font-extrabold text-[#0f172a]">{userObj.name}</p>
+                                <p className="text-[10px] text-[#64748b] font-medium">{userObj.email}</p>
                               </div>
                             </div>
 
                             <div className="flex items-center gap-3">
-                              <span className="bg-[#17283b] text-[#f39c12] border border-[#f39c12]/40 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                              <span className="bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/40 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shadow-xs">
                                 {m.role}
                               </span>
 
                               <button
                                 onClick={() => handleRemoveMember(m.userId)}
-                                className="text-gray-500 hover:text-rose-400 p-1 transition-colors cursor-pointer"
+                                className="text-gray-400 hover:text-rose-600 p-1 transition-colors cursor-pointer"
                                 title="Remove from group"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -520,7 +520,7 @@ export default function GroupsPage() {
                   {activeTab === 'folders' && (
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-400 font-bold">
+                        <span className="text-xs text-[#64748b] font-extrabold">
                           Assigned Group Folders ({assignedFoldersForGroup.length})
                         </span>
 
@@ -529,7 +529,7 @@ export default function GroupsPage() {
                             setSelectedFolderToAssign('');
                             setShowAssignFolderModal(true);
                           }}
-                          className="gold-cyan-gradient-btn px-3 py-1.5 rounded-xl text-xs font-extrabold text-[#0d1724] flex items-center gap-1.5 shadow cursor-pointer"
+                          className="gold-cyan-gradient-btn px-3 py-1.5 rounded-xl text-xs font-extrabold text-white flex items-center gap-1.5 shadow cursor-pointer"
                         >
                           <FolderPlus className="w-3.5 h-3.5" />
                           <span>Assign Folder to Group</span>
@@ -537,8 +537,8 @@ export default function GroupsPage() {
                       </div>
 
                       {assignedFoldersForGroup.length === 0 ? (
-                        <div className="p-8 text-center text-gray-400 text-xs bg-[#0d1724] rounded-xl border border-gray-700/60">
-                          <Folder className="w-8 h-8 text-[#f39c12] mx-auto mb-2 opacity-80" />
+                        <div className="p-8 text-center text-[#64748b] text-xs bg-[#f8fafc] rounded-xl border border-[#cbd5e1]">
+                          <Folder className="w-8 h-8 text-[#d97706] mx-auto mb-2 opacity-80" />
                           <p>No workplace folders assigned to this group yet. Click "Assign Folder to Group" above.</p>
                         </div>
                       ) : (
@@ -546,19 +546,19 @@ export default function GroupsPage() {
                           {assignedFoldersForGroup.map((f) => (
                             <div
                               key={f.id}
-                              className="p-4 bg-[#0d1724] border border-gray-700/60 rounded-xl flex items-center justify-between"
+                              className="p-4 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl flex items-center justify-between shadow-sm transition-all"
                             >
                               <div className="flex items-center gap-3">
-                                <Folder className="w-5 h-5 text-[#f39c12]" />
+                                <Folder className="w-5 h-5 text-[#d97706]" />
                                 <div>
-                                  <h4 className="text-xs font-bold text-white">{f.name}</h4>
-                                  <p className="text-[10px] text-gray-400">{f.itemCount} items</p>
+                                  <h4 className="text-xs font-extrabold text-[#0f172a]">{f.name}</h4>
+                                  <p className="text-[10px] text-[#64748b]">{f.itemCount} items</p>
                                 </div>
                               </div>
 
                               <button
                                 onClick={() => handleUnassignFolder(f.id)}
-                                className="p-1 text-gray-500 hover:text-rose-400"
+                                className="p-1 text-gray-400 hover:text-rose-600"
                                 title="Unassign folder"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -574,7 +574,7 @@ export default function GroupsPage() {
                   {activeTab === 'passwords' && (
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-400 font-bold">
+                        <span className="text-xs text-[#64748b] font-extrabold">
                           Shared Group Passwords ({assignedResourcesForGroup.length})
                         </span>
 
@@ -591,14 +591,14 @@ export default function GroupsPage() {
                       </div>
 
                       {assignedResourcesForGroup.length === 0 ? (
-                        <div className="p-8 text-center text-gray-400 text-xs bg-[#0d1724] rounded-xl border border-gray-700/60">
-                          <Lock className="w-8 h-8 text-[#1fbbd2] mx-auto mb-2 opacity-80" />
+                        <div className="p-8 text-center text-[#64748b] text-xs bg-[#f8fafc] rounded-xl border border-[#cbd5e1]">
+                          <Lock className="w-8 h-8 text-[#0284c7] mx-auto mb-2 opacity-80" />
                           <p>No password secrets shared with this group yet. Click "Share Password with Group" above.</p>
                         </div>
                       ) : (
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto border border-[#cbd5e1] rounded-xl overflow-hidden shadow-sm">
                           <table className="w-full text-left text-xs">
-                            <thead className="bg-[#0d1724] text-gray-300 font-bold border-b border-gray-700">
+                            <thead className="bg-[#e6eff7] text-[#334155] font-extrabold border-b border-[#cbd5e1]">
                               <tr>
                                 <th className="py-2.5 px-3">Item Name</th>
                                 <th className="py-2.5 px-3">Username</th>
@@ -606,36 +606,36 @@ export default function GroupsPage() {
                                 <th className="py-2.5 px-3 text-right">Actions</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-700/60">
+                            <tbody className="divide-y divide-[#e2e8f0]">
                               {assignedResourcesForGroup.map((res) => {
                                 const isRev = !!revealedPasswords[res.id];
                                 return (
-                                  <tr key={res.id} className="hover:bg-[#0d1724]/60">
-                                    <td className="py-3 px-3 font-bold text-white flex items-center gap-2">
-                                      <Lock className="w-3.5 h-3.5 text-[#1fbbd2]" />
+                                  <tr key={res.id} className="hover:bg-[#f1f6fb]">
+                                    <td className="py-3 px-3 font-extrabold text-[#0f172a] flex items-center gap-2">
+                                      <Lock className="w-3.5 h-3.5 text-[#0284c7]" />
                                       <span>{res.name}</span>
                                     </td>
-                                    <td className="py-3 px-3 text-gray-300">{res.username || 'alex.morgan'}</td>
-                                    <td className="py-3 px-3 font-mono text-gray-300">
+                                    <td className="py-3 px-3 text-[#334155]">{res.username || 'alex.morgan'}</td>
+                                    <td className="py-3 px-3 font-mono text-[#334155]">
                                       {isRev ? revealedPasswords[res.id] : '••••••••'}
                                     </td>
                                     <td className="py-3 px-3 text-right">
                                       <div className="flex items-center justify-end gap-1">
                                         <button
                                           onClick={() => handleRevealToggle(res)}
-                                          className="p-1 text-gray-400 hover:text-[#1fbbd2]"
+                                          className="p-1 text-gray-500 hover:text-[#1fbbd2]"
                                         >
-                                          {isRev ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                          {isRev ? <EyeOff className="w-3.5 h-3.5 text-[#1fbbd2]" /> : <Eye className="w-3.5 h-3.5" />}
                                         </button>
                                         <button
                                           onClick={() => handleCopyPass(res)}
-                                          className="p-1 text-gray-400 hover:text-white"
+                                          className="p-1 text-gray-500 hover:text-[#0f172a]"
                                         >
                                           <Copy className="w-3.5 h-3.5" />
                                         </button>
                                         <button
                                           onClick={() => handleUnsharePassword(res.id)}
-                                          className="p-1 text-gray-400 hover:text-rose-400"
+                                          className="p-1 text-gray-500 hover:text-rose-600"
                                           title="Unshare from group"
                                         >
                                           <Trash2 className="w-3.5 h-3.5" />
@@ -655,31 +655,30 @@ export default function GroupsPage() {
                   {/* TAB 4: ACTIVITY */}
                   {activeTab === 'activity' && (
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+                      <div className="flex items-center justify-between text-xs text-[#64748b] font-extrabold mb-2">
                         <span>Live Group Activity Audit Logs ({auditLogs.length})</span>
                       </div>
-
                       <div className="space-y-2">
                         {auditLogs.map((log) => (
                           <div
                             key={log.id}
-                            className="p-3 bg-[#0d1724] border border-gray-700/60 rounded-xl flex items-center justify-between text-xs"
+                            className="p-3 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl flex items-center justify-between text-xs shadow-sm transition-all"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-[#17283b] border border-[#f39c12]/40 flex items-center justify-center text-[#f39c12]">
-                                <Shield className="w-4 h-4" />
+                              <div className="w-8 h-8 rounded-full bg-[#ffffff] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706] shadow-xs">
+                                <Shield className="w-4 h-4 text-[#d97706]" />
                               </div>
                               <div>
-                                <p className="font-bold text-white">{log.details || log.action}</p>
-                                <p className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5">
-                                  <Clock className="w-3 h-3 text-gray-500" />
+                                <p className="font-extrabold text-[#0f172a]">{log.details || log.action}</p>
+                                <p className="text-[10px] text-[#64748b] flex items-center gap-1 mt-0.5">
+                                  <Clock className="w-3 h-3 text-[#64748b]" />
                                   <span>{new Date(log.timestamp).toLocaleString()}</span>
                                 </p>
                               </div>
                             </div>
 
-                            <span className="bg-[#17283b] text-[#1fbbd2] border border-[#1fbbd2]/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                              {log.action}
+                            <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
+                              Verified
                             </span>
                           </div>
                         ))}

@@ -366,13 +366,13 @@ export default function VaultPage() {
                 <span>Showing 1 to {resources.length} of {resources.length} items</span>
 
                 <div className="flex items-center gap-1.5">
-                  <button className="p-1.5 bg-[#ffffff] border border-[#cbd5e1] rounded-lg hover:bg-[#f1f5f9]">
+                  <button className="p-1.5 bg-[#ffffff] border border-[#cbd5e1] text-[#334155] rounded-lg hover:bg-[#f1f5f9] cursor-pointer shadow-xs">
                     <ChevronLeft className="w-4 h-4" />
                   </button>
-                  <button className="w-7 h-7 gold-cyan-gradient-btn text-[#0d1724] font-extrabold rounded-lg flex items-center justify-center">
+                  <button className="w-7 h-7 gold-cyan-gradient-btn text-white font-extrabold rounded-lg flex items-center justify-center shadow-xs">
                     1
                   </button>
-                  <button className="p-1.5 bg-[#17283b] border border-gray-700 rounded-lg hover:bg-gray-800">
+                  <button className="p-1.5 bg-[#ffffff] border border-[#cbd5e1] text-[#334155] rounded-lg hover:bg-[#f1f5f9] cursor-pointer shadow-xs">
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>

@@ -505,10 +505,10 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* Audit Logs Card with Gold & Cyan badges (0% Purple) */}
-          <div className="glass-panel rounded-2xl p-6 border border-[rgba(31,187,210,0.25)] bg-[#17283b] space-y-4">
-            <div className="flex items-center gap-2 text-sm font-bold text-white">
-              <Shield className="w-4 h-4 text-[#1fbbd2]" />
+          {/* Audit Logs Card with Gold & Cyan badges */}
+          <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-4 shadow-xl">
+            <div className="flex items-center gap-2 text-sm font-extrabold text-[#0f172a]">
+              <Shield className="w-4 h-4 text-[#0284c7]" />
               <span>Live Security Audit Logs</span>
             </div>
 
@@ -516,15 +516,15 @@ export default function AdminPage() {
               {auditLogs.map((log) => (
                 <div
                   key={log.id}
-                  className="p-3 bg-[#0d1724] border border-gray-700/60 rounded-xl flex items-center justify-between"
+                  className="p-3 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl flex items-center justify-between shadow-sm transition-all"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="bg-[#17283b] text-[#f39c12] border border-[#f39c12]/40 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                    <span className="bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/40 text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs">
                       [{log.action}]
                     </span>
-                    <span className="text-gray-200">{log.details}</span>
+                    <span className="text-[#0f172a] font-bold">{log.details}</span>
                   </div>
-                  <span className="text-gray-500 text-[10px]">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                  <span className="text-[#64748b] text-[10px] font-medium">{new Date(log.timestamp).toLocaleTimeString()}</span>
                 </div>
               ))}
             </div>

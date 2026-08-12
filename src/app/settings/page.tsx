@@ -536,23 +536,22 @@ ${privKey}
           </div>
 
           {/* Security Options Card */}
-          <div className="glass-panel rounded-2xl p-6 border border-[rgba(31,187,210,0.25)] bg-[#17283b] space-y-6">
-            <div className="flex items-center gap-2 text-sm font-bold text-white border-b border-gray-700 pb-3">
-              <ShieldCheck className="w-4 h-4 text-[#f39c12]" />
+          <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-6 shadow-xl">
+            <div className="flex items-center gap-2 text-sm font-extrabold text-[#0f172a] border-b border-[#cbd5e1] pb-3">
+              <ShieldCheck className="w-4 h-4 text-[#d97706]" />
               <span>Security</span>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* Change Password section */}
-              <div className="flex items-center justify-between p-4 bg-[#0d1724] rounded-xl border border-gray-700">
+              <div className="flex items-center justify-between p-4 bg-[#f8fafc] hover:bg-[#f1f5f9] rounded-xl border border-[#cbd5e1] shadow-sm transition-all">
                 <div>
-                  <h4 className="text-xs font-bold text-white">Change Master Password</h4>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
+                  <h4 className="text-xs font-extrabold text-[#0f172a]">Change Master Password</h4>
+                  <p className="text-[11px] text-[#64748b] mt-0.5">
                     Ensure your master password is strong and unique. Re-encrypts your local PGP private key.
                   </p>
-                  {/* Cyan Strength Bar (0% Purple) */}
-                  <div className="w-36 h-1.5 bg-gray-800 rounded-full overflow-hidden mt-2">
-                    <div className="w-4/5 h-full bg-[#1fbbd2] glow-cyan" />
+                  <div className="w-36 h-1.5 bg-[#e2e8f0] rounded-full overflow-hidden mt-2">
+                    <div className="w-4/5 h-full bg-[#1fbbd2]" />
                   </div>
                 </div>
 
@@ -565,7 +564,7 @@ ${privKey}
                     setPassSuccessMsg('');
                     setShowChangePassModal(true);
                   }}
-                  className="px-4 py-2 bg-[#17283b] hover:bg-[#1e2638] border border-[#f39c12]/40 rounded-xl text-xs font-bold text-[#f39c12] flex items-center gap-2 transition-all shadow cursor-pointer"
+                  className="px-4 py-2 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-xs font-extrabold text-[#0284c7] flex items-center gap-2 transition-all shadow-sm cursor-pointer"
                 >
                   <Lock className="w-3.5 h-3.5" />
                   <span>Change Password</span>
@@ -573,17 +572,17 @@ ${privKey}
               </div>
 
               {/* Passkey section */}
-              <div className="flex items-center justify-between p-4 bg-[#0d1724] rounded-xl border border-gray-700">
+              <div className="flex items-center justify-between p-4 bg-[#f8fafc] hover:bg-[#f1f5f9] rounded-xl border border-[#cbd5e1] shadow-sm transition-all">
                 <div>
-                  <h4 className="text-xs font-bold text-white">Passkey</h4>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
+                  <h4 className="text-xs font-extrabold text-[#0f172a]">Passkey</h4>
+                  <p className="text-[11px] text-[#64748b] mt-0.5">
                     Use a passkey for passwordless and phishing-resistant sign-in. ({passkeys.length} active passkeys)
                   </p>
                 </div>
 
                 <button
                   onClick={() => setShowPasskeysModal(true)}
-                  className="px-4 py-2 bg-[#17283b] hover:bg-[#1e2638] border border-[#1fbbd2]/40 rounded-xl text-xs font-bold text-[#1fbbd2] flex items-center gap-2 transition-all shadow cursor-pointer"
+                  className="px-4 py-2 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-xs font-extrabold text-[#0284c7] flex items-center gap-2 transition-all shadow-sm cursor-pointer"
                 >
                   <Fingerprint className="w-3.5 h-3.5" />
                   <span>Manage Passkeys</span>
@@ -591,19 +590,19 @@ ${privKey}
               </div>
 
               {/* Two-Factor Authentication section */}
-              <div className="flex items-center justify-between p-4 bg-[#0d1724] rounded-xl border border-gray-700">
+              <div className="flex items-center justify-between p-4 bg-[#f8fafc] hover:bg-[#f1f5f9] rounded-xl border border-[#cbd5e1] shadow-sm transition-all">
                 <div>
-                  <h4 className="text-xs font-bold text-white">Two-Factor Authentication (TOTP)</h4>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
+                  <h4 className="text-xs font-extrabold text-[#0f172a]">Two-Factor Authentication (TOTP)</h4>
+                  <p className="text-[11px] text-[#64748b] mt-0.5">
                     Add an extra layer of security using Microsoft Authenticator or Google Authenticator.
                   </p>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <span className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 ${
+                  <span className={`px-3 py-1 rounded-lg text-xs font-extrabold flex items-center gap-1.5 ${
                     is2FAEnabled
-                      ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-700/60'
-                      : 'bg-amber-950/80 text-amber-400 border border-amber-700/60'
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : 'bg-amber-100 text-amber-800 border border-amber-300'
                   }`}>
                     {is2FAEnabled ? <Check className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
                     <span>{is2FAEnabled ? 'Enabled' : 'Disabled'}</span>
@@ -611,19 +610,19 @@ ${privKey}
 
                   <button
                     onClick={() => setShowTwoFactorModal(true)}
-                    className="px-4 py-2 bg-[#17283b] hover:bg-[#1e2638] border border-gray-700 rounded-xl text-xs font-bold text-gray-300 flex items-center gap-1.5 transition-all cursor-pointer"
+                    className="px-4 py-2 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl text-xs font-extrabold text-[#0f172a] flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
                   >
-                    <QrCode className="w-3.5 h-3.5 text-[#1fbbd2]" />
+                    <QrCode className="w-3.5 h-3.5 text-[#0284c7]" />
                     <span>{is2FAEnabled ? 'Manage 2FA' : 'Configure 2FA'}</span>
                   </button>
                 </div>
               </div>
 
               {/* Backup Key section */}
-              <div className="flex items-center justify-between p-4 bg-[#0d1724] rounded-xl border border-gray-700">
+              <div className="flex items-center justify-between p-4 bg-[#f8fafc] hover:bg-[#f1f5f9] rounded-xl border border-[#cbd5e1] shadow-sm transition-all">
                 <div>
-                  <h4 className="text-xs font-bold text-white">OpenPGP Backup Key Pair</h4>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
+                  <h4 className="text-xs font-extrabold text-[#0f172a]">OpenPGP Backup Key Pair</h4>
+                  <p className="text-[11px] text-[#64748b] mt-0.5">
                     View or download your OpenPGP emergency backup key pair to recover account access.
                   </p>
                 </div>
@@ -631,15 +630,15 @@ ${privKey}
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleOpenPgpInspector}
-                    className="px-3.5 py-2 bg-[#17283b] hover:bg-[#1e2638] border border-gray-700 rounded-xl text-xs font-bold text-gray-300 flex items-center gap-1.5 transition-all cursor-pointer"
+                    className="px-3.5 py-2 bg-[#ffffff] hover:bg-[#fffbeb] border border-[#cbd5e1] rounded-xl text-xs font-extrabold text-[#d97706] flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
                   >
-                    <Eye className="w-3.5 h-3.5 text-[#f39c12]" />
+                    <Eye className="w-3.5 h-3.5 text-[#d97706]" />
                     <span>View PGP Keys</span>
                   </button>
 
                   <button
                     onClick={handleDownloadBackupKey}
-                    className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-[#0d1724] shadow cursor-pointer"
+                    className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow-md cursor-pointer"
                   >
                     <Download className="w-4 h-4" />
                     <span>Download Backup Key</span>
@@ -648,20 +647,20 @@ ${privKey}
               </div>
 
               {/* Account Recovery Organization Policy Section */}
-              <div className="flex items-center justify-between p-4 bg-[#0d1724] rounded-xl border border-gray-700">
+              <div className="flex items-center justify-between p-4 bg-[#f8fafc] hover:bg-[#f1f5f9] rounded-xl border border-[#cbd5e1] shadow-sm transition-all">
                 <div>
-                  <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                    <KeyRound className="w-4 h-4 text-[#f39c12]" />
+                  <h4 className="text-xs font-extrabold text-[#0f172a] flex items-center gap-2">
+                    <KeyRound className="w-4 h-4 text-[#d97706]" />
                     <span>Account Recovery Policy (Zero-Knowledge Escrow)</span>
                   </h4>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
-                    Configure organization recovery key and policy: <span className="text-[#1fbbd2] font-bold uppercase">{recPolicy}</span>.
+                  <p className="text-[11px] text-[#64748b] mt-0.5">
+                    Configure organization recovery key and policy: <span className="text-[#0284c7] font-extrabold uppercase">{recPolicy}</span>.
                   </p>
                 </div>
 
                 <button
                   onClick={() => setShowRecPolicyModal(true)}
-                  className="px-4 py-2 bg-[#17283b] hover:bg-[#1e2638] border border-[#f39c12]/40 rounded-xl text-xs font-bold text-[#f39c12] flex items-center gap-2 transition-all shadow cursor-pointer"
+                  className="px-4 py-2 bg-[#ffffff] hover:bg-[#fffbeb] border border-[#f39c12]/50 rounded-xl text-xs font-extrabold text-[#d97706] flex items-center gap-2 transition-all shadow-sm cursor-pointer"
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5" />
                   <span>Configure Policy</span>
@@ -669,20 +668,20 @@ ${privKey}
               </div>
 
               {/* Single Sign-On (SSO) Integration Section */}
-              <div className="flex items-center justify-between p-4 bg-[#0d1724] rounded-xl border border-gray-700">
+              <div className="flex items-center justify-between p-4 bg-[#f8fafc] hover:bg-[#f1f5f9] rounded-xl border border-[#cbd5e1] shadow-sm transition-all">
                 <div>
-                  <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-[#1fbbd2]" />
+                  <h4 className="text-xs font-extrabold text-[#0f172a] flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-[#0284c7]" />
                     <span>Single Sign-On (SSO) Providers</span>
                   </h4>
-                  <p className="text-[11px] text-gray-400 mt-0.5">
+                  <p className="text-[11px] text-[#64748b] mt-0.5">
                     Configure Google, Azure AD, or OAuth2. Mandatory Dry-Run test required prior to activation. ({ssoSettingsList.length} configs)
                   </p>
                 </div>
 
                 <button
                   onClick={() => setShowSsoConfigModal(true)}
-                  className="px-4 py-2 bg-[#17283b] hover:bg-[#1e2638] border border-[#1fbbd2]/40 rounded-xl text-xs font-bold text-[#1fbbd2] flex items-center gap-2 transition-all shadow cursor-pointer"
+                  className="px-4 py-2 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-xs font-extrabold text-[#0284c7] flex items-center gap-2 transition-all shadow-sm cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Manage SSO</span>
