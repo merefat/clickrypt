@@ -123,11 +123,11 @@ export default function AccountRecoveryPage() {
       <div className="w-full max-w-lg glass-panel p-8 rounded-3xl border border-[rgba(31,187,210,0.3)] shadow-2xl bg-[#17283b]">
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-black text-xl shadow-lg">
-            <KeyRound className="w-6 h-6 text-[#0d1724]" />
+          <div className="w-12 h-12 rounded-2xl bg-white p-1 border border-[#cbd5e1] flex items-center justify-center shadow-lg">
+            <img src="/logo.png" alt="Clickrypt Logo" className="w-full h-full object-contain" />
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold text-white">Account Recovery</h1>
+            <h1 className="text-2xl font-extrabold text-white">Clic<span className="text-[#f39c12]">K</span>rypt Recovery</h1>
             <p className="text-xs text-gray-400">Zero-Knowledge Escrow Key Recovery</p>
           </div>
         </div>

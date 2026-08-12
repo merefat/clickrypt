@@ -133,12 +133,12 @@ function RegisterForm() {
       {/* Brand Header */}
       <div className="flex flex-col items-center gap-1 mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center shadow-lg">
-            <Shield className="w-5 h-5 text-white" />
+          <div className="w-12 h-12 rounded-2xl bg-white p-1 border border-[#cbd5e1] flex items-center justify-center shadow-lg">
+            <img src="/logo.png" alt="Clickrypt Logo" className="w-full h-full object-contain" />
           </div>
-          <span className="text-xl font-bold text-white glow-purple">Clickrypt</span>
+          <span className="text-3xl font-extrabold text-white">Clic<span className="text-[#f39c12]">K</span>rypt</span>
         </div>
-        <p className="text-xs text-gray-400">Zero-Knowledge OpenPGP Password Manager</p>
+        <p className="text-xs text-[#1fbbd2] font-extrabold tracking-wide mt-1">Where Passwords Stay Safe</p>
       </div>
 
       {/* Profile Setup & Pay-to-Enroll Box */}
