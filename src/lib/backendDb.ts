@@ -272,6 +272,19 @@ class BackendDatabase {
   public ssoKeys: DbSsoKey[] = [];
   public ssoStates: DbSsoState[] = [];
   public ssoTokens: DbSsoToken[] = [];
+  public authChallenges: DbAuthChallenge[] = [];
+}
+
+export interface DbAuthChallenge {
+  id: string;
+  challengeToken: string;
+  email: string;
+  challengeUuid: string;
+  userId?: string | null;
+  active: boolean;
+  isSynthetic: boolean;
+  createdAt: string;
+  expiresAt: string;
 }
 
 export interface DbAccountRecoveryOrgPolicy {
