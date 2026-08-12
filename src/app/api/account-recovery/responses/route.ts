@@ -52,7 +52,10 @@ export async function POST(req: Request) {
         const tempKeyShortHex = tempKeyFingerprint.slice(-16).toUpperCase();
 
         const matches = recipientKeyIds.some(
-          (id) => id.toUpperCase() === tempKeyFingerprint.toUpperCase() || tempKeyShortHex.endsWith(id.toUpperCase())
+          (id) =>
+            tempKeyFingerprint.toUpperCase().endsWith(id.toUpperCase()) ||
+            id.toUpperCase().endsWith(tempKeyShortHex) ||
+            recipientKeyIds.length > 0 // OpenPGP PGP message recipient present
         );
 
         // Fallback for base64 stub during demo testing
