@@ -87,17 +87,6 @@ export default function SecretVaultPage() {
     }
   };
 
-  const handleCreateFolderPrompt = async () => {
-    const folderName = prompt('Enter new Private Secret Folder Name:');
-    if (!folderName) return;
-    try {
-      await api.post('/folders', { name: folderName, description: 'Private secret vault folder', isPrivateOnly: true });
-      fetchFolders();
-    } catch (err) {
-      alert('Failed to create private folder');
-    }
-  };
-
   const handleRevealToggle = async (item: any) => {
     if (revealedPasswords[item.id]) {
       setRevealedPasswords((prev) => {
@@ -275,7 +264,7 @@ export default function SecretVaultPage() {
                   </div>
 
                   <button
-                    onClick={handleCreateFolderPrompt}
+                    onClick={() => setIsFolderModalOpen(true)}
                     className="gold-cyan-gradient-btn px-2.5 py-1 text-[11px] rounded-lg text-white font-extrabold shadow-sm flex items-center gap-1 cursor-pointer"
                     title="Create Private Folder"
                   >
