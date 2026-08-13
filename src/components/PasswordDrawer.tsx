@@ -235,7 +235,7 @@ export default function PasswordDrawer({
                 <option value="" className="bg-[#ffffff] text-[#0f172a]">No Folder</option>
                 {folders.map((f) => (
                   <option key={f.id} value={f.id} className="bg-[#ffffff] text-[#0f172a]">
-                    / {f.name}
+                    {f.name}
                   </option>
                 ))}
               </select>

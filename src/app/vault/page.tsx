@@ -196,7 +196,7 @@ export default function VaultPage() {
                   <option value="" className="bg-[#ffffff] text-[#0f172a]">All Folders</option>
                   {folders.map((f) => (
                     <option key={f.id} value={f.id} className="bg-[#ffffff] text-[#0f172a]">
-                      / {f.name}
+                      {f.name}
                     </option>
                   ))}
                 </select>
