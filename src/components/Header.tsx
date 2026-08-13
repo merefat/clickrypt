@@ -157,18 +157,6 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
 
         {/* Status Indicators & Profile */}
         <div className="flex items-center gap-3">
-          {/* Supabase Status Indicator */}
-          <div className="flex items-center gap-1.5 bg-[#ffffff] border border-[#f39c12]/50 px-3 py-1.5 rounded-full text-xs text-[#d97706] font-bold shadow-sm">
-            <Database className="w-3.5 h-3.5 text-[#d97706]" />
-            <span>Supabase Connected</span>
-          </div>
-
-          {/* OpenPGP Vault Indicator */}
-          <div className="flex items-center gap-2 bg-[#ffffff] border border-[#1fbbd2]/50 px-3 py-1.5 rounded-full text-xs text-[#0284c7] font-bold shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-[#1fbbd2] animate-pulse" />
-            <span>OpenPGP Vault Ready</span>
-          </div>
-
           {/* Interactive Bell Notification Button & Popover Container */}
           <div className="relative" ref={popoverRef}>
             <button
