@@ -54,6 +54,18 @@ export default function PasswordDrawer({
   const [showPassword, setShowPassword] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsFolderDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -224,18 +236,63 @@ export default function PasswordDrawer({
               <label className="block font-extrabold text-[#334155] mb-1">
                 {isSecretVault ? 'Private Folder' : 'Folder'}
               </label>
-              <select
-                value={folderId}
-                onChange={(e) => setFolderId(e.target.value)}
-                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] focus:border-[#1fbbd2] focus:outline-none cursor-pointer font-sora font-bold shadow-xs transition-all"
-              >
-                <option value="" className="bg-[#ffffff] text-[#0f172a]">No Folder</option>
-                {folders.map((f) => (
-                  <option key={f.id} value={f.id} className="bg-[#ffffff] text-[#0f172a]">
-                    {f.name}
-                  </option>
-                ))}
-              </select>
+
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsFolderDropdownOpen((prev) => !prev)}
+                  className="w-full flex items-center justify-between bg-[#ffffff] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl p-2.5 text-[#0f172a] font-bold shadow-xs transition-all cursor-pointer text-left"
+                >
+                  <span className="truncate">
+                    {folderId
+                      ? folders.find((f) => f.id === folderId)?.name || 'No Folder'
+                      : 'No Folder'}
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-[#64748b] ml-1 shrink-0" />
+                </button>
+
+                {isFolderDropdownOpen && (
+                  <div className="absolute left-0 right-0 mt-1.5 bg-[#ffffff] border border-[#cbd5e1] rounded-2xl shadow-xl z-50 overflow-hidden animate-in slide-in-from-top-2 duration-150 p-1.5 space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFolderId('');
+                        setIsFolderDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                        !folderId
+                          ? 'bg-[#e0f2fe] text-[#0284c7]'
+                          : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                      }`}
+                    >
+                      <span>No Folder</span>
+                      {!folderId && <Check className="w-3.5 h-3.5 text-[#0284c7]" />}
+                    </button>
+
+                    {folders.map((f) => {
+                      const isSelected = folderId === f.id;
+                      return (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => {
+                            setFolderId(f.id);
+                            setIsFolderDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e0f2fe] text-[#0284c7]'
+                              : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                          }`}
+                        >
+                          <span className="truncate">{f.name}</span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
