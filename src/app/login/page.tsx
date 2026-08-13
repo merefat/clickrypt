@@ -134,7 +134,7 @@ export default function LoginPage() {
 
       {/* Brand Header */}
       <div className="flex flex-col items-center justify-center mb-8">
-        <img src="/logo.png" alt="Clickrypt Logo" className="h-24 w-auto object-contain drop-shadow-md" />
+        <img src="/logo.png" alt="Clickrypt Logo" className="h-36 w-auto object-contain drop-shadow-xl" />
       </div>
 
       {/* Login Box */}

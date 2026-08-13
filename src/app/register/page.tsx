@@ -132,7 +132,7 @@ function RegisterForm() {
 
       {/* Brand Header */}
       <div className="flex flex-col items-center justify-center mb-6">
-        <img src="/logo.png" alt="Clickrypt Logo" className="h-20 w-auto object-contain drop-shadow-md" />
+        <img src="/logo.png" alt="Clickrypt Logo" className="h-32 w-auto object-contain drop-shadow-xl" />
       </div>
 
       {/* Profile Setup & Pay-to-Enroll Box */}

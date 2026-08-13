@@ -36,8 +36,8 @@ export default function Sidebar() {
     <aside className="w-64 bg-[#e4ecf3] border-r border-[#cbd5e1] flex flex-col justify-between p-5 select-none font-sora min-h-screen">
       <div className="space-y-6">
         {/* Brand Header */}
-        <div className="flex items-center justify-start px-2 py-1">
-          <img src="/logo.png" alt="Clickrypt Logo" className="h-14 w-auto object-contain drop-shadow-sm" />
+        <div className="flex items-center justify-start px-1 py-1">
+          <img src="/logo.png" alt="Clickrypt Logo" className="h-24 w-full max-w-[210px] object-contain drop-shadow-md" />
         </div>
 
         {/* Navigation Items */}
