@@ -183,9 +183,6 @@ export default function PasswordDrawer({
               <h2 className="text-base font-extrabold text-[#0f172a]">
                 {editItem ? 'Edit Password Item' : isSecretVault ? 'New Private Secret' : 'New Password Item'}
               </h2>
-              <p className="text-[11px] text-[#0284c7] font-bold">
-                {isSecretVault ? 'Secret Vault Private Folder Scope' : 'Client-side OpenPGP Encryption'}
-              </p>
             </div>
           </div>
 
