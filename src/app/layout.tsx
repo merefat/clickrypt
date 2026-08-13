@@ -22,7 +22,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-sora bg-[#0d1724] text-white antialiased selection:bg-[#1fbbd2]/30 selection:text-[#f39c12]">
+      <body className="font-sora bg-[#091528] text-white antialiased selection:bg-[#1fbbd2]/30 selection:text-[#f39c12]">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

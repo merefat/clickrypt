@@ -128,7 +128,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0d1724] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden select-none font-sora">
+    <div className="min-h-screen bg-white text-[#091528] flex flex-col items-center justify-center p-6 relative overflow-hidden select-none font-sora">
       <div className="absolute top-1/3 left-10 w-96 h-96 bg-[#f39c12]/10 rounded-full blur-[140px] pointer-events-none" />
       <div className="absolute bottom-1/3 right-10 w-96 h-96 bg-[#1fbbd2]/10 rounded-full blur-[140px] pointer-events-none" />
 
@@ -138,10 +138,10 @@ export default function LoginPage() {
       </div>
 
       {/* Login Box */}
-      <div className="w-full max-w-md glass-panel p-8 rounded-2xl border border-[rgba(31,187,210,0.25)] shadow-2xl bg-[#17283b] z-10 relative">
+      <div className="w-full max-w-md glass-panel p-8 rounded-2xl !bg-[#f5f8fb] z-10 relative">
         {/* Header Action Bar with Pay Bill Button */}
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-700/60">
-          <span className="text-xs font-bold text-gray-300">Sign In Portal</span>
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-300/60">
+          <span className="text-xs font-bold text-[#091528]">Sign In Portal</span>
 
           <Link
             href="/checkout"
@@ -157,7 +157,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={handleToggleDemoExpiry}
-            className="w-full py-1.5 bg-amber-950/60 hover:bg-amber-900 border border-amber-800 text-amber-300 text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all"
+            className="w-full py-1.5 bg-[#f39c12]/10 hover:bg-[#f39c12]/20 border border-[#f39c12] text-[#f39c12] text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all"
             title="Click to simulate an unpaid bill lockout or restore active bill"
           >
             <AlertTriangle className="w-3.5 h-3.5" />
@@ -166,18 +166,18 @@ export default function LoginPage() {
         </div>
 
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-extrabold text-white mb-1">Sign In to Your Vault</h1>
-          <p className="text-xs text-gray-300">Enter your credentials to decrypt your OpenPGP keyring.</p>
+          <h1 className="text-2xl font-extrabold text-[#091528] mb-1">Sign In to Your Vault</h1>
+          <p className="text-xs text-[#091528]">Enter your credentials to decrypt your OpenPGP keyring.</p>
         </div>
 
         {/* UNPAID BILL LOCKOUT WARNING BANNER */}
         {unpaidBill && (
-          <div className="mb-6 p-4 bg-rose-950/90 border border-rose-600 rounded-xl text-xs text-rose-200 space-y-3 animate-in fade-in shadow-xl">
+          <div className="mb-6 p-4 bg-rose-100 border border-rose-300 rounded-xl text-xs text-rose-800 space-y-3 animate-in fade-in shadow-xl">
             <div className="flex items-start gap-2.5">
-              <LockIcon className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+              <LockIcon className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-extrabold text-white text-sm">Sign-In Blocked: Unpaid Bill</p>
-                <p className="text-[11px] text-rose-300/90 mt-0.5">
+                <p className="font-extrabold text-rose-900 text-sm">Sign-In Blocked: Unpaid Bill</p>
+                <p className="text-[11px] text-rose-700/90 mt-0.5">
                   Organization subscription bill is unpaid or expired. Owner, Admins & Users are blocked from signing in until the bill is paid.
                 </p>
               </div>
@@ -195,47 +195,47 @@ export default function LoginPage() {
         )}
 
         {errorMsg && !unpaidBill && (
-          <div className="mb-4 p-3 bg-rose-950/80 border border-rose-700/60 rounded-xl text-xs text-rose-300">
+          <div className="mb-4 p-3 bg-rose-100 border border-rose-300 rounded-xl text-xs text-rose-700">
             {errorMsg}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-[11px] font-semibold text-gray-300 uppercase tracking-wider mb-1">
+            <label className="block text-[11px] font-semibold text-[#091528] uppercase tracking-wider mb-1">
               Email Address
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Mail className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="email"
                 placeholder="alex.morgan@acme.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-[#0d1724] border border-gray-700 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white focus:border-[#1fbbd2] outline-none"
+                className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-2.5 text-xs text-[#091528] focus:border-[#1fbbd2] outline-none"
                 required
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-gray-300 uppercase tracking-wider mb-1">
+            <label className="block text-[11px] font-semibold text-[#091528] uppercase tracking-wider mb-1">
               Master Password
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Lock className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 placeholder="••••••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#0d1724] border border-gray-700 rounded-xl pl-10 pr-10 py-2.5 text-xs font-mono text-white focus:border-[#1fbbd2] outline-none"
+                className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-10 py-2.5 text-xs font-mono text-[#091528] focus:border-[#1fbbd2] outline-none"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[#1fbbd2]"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -245,7 +245,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 gold-cyan-gradient-btn text-xs font-extrabold rounded-xl flex items-center justify-center gap-2 mt-4 shadow-xl text-[#0d1724]"
+            className="w-full py-3.5 gold-cyan-gradient-btn text-xs font-extrabold rounded-xl flex items-center justify-center gap-2 mt-4 shadow-xl"
           >
             <span>{loading ? 'Authenticating & Verifying Bill...' : 'Sign In to Vault'}</span>
             <ArrowRight className="w-4 h-4" />
@@ -256,7 +256,7 @@ export default function LoginPage() {
         <div className="mt-4 text-center">
           <Link
             href="/recover"
-            className="text-xs text-gray-400 hover:text-[#1fbbd2] transition-colors flex items-center justify-center gap-1.5"
+            className="text-xs text-gray-500 hover:text-[#1fbbd2] transition-colors flex items-center justify-center gap-1.5"
           >
             <KeyRound className="w-3.5 h-3.5 text-[#f39c12]" />
             <span>Forgot Master Password? Recover Account</span>
@@ -264,8 +264,8 @@ export default function LoginPage() {
         </div>
 
         {/* Single Sign-On (SSO) Buttons Section */}
-        <div className="mt-6 pt-5 border-t border-gray-700/60 space-y-3">
-          <div className="text-center text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+        <div className="mt-6 pt-5 border-t border-gray-300/60 space-y-3">
+          <div className="text-center text-[10px] text-gray-500 font-bold uppercase tracking-wider">
             Or Sign In via Corporate SSO
           </div>
 
@@ -273,7 +273,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => handleInitiateSso('google')}
-              className="py-2.5 px-3 bg-[#0d1724] hover:bg-[#121f30] border border-gray-700 rounded-xl text-xs font-bold text-gray-300 flex items-center justify-center gap-2 transition-all"
+              className="py-2.5 px-3 bg-white hover:bg-gray-100 border border-gray-300 rounded-xl text-xs font-bold text-[#091528] flex items-center justify-center gap-2 transition-all"
             >
               <Globe className="w-3.5 h-3.5 text-[#f39c12]" />
               <span>Google</span>
@@ -282,7 +282,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => handleInitiateSso('azure')}
-              className="py-2.5 px-3 bg-[#0d1724] hover:bg-[#121f30] border border-gray-700 rounded-xl text-xs font-bold text-gray-300 flex items-center justify-center gap-2 transition-all"
+              className="py-2.5 px-3 bg-white hover:bg-gray-100 border border-gray-300 rounded-xl text-xs font-bold text-[#091528] flex items-center justify-center gap-2 transition-all"
             >
               <Globe className="w-3.5 h-3.5 text-[#1fbbd2]" />
               <span>Azure AD</span>
@@ -290,8 +290,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="mt-6 pt-4 border-t border-gray-700/60 flex items-center justify-between text-[11px]">
-          <span className="text-gray-400">Need to pay subscription bill?</span>
+        <div className="mt-6 pt-4 border-t border-gray-300/60 flex items-center justify-between text-[11px]">
+          <span className="text-gray-500">Need to pay subscription bill?</span>
           <Link href="/checkout" className="text-[#f39c12] font-extrabold hover:underline flex items-center gap-1">
             <CreditCard className="w-3.5 h-3.5" />
             <span>Pay Bill Page</span>

@@ -52,6 +52,8 @@ export default function AdminPage() {
   const [inviteLink, setInviteLink] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [auditLogPage, setAuditLogPage] = useState(1);
+  const LOGS_PER_PAGE = 8;
 
   useEffect(() => {
     fetchUsers();
@@ -505,30 +507,98 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* Audit Logs Card with Gold & Cyan badges */}
-          <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-4 shadow-xl">
-            <div className="flex items-center gap-2 text-sm font-extrabold text-[#0f172a]">
-              <Shield className="w-4 h-4 text-[#0284c7]" />
-              <span>Live Security Audit Logs</span>
-            </div>
+          {/* Audit Logs Card with Gold & Cyan badges and Pagination */}
+          {(() => {
+            const totalLogPages = Math.ceil(auditLogs.length / LOGS_PER_PAGE) || 1;
+            const currentLogs = auditLogs.slice(
+              (auditLogPage - 1) * LOGS_PER_PAGE,
+              auditLogPage * LOGS_PER_PAGE
+            );
 
-            <div className="space-y-2 font-mono text-xs">
-              {auditLogs.map((log) => (
-                <div
-                  key={log.id}
-                  className="p-3 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl flex items-center justify-between shadow-sm transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/40 text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs">
-                      [{log.action}]
-                    </span>
-                    <span className="text-[#0f172a] font-bold">{log.details}</span>
+            return (
+              <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-4 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-extrabold text-[#0f172a]">
+                    <Shield className="w-4 h-4 text-[#0284c7]" />
+                    <span>Live Security Audit Logs ({auditLogs.length})</span>
                   </div>
-                  <span className="text-[#64748b] text-[10px] font-medium">{new Date(log.timestamp).toLocaleTimeString()}</span>
+
+                  <span className="text-xs text-[#0284c7] font-extrabold">
+                    Page {auditLogPage} of {totalLogPages}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </div>
+
+                <div className="space-y-2 font-mono text-xs">
+                  {currentLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="p-3 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl flex items-center justify-between shadow-sm transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/40 text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs">
+                          [{log.action}]
+                        </span>
+                        <span className="text-[#0f172a] font-bold">{log.details}</span>
+                      </div>
+                      <span className="text-[#64748b] text-[10px] font-medium">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Audit Logs Pagination Controls */}
+                {auditLogs.length > LOGS_PER_PAGE && (
+                  <div className="pt-4 border-t border-[#cbd5e1] flex items-center justify-between text-xs text-[#64748b]">
+                    <span>
+                      Showing {(auditLogPage - 1) * LOGS_PER_PAGE + 1} to{' '}
+                      {Math.min(auditLogPage * LOGS_PER_PAGE, auditLogs.length)} of {auditLogs.length} logs
+                    </span>
+
+                    <div className="flex items-center gap-1.5 font-sora">
+                      <button
+                        type="button"
+                        onClick={() => setAuditLogPage((prev) => Math.max(prev - 1, 1))}
+                        disabled={auditLogPage === 1}
+                        className="p-1.5 bg-[#ffffff] border border-[#cbd5e1] text-[#334155] rounded-lg hover:bg-[#f1f5f9] disabled:opacity-40 cursor-pointer shadow-xs"
+                        title="Previous Page"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+
+                      {Array.from({ length: totalLogPages }, (_, i) => i + 1)
+                        .slice(
+                          Math.max(0, auditLogPage - 3),
+                          Math.min(totalLogPages, auditLogPage + 2)
+                        )
+                        .map((pageNum) => (
+                          <button
+                            key={pageNum}
+                            type="button"
+                            onClick={() => setAuditLogPage(pageNum)}
+                            className={`w-7 h-7 rounded-lg text-xs font-extrabold flex items-center justify-center cursor-pointer transition-all ${
+                              auditLogPage === pageNum
+                                ? 'gold-cyan-gradient-btn text-white shadow-xs'
+                                : 'bg-[#ffffff] border border-[#cbd5e1] text-[#334155] hover:bg-[#f1f5f9]'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        ))}
+
+                      <button
+                        type="button"
+                        onClick={() => setAuditLogPage((prev) => Math.min(prev + 1, totalLogPages))}
+                        disabled={auditLogPage === totalLogPages}
+                        className="p-1.5 bg-[#ffffff] border border-[#cbd5e1] text-[#334155] rounded-lg hover:bg-[#f1f5f9] disabled:opacity-40 cursor-pointer shadow-xs"
+                        title="Next Page"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </main>
       </div>
 

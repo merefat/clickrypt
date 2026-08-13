@@ -14,6 +14,7 @@ import {
   FolderPlus,
   Lock,
   ChevronRight,
+  ChevronLeft,
   Check,
   X,
   Eye,
@@ -37,6 +38,10 @@ export default function GroupsPage() {
   const [activeTab, setActiveTab] = useState<'members' | 'folders' | 'passwords' | 'activity'>('members');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Activity Tab Pagination State
+  const [activityPage, setActivityPage] = useState(1);
+  const ITEMS_PER_PAGE = 8;
 
   // Group-assigned folders & shared passwords state
   const [groupFolderIds, setGroupFolderIds] = useState<{ [groupId: string]: string[] }>({
@@ -653,38 +658,102 @@ export default function GroupsPage() {
                   )}
 
                   {/* TAB 4: ACTIVITY */}
-                  {activeTab === 'activity' && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between text-xs text-[#64748b] font-extrabold mb-2">
-                        <span>Live Group Activity Audit Logs ({auditLogs.length})</span>
-                      </div>
-                      <div className="space-y-2">
-                        {auditLogs.map((log) => (
-                          <div
-                            key={log.id}
-                            className="p-3 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl flex items-center justify-between text-xs shadow-sm transition-all"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-[#ffffff] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706] shadow-xs">
-                                <Shield className="w-4 h-4 text-[#d97706]" />
-                              </div>
-                              <div>
-                                <p className="font-extrabold text-[#0f172a]">{log.details || log.action}</p>
-                                <p className="text-[10px] text-[#64748b] flex items-center gap-1 mt-0.5">
-                                  <Clock className="w-3 h-3 text-[#64748b]" />
-                                  <span>{new Date(log.timestamp).toLocaleString()}</span>
-                                </p>
-                              </div>
-                            </div>
+                  {activeTab === 'activity' && (() => {
+                    const totalActivityPages = Math.ceil(auditLogs.length / ITEMS_PER_PAGE) || 1;
+                    const currentActivityLogs = auditLogs.slice(
+                      (activityPage - 1) * ITEMS_PER_PAGE,
+                      activityPage * ITEMS_PER_PAGE
+                    );
 
-                            <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
-                              Verified
+                    return (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between text-xs text-[#64748b] font-extrabold mb-1">
+                          <span>Live Group Activity Audit Logs ({auditLogs.length})</span>
+                          <span className="text-[11px] text-[#0284c7]">
+                            Page {activityPage} of {totalActivityPages}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2.5">
+                          {currentActivityLogs.map((log) => (
+                            <div
+                              key={log.id}
+                              className="p-3 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl flex items-center justify-between text-xs shadow-sm transition-all"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-[#ffffff] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706] shadow-xs">
+                                  <Shield className="w-4 h-4 text-[#d97706]" />
+                                </div>
+                                <div>
+                                  <p className="font-extrabold text-[#0f172a]">{log.details || log.action}</p>
+                                  <p className="text-[10px] text-[#64748b] flex items-center gap-1 mt-0.5">
+                                    <Clock className="w-3 h-3 text-[#64748b]" />
+                                    <span>{new Date(log.timestamp).toLocaleString()}</span>
+                                  </p>
+                                </div>
+                              </div>
+
+                              <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
+                                Verified
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Audit Logs Pagination Controls */}
+                        {auditLogs.length > ITEMS_PER_PAGE && (
+                          <div className="pt-4 border-t border-[#cbd5e1] flex items-center justify-between text-xs text-[#64748b]">
+                            <span>
+                              Showing {(activityPage - 1) * ITEMS_PER_PAGE + 1} to{' '}
+                              {Math.min(activityPage * ITEMS_PER_PAGE, auditLogs.length)} of {auditLogs.length} logs
                             </span>
+
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setActivityPage((prev) => Math.max(prev - 1, 1))}
+                                disabled={activityPage === 1}
+                                className="p-1.5 bg-[#ffffff] border border-[#cbd5e1] text-[#334155] rounded-lg hover:bg-[#f1f5f9] disabled:opacity-40 cursor-pointer shadow-xs"
+                                title="Previous Page"
+                              >
+                                <ChevronLeft className="w-4 h-4" />
+                              </button>
+
+                              {Array.from({ length: totalActivityPages }, (_, i) => i + 1)
+                                .slice(
+                                  Math.max(0, activityPage - 3),
+                                  Math.min(totalActivityPages, activityPage + 2)
+                                )
+                                .map((pageNum) => (
+                                  <button
+                                    key={pageNum}
+                                    type="button"
+                                    onClick={() => setActivityPage(pageNum)}
+                                    className={`w-7 h-7 rounded-lg text-xs font-extrabold flex items-center justify-center cursor-pointer transition-all ${
+                                      activityPage === pageNum
+                                        ? 'gold-cyan-gradient-btn text-white shadow-xs'
+                                        : 'bg-[#ffffff] border border-[#cbd5e1] text-[#334155] hover:bg-[#f1f5f9]'
+                                    }`}
+                                  >
+                                    {pageNum}
+                                  </button>
+                                ))}
+
+                              <button
+                                type="button"
+                                onClick={() => setActivityPage((prev) => Math.min(prev + 1, totalActivityPages))}
+                                disabled={activityPage === totalActivityPages}
+                                className="p-1.5 bg-[#ffffff] border border-[#cbd5e1] text-[#334155] rounded-lg hover:bg-[#f1f5f9] disabled:opacity-40 cursor-pointer shadow-xs"
+                                title="Next Page"
+                              >
+                                <ChevronRight className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
-                        ))}
+                        )}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
               </div>
             ) : (

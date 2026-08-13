@@ -10,7 +10,8 @@ import {
   Lock,
   ArrowRight,
   Building2,
-  ArrowLeft
+  ArrowLeft,
+  Printer
 } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import api from '@/lib/api';
@@ -108,25 +109,25 @@ export default function StandaloneCheckoutPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0d1724] text-white select-none font-sora flex flex-col justify-between p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-[#f5f8fb] text-[#091528] select-none font-sora flex flex-col justify-between p-6 relative overflow-hidden">
       <div className="absolute top-1/4 left-10 w-96 h-96 bg-[#f39c12]/10 rounded-full blur-[140px] pointer-events-none" />
       <div className="absolute bottom-1/4 right-10 w-96 h-96 bg-[#1fbbd2]/10 rounded-full blur-[140px] pointer-events-none" />
 
       {/* Standalone Brand Navigation Bar */}
-      <header className="max-w-6xl mx-auto w-full flex items-center justify-between py-4 border-b border-gray-800/80 mb-8 z-10">
+      <header className="max-w-6xl mx-auto w-full flex items-center justify-between py-4 border-b border-gray-300/80 mb-8 z-10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center shadow-lg shadow-[#f39c12]/20">
-            <Shield className="w-6 h-6 text-[#0d1724]" />
+            <Shield className="w-6 h-6 text-[#091528]" />
           </div>
           <div>
-            <span className="text-xl font-extrabold text-white glow-gold">Clickrypt</span>
+            <span className="text-xl font-extrabold text-[#091528] glow-gold">Clickrypt</span>
             <p className="text-[10px] text-[#1fbbd2] font-semibold">Stripe Secure Payment Portal</p>
           </div>
         </div>
 
         <Link
           href="/login"
-          className="px-4 py-2 bg-[#17283b] hover:bg-gray-800 border border-[#1fbbd2]/40 text-gray-200 hover:text-white text-xs font-bold rounded-xl flex items-center gap-2 transition-all shadow-md"
+          className="px-4 py-2 !bg-[#f5f8fb] hover:bg-gray-200 border border-[#1fbbd2]/40 text-[#091528] hover:text-[#1fbbd2] text-xs font-bold rounded-xl flex items-center gap-2 transition-all shadow-md"
         >
           <ArrowLeft className="w-4 h-4 text-[#f39c12]" />
           <span>Back to Sign In</span>
@@ -137,7 +138,7 @@ export default function StandaloneCheckoutPage() {
       <main className="max-w-6xl mx-auto w-full z-10 flex-1 flex flex-col justify-center">
         {/* Title */}
         <div className="mb-6 text-center">
-          <h1 className="text-3xl font-extrabold text-white flex items-center justify-center gap-3">
+          <h1 className="text-3xl font-extrabold text-[#091528] flex items-center justify-center gap-3">
             <CreditCard className="w-8 h-8 text-[#f39c12]" />
             Pay Organization Subscription Bill
           </h1>
@@ -151,17 +152,17 @@ export default function StandaloneCheckoutPage() {
           {/* Left Column: Seats Slider & Credit Card Input */}
           <div className="lg:col-span-2 space-y-6">
             {/* Seat Selector Card */}
-            <div className="glass-panel p-6 rounded-2xl border border-[rgba(31,187,210,0.25)] bg-[#17283b] shadow-xl">
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-700/60">
+            <div className="glass-panel p-6 rounded-2xl border border-[#1fbbd2] !bg-[#f5f8fb] shadow-xl">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-300/60">
                 <div className="flex items-center gap-2">
                   <Building2 className="w-4 h-4 text-[#f39c12]" />
-                  <h2 className="text-sm font-bold text-white">Organization Team Seats</h2>
+                  <h2 className="text-sm font-bold text-[#091528]">Organization Team Seats</h2>
                 </div>
                 <span className="text-xs text-[#1fbbd2] font-extrabold">$6 / user / month</span>
               </div>
 
               <div className="space-y-4">
-                <div className="flex justify-between items-center text-xs font-bold text-gray-200">
+                <div className="flex justify-between items-center text-xs font-bold text-[#091528]">
                   <span>Select Number of Users:</span>
                   <span className="text-[#f39c12] text-base font-extrabold">{seats} Team Seats</span>
                 </div>
@@ -173,10 +174,10 @@ export default function StandaloneCheckoutPage() {
                   step={5}
                   value={seats}
                   onChange={(e) => setSeats(Number(e.target.value))}
-                  className="w-full accent-[#f39c12] bg-gray-800 h-2 rounded-lg cursor-pointer"
+                  className="w-full accent-[#f39c12] bg-gray-300 h-2 rounded-lg cursor-pointer"
                 />
 
-                <div className="flex justify-between text-[10px] text-gray-400">
+                <div className="flex justify-between text-[10px] text-gray-600">
                   <span>5 Seats ($360/yr)</span>
                   <span>25 Seats ($1,800/yr)</span>
                   <span>50 Seats ($3,600/yr)</span>
@@ -186,53 +187,53 @@ export default function StandaloneCheckoutPage() {
             </div>
 
             {/* Credit Card Details Card */}
-            <div className="glass-panel-gold p-6 rounded-2xl border border-[rgba(243,156,18,0.4)] bg-[#17283b] shadow-2xl">
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-700/60">
+            <div className="glass-panel-gold p-6 rounded-2xl border border-[#f39c12] !bg-[#f5f8fb] shadow-2xl">
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-300/60">
                 <div className="flex items-center gap-2">
                   <CreditCard className="w-5 h-5 text-[#f39c12]" />
-                  <h2 className="text-sm font-bold text-white">Stripe Credit Card Payment</h2>
+                  <h2 className="text-sm font-bold text-[#091528]">Stripe Credit Card Payment</h2>
                 </div>
 
                 <div className="flex items-center gap-1.5 text-[10px] font-extrabold">
                   <span className={`px-2 py-0.5 rounded border transition-all ${
                     getCardBrand(cardNumber) === 'Visa'
                       ? 'bg-blue-600 text-white border-blue-400 font-extrabold shadow glow-cyan'
-                      : 'bg-blue-900/60 text-blue-300 border-blue-700'
+                      : 'bg-blue-100 text-blue-700 border-blue-300'
                   }`}>VISA</span>
                   <span className={`px-2 py-0.5 rounded border transition-all ${
                     getCardBrand(cardNumber) === 'Mastercard'
                       ? 'bg-rose-600 text-white border-rose-400 font-extrabold shadow'
-                      : 'bg-rose-900/60 text-rose-300 border-rose-700'
+                      : 'bg-rose-100 text-rose-700 border-rose-300'
                   }`}>MASTERCARD</span>
                   <span className={`px-2 py-0.5 rounded border transition-all ${
                     getCardBrand(cardNumber) === 'Amex'
                       ? 'bg-cyan-600 text-white border-cyan-400 font-extrabold shadow glow-cyan'
-                      : 'bg-cyan-900/60 text-cyan-300 border-cyan-700'
+                      : 'bg-cyan-100 text-cyan-700 border-cyan-300'
                   }`}>AMEX</span>
                 </div>
               </div>
 
               {/* 1-Click Test Cards Quick Fill Preset Bar */}
-              <div className="flex flex-wrap items-center gap-2 mb-4 bg-[#0d1724] p-3 rounded-xl border border-gray-700/80">
-                <span className="text-xs font-bold text-gray-300 mr-1">1-Click Test Presets:</span>
+              <div className="flex flex-wrap items-center gap-2 mb-4 bg-white p-3 rounded-xl border border-gray-300/80">
+                <span className="text-xs font-bold text-[#091528] mr-1">1-Click Test Presets:</span>
                 <button
                   type="button"
                   onClick={() => handleFillTestCard('visa')}
-                  className="px-2.5 py-1 bg-[#17283b] hover:bg-blue-950 border border-blue-500/60 text-blue-300 text-[10px] font-extrabold rounded-lg transition-all shadow cursor-pointer"
+                  className="px-2.5 py-1 !bg-[#f5f8fb] hover:bg-blue-100 border border-blue-500/60 text-blue-700 text-[10px] font-extrabold rounded-lg transition-all shadow cursor-pointer"
                 >
                   Visa (4242)
                 </button>
                 <button
                   type="button"
                   onClick={() => handleFillTestCard('mastercard')}
-                  className="px-2.5 py-1 bg-[#17283b] hover:bg-rose-950 border border-rose-500/60 text-rose-300 text-[10px] font-extrabold rounded-lg transition-all shadow cursor-pointer"
+                  className="px-2.5 py-1 !bg-[#f5f8fb] hover:bg-rose-100 border border-rose-500/60 text-rose-700 text-[10px] font-extrabold rounded-lg transition-all shadow cursor-pointer"
                 >
                   Mastercard (5555)
                 </button>
                 <button
                   type="button"
                   onClick={() => handleFillTestCard('amex')}
-                  className="px-2.5 py-1 bg-[#17283b] hover:bg-cyan-950 border border-cyan-500/60 text-cyan-300 text-[10px] font-extrabold rounded-lg transition-all shadow cursor-pointer"
+                  className="px-2.5 py-1 !bg-[#f5f8fb] hover:bg-cyan-100 border border-cyan-500/60 text-cyan-700 text-[10px] font-extrabold rounded-lg transition-all shadow cursor-pointer"
                 >
                   Amex (3782)
                 </button>
@@ -240,26 +241,26 @@ export default function StandaloneCheckoutPage() {
 
               <form onSubmit={handleSubmitPayment} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Cardholder Name</label>
+                  <label className="block text-xs font-semibold text-[#091528] mb-1">Cardholder Name</label>
                   <input
                     type="text"
                     placeholder="Alex Morgan"
                     value={cardHolder}
                     onChange={(e) => setCardHolder(e.target.value)}
-                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl px-3 py-2.5 text-xs text-white focus:border-[#1fbbd2] outline-none"
+                    className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-xs text-[#091528] focus:border-[#1fbbd2] outline-none"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">Card Number</label>
+                  <label className="block text-xs font-semibold text-[#091528] mb-1">Card Number</label>
                   <div className="relative">
                     <input
                       type="text"
                       placeholder="4242 4242 4242 4242"
                       value={cardNumber}
                       onChange={handleCardNumberChange}
-                      className="w-full bg-[#0d1724] border border-gray-700 rounded-xl px-3 py-2.5 text-xs font-mono text-white focus:border-[#1fbbd2] outline-none pr-10"
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-xs font-mono text-[#091528] focus:border-[#1fbbd2] outline-none pr-10"
                       required
                     />
                     <CreditCard className="w-4 h-4 text-[#f39c12] absolute right-3.5 top-1/2 -translate-y-1/2" />
@@ -268,38 +269,38 @@ export default function StandaloneCheckoutPage() {
 
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1">Expiry Date</label>
+                    <label className="block text-xs font-semibold text-[#091528] mb-1">Expiry Date</label>
                     <input
                       type="text"
                       placeholder="MM / YY"
                       value={expiry}
                       onChange={handleExpiryChange}
-                      className="w-full bg-[#0d1724] border border-gray-700 rounded-xl px-3 py-2.5 text-xs text-white font-mono focus:border-[#1fbbd2] outline-none"
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-xs text-[#091528] font-mono focus:border-[#1fbbd2] outline-none"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1">CVC Code</label>
+                    <label className="block text-xs font-semibold text-[#091528] mb-1">CVC Code</label>
                     <input
                       type="password"
                       placeholder="123"
                       maxLength={4}
                       value={cvc}
                       onChange={(e) => setCvc(e.target.value)}
-                      className="w-full bg-[#0d1724] border border-gray-700 rounded-xl px-3 py-2.5 text-xs text-white font-mono focus:border-[#1fbbd2] outline-none"
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-xs text-[#091528] font-mono focus:border-[#1fbbd2] outline-none"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1">ZIP / Postal</label>
+                    <label className="block text-xs font-semibold text-[#091528] mb-1">ZIP / Postal</label>
                     <input
                       type="text"
                       placeholder="10001"
                       value={zipCode}
                       onChange={(e) => setZipCode(e.target.value)}
-                      className="w-full bg-[#0d1724] border border-gray-700 rounded-xl px-3 py-2.5 text-xs text-white font-mono focus:border-[#1fbbd2] outline-none"
+                      className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-xs text-[#091528] font-mono focus:border-[#1fbbd2] outline-none"
                     />
                   </div>
                 </div>
@@ -307,7 +308,7 @@ export default function StandaloneCheckoutPage() {
                 <button
                   type="submit"
                   disabled={processing}
-                  className="w-full py-3.5 gold-cyan-gradient-btn text-[#0d1724] font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 mt-4 shadow-xl transition-all"
+                  className="w-full py-3.5 gold-cyan-gradient-btn font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 mt-4 shadow-xl transition-all"
                 >
                   <Lock className="w-4 h-4" />
                   <span>
@@ -318,7 +319,7 @@ export default function StandaloneCheckoutPage() {
                 </button>
               </form>
 
-              <div className="mt-3 flex items-center justify-between text-[10px] text-gray-400 border-t border-gray-700/60 pt-3">
+              <div className="mt-3 flex items-center justify-between text-[10px] text-gray-600 border-t border-gray-300/60 pt-3">
                 <span className="flex items-center gap-1 text-[#1fbbd2]">
                   <ShieldCheck className="w-3.5 h-3.5 text-[#1fbbd2]" /> PCI DSS Level 1 Security
                 </span>
@@ -328,40 +329,40 @@ export default function StandaloneCheckoutPage() {
           </div>
 
           {/* Right Column: Order Summary */}
-          <div className="glass-panel p-6 rounded-2xl border border-[rgba(31,187,210,0.25)] bg-[#17283b] flex flex-col justify-between shadow-2xl">
+          <div className="glass-panel p-6 rounded-2xl border border-[#1fbbd2] !bg-[#f5f8fb] flex flex-col justify-between shadow-2xl">
             <div>
-              <h3 className="text-base font-bold text-white mb-4 pb-3 border-b border-gray-700/60">
+              <h3 className="text-base font-bold text-[#091528] mb-4 pb-3 border-b border-gray-300/60">
                 Order Summary
               </h3>
 
-              <div className="space-y-3 text-xs border-b border-gray-700/60 pb-4">
+              <div className="space-y-3 text-xs border-b border-gray-300/60 pb-4">
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Organization Plan (Annual)</span>
-                  <span className="font-bold text-white">${annualTotal.toLocaleString()}.00</span>
+                  <span className="text-gray-600">Organization Plan (Annual)</span>
+                  <span className="font-bold text-[#091528]">${annualTotal.toLocaleString()}.00</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Included Team Seats</span>
-                  <span className="font-bold text-white">{seats} Seats</span>
+                  <span className="text-gray-600">Included Team Seats</span>
+                  <span className="font-bold text-[#091528]">{seats} Seats</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Price per user</span>
+                  <span className="text-gray-600">Price per user</span>
                   <span className="font-bold text-[#1fbbd2]">$6.00 / mo</span>
                 </div>
-                <div className="flex justify-between text-emerald-400 font-semibold">
+                <div className="flex justify-between text-emerald-800 font-semibold">
                   <span>Discount</span>
                   <span>-$0.00</span>
                 </div>
               </div>
 
               <div className="pt-4 flex justify-between items-center mb-6">
-                <span className="text-sm font-bold text-white">Total Due Today</span>
+                <span className="text-sm font-bold text-[#091528]">Total Due Today</span>
                 <span className="text-3xl font-extrabold text-[#f39c12] glow-gold">
                   ${annualTotal.toLocaleString()}.00
                 </span>
               </div>
 
-              <div className="space-y-2 text-xs text-gray-300 mb-6 bg-[#0d1724] p-3.5 rounded-xl border border-gray-700">
-                <p className="font-bold text-white text-[11px] mb-1">Included with payment:</p>
+              <div className="space-y-2 text-xs text-[#091528] mb-6 bg-white p-3.5 rounded-xl border border-gray-300">
+                <p className="font-bold text-[#091528] text-[11px] mb-1">Included with payment:</p>
                 <div className="flex items-center gap-2 text-[11px]">
                   <CheckCircle className="w-3.5 h-3.5 text-[#f39c12] shrink-0" />
                   <span>Restores Sign-In access for all team members</span>
@@ -377,57 +378,112 @@ export default function StandaloneCheckoutPage() {
               </div>
             </div>
 
-            <div className="p-3.5 bg-emerald-950/40 border border-emerald-800/60 rounded-xl text-xs text-emerald-300 flex items-center gap-3">
-              <ShieldCheck className="w-6 h-6 text-emerald-400 shrink-0" />
-              <div>
-                <p className="font-bold text-emerald-200">30-Day Money-Back Guarantee</p>
-                <p className="text-[10px] text-emerald-300/80">Cancel anytime within 30 days for a full refund.</p>
-              </div>
-            </div>
+            
           </div>
         </div>
       </main>
 
       {/* Standalone Footer */}
-      <footer className="max-w-6xl mx-auto w-full text-center text-[10px] text-gray-500 pt-6 border-t border-gray-800/60 mt-8 z-10">
+      <footer className="max-w-6xl mx-auto w-full text-center text-[10px] text-gray-500 pt-6 border-t border-gray-300/60 mt-8 z-10">
         Clickrypt Zero-Knowledge Password Vault • Stripe Payment Portal • Encrypted with OpenPGP
       </footer>
 
       {/* Payment Success Confirmation Modal */}
       {paymentSuccess && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-[#17283b] border border-[#f39c12]/60 w-full max-w-md rounded-2xl p-6 shadow-2xl text-center">
-            <div className="w-16 h-16 rounded-full bg-emerald-950 border border-emerald-700 text-emerald-400 flex items-center justify-center mx-auto mb-4 glow-green">
+          <div className="!bg-[#f5f8fb] border border-[#f39c12]/60 w-full max-w-md rounded-2xl p-6 shadow-2xl text-center">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-800 flex items-center justify-center mx-auto mb-4 glow-green">
               <CheckCircle className="w-8 h-8" />
             </div>
-            <h2 className="text-xl font-extrabold text-white mb-1">Payment Confirmed & Access Restored!</h2>
-            <p className="text-xs text-gray-300 mb-4">
+            <h2 className="text-xl font-extrabold text-[#091528] mb-1">Payment Confirmed & Access Restored!</h2>
+            <p className="text-xs text-[#091528] mb-4">
               Your Stripe payment of ${paymentSuccess.amount}.00 USD was processed. Organization sign-in access is now unlocked.
             </p>
 
-            <div className="bg-[#0d1724] p-3 rounded-xl border border-gray-700 text-xs text-left space-y-1.5 mb-6">
+            <div className="bg-white p-3 rounded-xl border border-gray-300 text-xs text-left space-y-1.5 mb-6">
               <div className="flex justify-between">
-                <span className="text-gray-400">Invoice Number:</span>
+                <span className="text-gray-600">Invoice Number:</span>
                 <span className="font-mono font-bold text-[#f39c12]">{paymentSuccess.invoiceId}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Stripe Payment ID:</span>
-                <span className="font-mono text-gray-300 truncate max-w-[180px]">{paymentSuccess.paymentIntentId}</span>
+                <span className="text-gray-600">Stripe Payment ID:</span>
+                <span className="font-mono text-[#091528] truncate max-w-[180px]">{paymentSuccess.paymentIntentId}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Seats Unlocked:</span>
-                <span className="font-bold text-white">{paymentSuccess.seats} Users</span>
+                <span className="text-gray-600">Seats Unlocked:</span>
+                <span className="font-bold text-[#091528]">{paymentSuccess.seats} Users</span>
               </div>
             </div>
 
-            <Link
-              href="/login"
-              className="w-full py-3.5 gold-cyan-gradient-btn text-[#0d1724] font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xl"
-            >
-              <span>Proceed to Sign In to Vault</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="w-full py-3.5 gold-gradient-btn font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xl"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print / Save Invoice</span>
+              </button>
+              <Link
+                href="/login"
+                className="w-full py-3.5 gold-cyan-gradient-btn font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-xl"
+              >
+                <span>Proceed to Sign In</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
           </div>
+        </div>
+      )}
+      {paymentSuccess && (
+        <div className="invoice-print hidden bg-white text-[#091528] p-8 min-h-screen">
+          <div className="flex items-center gap-3 mb-6">
+            <img src="/logo.png" alt="Clickrypt" className="h-16 w-auto" />
+            <div>
+              <h1 className="text-2xl font-extrabold text-[#091528]">Clickrypt</h1>
+              <p className="text-[#1fbbd2] text-xs">Zero-Knowledge Password Vault</p>
+            </div>
+          </div>
+
+          <h2 className="text-3xl font-extrabold text-[#091528] mb-6">INVOICE</h2>
+
+          <div className="text-sm space-y-1 mb-6">
+            <p><span className="font-bold">Invoice #:</span> {paymentSuccess.invoiceId}</p>
+            <p><span className="font-bold">Date:</span> {new Date().toLocaleDateString()}</p>
+            <p><span className="font-bold">Payment ID:</span> {paymentSuccess.paymentIntentId}</p>
+            <p><span className="font-bold">Billed to:</span> {cardHolder}</p>
+          </div>
+
+          <table className="w-full text-sm border-collapse">
+            <thead className="bg-[#1fbbd2] text-white">
+              <tr>
+                <th className="text-left p-2">Description</th>
+                <th className="text-left p-2">Qty</th>
+                <th className="text-left p-2">Unit Price</th>
+                <th className="text-right p-2">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-[#1fbbd2]/40">
+                <td className="p-2">Organization Plan (Annual)</td>
+                <td className="p-2">{seats}</td>
+                <td className="p-2">${pricePerUserPerMonth * 12}.00 / user / year</td>
+                <td className="p-2 text-right">${paymentSuccess.amount}.00</td>
+              </tr>
+              <tr className="text-emerald-600">
+                <td className="p-2" colSpan={3}>Discount</td>
+                <td className="p-2 text-right">-$0.00</td>
+              </tr>
+            </tbody>
+            <tfoot className="bg-[#091528] text-white">
+              <tr>
+                <td className="p-2 font-bold" colSpan={3}>Total</td>
+                <td className="p-2 text-right font-bold">${paymentSuccess.amount}.00</td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <p className="mt-8 text-xs text-[#1fbbd2]">Clickrypt Zero-Knowledge Password Vault • Stripe Payment Portal • Encrypted with OpenPGP</p>
         </div>
       )}
     </div>

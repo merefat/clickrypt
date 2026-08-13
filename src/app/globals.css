@@ -11,8 +11,8 @@
 
   body {
     font-family: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background-color: #dfe6ed;
-    color: #0f172a;
+    background-color: #091528;
+    color: #ffffff;
     overflow-x: hidden;
   }
 
@@ -36,11 +36,11 @@ select option {
 
 /* Soft Elevated Panel matching Reference UI */
 .glass-panel {
-  background: #f5f8fb;
+  background: #091528;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid #d0dbe5;
-  box-shadow: 0 10px 25px -5px rgba(160, 178, 198, 0.35), 0 4px 10px -2px rgba(160, 178, 198, 0.15);
+  border: 1px solid #1fbbd2;
+  box-shadow: 0 10px 25px -5px rgba(31, 187, 210, 0.25), 0 4px 10px -2px rgba(31, 187, 210, 0.1);
 }
 
 .glass-panel-gold {
@@ -106,4 +106,25 @@ select option {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #1fbbd2;
+}
+
+/* Print-to-PDF invoice mode */
+@media print {
+  * {
+    visibility: hidden;
+  }
+  .invoice-print,
+  .invoice-print * {
+    visibility: visible;
+  }
+  .invoice-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    display: block !important;
+    padding: 2rem;
+    background: #ffffff;
+    color: #091528;
+  }
 }
