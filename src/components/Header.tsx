@@ -369,23 +369,29 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
 
           <div className="h-6 w-px bg-[#cbd5e1]" />
 
-          <div className="flex items-center gap-3">
+          <Link
+            href="/settings"
+            className="flex items-center gap-3 hover:opacity-90 transition-all cursor-pointer p-1.5 rounded-xl hover:bg-[#ffffff] border border-transparent hover:border-[#cbd5e1] shadow-xs group"
+            title="Account & Security Settings"
+          >
             {user?.avatarUrl ? (
               <img
                 src={user.avatarUrl}
                 alt={user.name}
-                className="w-8 h-8 rounded-full object-cover shadow-sm border border-[#1fbbd2]"
+                className="w-8 h-8 rounded-full object-cover shadow-sm border border-[#1fbbd2] group-hover:scale-105 transition-transform"
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-white p-0.5 border border-[#cbd5e1] flex items-center justify-center shadow-sm overflow-hidden">
+              <div className="w-8 h-8 rounded-full bg-white p-0.5 border border-[#cbd5e1] flex items-center justify-center shadow-sm overflow-hidden group-hover:scale-105 transition-transform">
                 <img src="/logo.png" alt="Clickrypt Logo" className="w-full h-full object-contain" />
               </div>
             )}
             <div className="text-left hidden sm:block">
-              <p className="text-xs font-extrabold text-[#0f172a] leading-tight">{user?.name || 'Alex Morgan'}</p>
+              <p className="text-xs font-extrabold text-[#0f172a] leading-tight group-hover:text-[#0284c7] transition-colors">
+                {user?.name || 'Alex Morgan'}
+              </p>
               <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight">{user?.role || 'Owner'}</p>
             </div>
-          </div>
+          </Link>
         </div>
       </div>
     </header>
