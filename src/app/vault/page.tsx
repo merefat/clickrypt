@@ -335,80 +335,79 @@ export default function VaultPage() {
               </Link>
             </div>
           ) : (
-            <div className="space-y-6">
-              {/* DEDICATED VAULT FOLDERS SECTION */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Folder className="w-4 h-4 text-[#f39c12]" />
-                    <h2 className="text-sm font-extrabold text-[#0f172a]">Vault Folders</h2>
-                    <span className="bg-[#ffffff] text-[#475569] border border-[#cbd5e1] text-[11px] font-extrabold px-2.5 py-0.5 rounded-full shadow-xs">
-                      {folders.length} Folders
-                    </span>
-                  </div>
-                  {selectedFolderId && (
-                    <button
-                      onClick={() => setSelectedFolderId('')}
-                      className="text-xs text-[#0284c7] hover:underline font-extrabold cursor-pointer"
-                    >
-                      Clear Folder Filter
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {/* All Folders Card */}
-                  <div
-                    onClick={() => setSelectedFolderId('')}
-                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                      !selectedFolderId
-                        ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] shadow-sm'
-                        : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] hover:border-[#1fbbd2]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-[#fffbeb] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706]">
-                        <Folder className="w-4 h-4 text-[#f39c12]" />
-                      </div>
-                      <div>
-                        <h3 className="text-xs font-extrabold text-[#0f172a]">All Folders</h3>
-                        <p className="text-[10px] text-[#64748b]">Show all items</p>
-                      </div>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* LEFT COLUMN: Folders Sidebar Panel */}
+              <div className="lg:col-span-1 space-y-3">
+                <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl p-4 shadow-xl space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-[#cbd5e1]">
+                    <div className="flex items-center gap-2">
+                      <Folder className="w-4 h-4 text-[#f39c12]" />
+                      <h2 className="text-sm font-extrabold text-[#0f172a]">Vault Folders</h2>
                     </div>
-                    {!selectedFolderId && <Check className="w-4 h-4 text-[#0284c7]" />}
+
+                    {selectedFolderId && (
+                      <button
+                        onClick={() => setSelectedFolderId('')}
+                        className="text-[11px] text-[#0284c7] hover:underline font-extrabold cursor-pointer"
+                      >
+                        Clear Filter
+                      </button>
+                    )}
                   </div>
 
-                  {/* Vault Folders Cards */}
-                  {folders.map((f) => {
-                    const isSelected = selectedFolderId === f.id;
-                    return (
-                      <div
-                        key={f.id}
-                        onClick={() => setSelectedFolderId(f.id)}
-                        className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                          isSelected
-                            ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] shadow-sm'
-                            : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] hover:border-[#1fbbd2]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 truncate">
-                          <div className="w-8 h-8 rounded-xl bg-[#fffbeb] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706] shrink-0">
-                            <Folder className="w-4 h-4 text-[#f39c12]" />
-                          </div>
-                          <div className="truncate">
-                            <h3 className="text-xs font-extrabold text-[#0f172a] truncate">{f.name}</h3>
-                            <p className="text-[10px] text-[#64748b] truncate">{f.description || 'Vault folder'}</p>
-                          </div>
-                        </div>
-                        {isSelected && <Check className="w-4 h-4 text-[#0284c7] shrink-0" />}
+                  {/* Vertical Folders List */}
+                  <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-0.5">
+                    {/* All Folders Item */}
+                    <div
+                      onClick={() => setSelectedFolderId('')}
+                      className={`w-full flex items-center justify-between p-3 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
+                        !selectedFolderId
+                          ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
+                          : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] text-[#0f172a] hover:border-[#1fbbd2]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <Folder className="w-4 h-4 text-[#f39c12] shrink-0" />
+                        <span className="truncate">All Folders</span>
                       </div>
-                    );
-                  })}
+                      {!selectedFolderId && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
+                    </div>
+
+                    {/* Created Folders Items */}
+                    {folders.map((f) => {
+                      const isSelected = selectedFolderId === f.id;
+                      return (
+                        <div
+                          key={f.id}
+                          onClick={() => setSelectedFolderId(f.id)}
+                          className={`w-full flex items-center justify-between p-3 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
+                              : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] text-[#0f172a] hover:border-[#1fbbd2]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 truncate">
+                            <Folder className="w-4 h-4 text-[#f39c12] shrink-0" />
+                            <div className="truncate">
+                              <p className="truncate leading-tight">{f.name}</p>
+                              {f.description && (
+                                <p className="text-[10px] text-[#64748b] font-medium truncate mt-0.5">
+                                  {f.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
-              {/* Passwords Data Table Card */}
-              <div className="glass-panel rounded-2xl border border-[#d0dbe5] overflow-hidden shadow-xl bg-[#ffffff]">
+              {/* RIGHT COLUMN: Passwords Data Table */}
+              <div className="lg:col-span-3">
+                <div className="glass-panel rounded-2xl border border-[#d0dbe5] overflow-hidden shadow-xl bg-[#ffffff]">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#e6eff7] text-[#334155] font-extrabold uppercase tracking-wider border-b border-[#cbd5e1]">
@@ -546,7 +545,8 @@ export default function VaultPage() {
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
         </main>
       </div>
 

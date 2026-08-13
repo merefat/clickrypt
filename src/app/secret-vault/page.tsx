@@ -261,253 +261,241 @@ export default function SecretVaultPage() {
             </div>
           </div>
 
-          {/* Explanation Banner with Create Private Folder button */}
-          <div className="glass-panel p-5 rounded-2xl border border-[#d0dbe5] bg-[#ffffff] flex items-center justify-between shadow-xl">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7]">
-                <Lock className="w-6 h-6 text-[#0284c7]" />
-              </div>
-              <div>
-                <h3 className="text-sm font-extrabold text-[#0f172a]">This is your private space</h3>
-                <p className="text-xs text-[#64748b]">
-                  Items added here are encrypted for you only and can be shared with specific members or external users.
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={handleCreateFolderPrompt}
-              className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow cursor-pointer"
-            >
-              <FolderPlus className="w-4 h-4" />
-              <span>Create Private Folder</span>
-            </button>
-          </div>
-
-          {/* DEDICATED PRIVATE SECRET FOLDERS SECTION */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Folder className="w-4 h-4 text-[#f39c12]" />
-                <h2 className="text-sm font-extrabold text-[#0f172a]">Private Secret Folders</h2>
-                <span className="bg-[#ffffff] text-[#475569] border border-[#cbd5e1] text-[11px] font-extrabold px-2.5 py-0.5 rounded-full shadow-xs">
-                  {folders.length} Folders
-                </span>
-              </div>
-              {selectedFolderId && (
-                <button
-                  onClick={() => setSelectedFolderId('')}
-                  className="text-xs text-[#0284c7] hover:underline font-extrabold cursor-pointer"
-                >
-                  Clear Folder Filter
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {/* All Folders Chip Card */}
-              <div
-                onClick={() => setSelectedFolderId('')}
-                className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                  !selectedFolderId
-                    ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] shadow-sm'
-                    : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] hover:border-[#1fbbd2]'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#fffbeb] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706]">
+          {/* 2-COLUMN SIDE-BY-SIDE LAYOUT: Folders on Left Side | Table on Right Side */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* LEFT COLUMN: Folders Sidebar Panel */}
+            <div className="lg:col-span-1 space-y-3">
+              <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl p-4 shadow-xl space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-[#cbd5e1]">
+                  <div className="flex items-center gap-2">
                     <Folder className="w-4 h-4 text-[#f39c12]" />
+                    <h2 className="text-sm font-extrabold text-[#0f172a]">Private Folders</h2>
                   </div>
-                  <div>
-                    <h3 className="text-xs font-extrabold text-[#0f172a]">All Private Secret Folders</h3>
-                    <p className="text-[10px] text-[#64748b]">Show all items</p>
-                  </div>
-                </div>
-                {!selectedFolderId && <Check className="w-4 h-4 text-[#0284c7]" />}
-              </div>
 
-              {/* Created Private Folders Cards */}
-              {folders.map((f) => {
-                const isSelected = selectedFolderId === f.id;
-                return (
+                  <button
+                    onClick={handleCreateFolderPrompt}
+                    className="gold-cyan-gradient-btn px-2.5 py-1 text-[11px] rounded-lg text-white font-extrabold shadow-sm flex items-center gap-1 cursor-pointer"
+                    title="Create Private Folder"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>New</span>
+                  </button>
+                </div>
+
+                {/* Vertical Folders List */}
+                <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-0.5">
+                  {/* All Folders Item */}
                   <div
-                    key={f.id}
-                    onClick={() => setSelectedFolderId(f.id)}
-                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
-                      isSelected
-                        ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] shadow-sm'
-                        : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] hover:border-[#1fbbd2]'
+                    onClick={() => setSelectedFolderId('')}
+                    className={`w-full flex items-center justify-between p-3 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
+                      !selectedFolderId
+                        ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
+                        : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] text-[#0f172a] hover:border-[#1fbbd2]'
                     }`}
                   >
-                    <div className="flex items-center gap-3 truncate">
-                      <div className="w-8 h-8 rounded-xl bg-[#fffbeb] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706] shrink-0">
-                        <Folder className="w-4 h-4 text-[#f39c12]" />
-                      </div>
-                      <div className="truncate">
-                        <h3 className="text-xs font-extrabold text-[#0f172a] truncate">{f.name}</h3>
-                        <p className="text-[10px] text-[#64748b] truncate">{f.description || 'Private folder'}</p>
-                      </div>
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Folder className="w-4 h-4 text-[#f39c12] shrink-0" />
+                      <span className="truncate">All Private Folders</span>
                     </div>
-                    {isSelected && <Check className="w-4 h-4 text-[#0284c7] shrink-0" />}
+                    {!selectedFolderId && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
                   </div>
-                );
-              })}
-            </div>
-          </div>
 
-          {/* Table Card */}
-          <div className="glass-panel rounded-2xl border border-[#d0dbe5] overflow-hidden shadow-xl bg-[#ffffff]">
-            <div className="p-4 border-b border-[#cbd5e1] flex items-center justify-between text-xs font-extrabold text-[#0284c7]">
-              <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-[#0284c7]" />
-                <span>Private Items ({resources.length})</span>
+                  {/* Created Folders Items */}
+                  {folders.map((f) => {
+                    const isSelected = selectedFolderId === f.id;
+                    return (
+                      <div
+                        key={f.id}
+                        onClick={() => setSelectedFolderId(f.id)}
+                        className={`w-full flex items-center justify-between p-3 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
+                          isSelected
+                            ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
+                            : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] text-[#0f172a] hover:border-[#1fbbd2]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 truncate">
+                          <Folder className="w-4 h-4 text-[#f39c12] shrink-0" />
+                          <div className="truncate">
+                            <p className="truncate leading-tight">{f.name}</p>
+                            {f.description && (
+                              <p className="text-[10px] text-[#64748b] font-medium truncate mt-0.5">
+                                {f.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-
-              {selectedFolderId && (
-                <span className="bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/40 text-[11px] px-2.5 py-0.5 rounded-full font-extrabold">
-                  Filtered by: {folders.find((f) => f.id === selectedFolderId)?.name || 'Private Folder'}
-                </span>
-              )}
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-[#e6eff7] text-[#334155] font-extrabold uppercase tracking-wider border-b border-[#cbd5e1]">
-                  <tr>
-                    <th className="py-3.5 px-6">Item</th>
-                    <th className="py-3.5 px-4">Type</th>
-                    <th className="py-3.5 px-4">Strength</th>
-                    <th className="py-3.5 px-4">Last Accessed</th>
-                    <th className="py-3.5 px-4">Password</th>
-                    <th className="py-3.5 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
+            {/* RIGHT COLUMN: Secrets Data Table */}
+            <div className="lg:col-span-3">
+              <div className="glass-panel rounded-2xl border border-[#d0dbe5] overflow-hidden shadow-xl bg-[#ffffff]">
+                <div className="p-4 border-b border-[#cbd5e1] flex items-center justify-between text-xs font-extrabold text-[#0284c7]">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-[#0284c7]" />
+                    <span>Private Items ({resources.length})</span>
+                  </div>
 
-                <tbody className="divide-y divide-[#e2e8f0]">
-                  {resources.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-12 text-center text-[#64748b] text-xs">
-                        No private secret items found in this view.
-                      </td>
-                    </tr>
-                  ) : (
-                    resources.map((res) => {
-                      const isRevealed = !!revealedPasswords[res.id];
-                      const displayedPass = isRevealed ? revealedPasswords[res.id] : '••••••••';
+                  {selectedFolderId && (
+                    <div className="flex items-center gap-2">
+                      <span className="bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/40 text-[11px] px-2.5 py-0.5 rounded-full font-extrabold">
+                        Filtered by: {folders.find((f) => f.id === selectedFolderId)?.name || 'Private Folder'}
+                      </span>
+                      <button
+                        onClick={() => setSelectedFolderId('')}
+                        className="text-xs text-[#0284c7] hover:underline font-extrabold cursor-pointer"
+                      >
+                        Clear Filter
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-                      return (
-                        <tr
-                          key={res.id}
-                          className="hover:bg-[#f1f6fb] transition-all group border-b border-gray-100"
-                        >
-                          <td className="py-4 px-6">
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold text-xs shadow">
-                                {res.name.slice(0, 2).toUpperCase()}
-                              </div>
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <p className="font-bold text-[#0f172a] text-sm group-hover:text-[#1fbbd2] transition-colors">
-                                    {res.name}
-                                  </p>
-                                  {res.isExternalShared && (
-                                    <span
-                                      className="p-1 rounded-lg bg-amber-50 border border-amber-300 text-[#d97706] inline-flex items-center justify-center shadow-sm"
-                                      title="Shared externally with a non-application member"
-                                    >
-                                      <Globe className="w-3.5 h-3.5 text-[#d97706]" />
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-[11px] text-[#64748b]">{res.username || 'amazon.com'}</p>
-                              </div>
-                            </div>
-                          </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#e6eff7] text-[#334155] font-extrabold uppercase tracking-wider border-b border-[#cbd5e1]">
+                      <tr>
+                        <th className="py-3.5 px-6">Item</th>
+                        <th className="py-3.5 px-4">Type</th>
+                        <th className="py-3.5 px-4">Strength</th>
+                        <th className="py-3.5 px-4">Last Accessed</th>
+                        <th className="py-3.5 px-4">Password</th>
+                        <th className="py-3.5 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
 
-                          <td className="py-4 px-4 text-[#334155] font-medium">
-                            <span className="inline-flex items-center gap-1 text-[#334155]">
-                              <Lock className="w-3 h-3 text-[#d97706]" />
-                              {res.category || 'Password'}
-                            </span>
-                          </td>
-
-                          <td className="py-4 px-4">
-                            <div className="flex flex-col">
-                              <span className="text-emerald-600 font-extrabold flex items-center gap-1">
-                                <ShieldAlert className="w-3 h-3 text-emerald-600" />
-                                {res.strength || 'Strong'}
-                              </span>
-                              <span className="text-[10px] text-[#64748b]">Score: {res.score || 92}/100</span>
-                            </div>
-                          </td>
-
-                          <td className="py-4 px-4 text-[#64748b] text-[11px]">{res.lastModified}</td>
-
-                          {/* PASSWORD COLUMN */}
-                          <td className="py-4 px-4 font-mono">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`px-2.5 py-1 rounded-lg border text-xs ${
-                                  isRevealed
-                                    ? 'bg-[#e0f2fe] text-[#0284c7] font-extrabold border-[#1fbbd2]/40 shadow-inner'
-                                    : 'bg-[#f8fafc] text-[#64748b] font-bold border-[#cbd5e1]'
-                                }`}
-                              >
-                                {displayedPass}
-                              </span>
-                              <button
-                                onClick={() => handleRevealToggle(res)}
-                                className="p-1 text-[#64748b] hover:text-[#0284c7] cursor-pointer"
-                                title={isRevealed ? 'Hide password' : 'Reveal password'}
-                              >
-                                {isRevealed ? <EyeOff className="w-3.5 h-3.5 text-[#0284c7]" /> : <Eye className="w-3.5 h-3.5" />}
-                              </button>
-                              <button
-                                onClick={() => handleCopy(res)}
-                                className="p-1 text-[#64748b] hover:text-[#d97706] cursor-pointer"
-                                title="Copy password to clipboard"
-                              >
-                                <Copy className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-
-                          <td className="py-4 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                onClick={() => setShareResourceId(res.id)}
-                                className="p-1.5 text-gray-500 hover:text-[#1fbbd2] hover:bg-[#e2e8f0] rounded-lg transition-all cursor-pointer"
-                                title="Share private item with members, groups, or external users"
-                              >
-                                <Share2 className="w-4 h-4" />
-                              </button>
-
-                              <button
-                                onClick={() => {
-                                  setEditingItem(res);
-                                  setIsDrawerOpen(true);
-                                }}
-                                className="p-1.5 text-gray-500 hover:text-[#d97706] hover:bg-[#e2e8f0] rounded-lg transition-all cursor-pointer"
-                                title="Edit item"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-
-                              <button
-                                onClick={() => handleDelete(res.id)}
-                                className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                                title="Delete item"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
+                    <tbody className="divide-y divide-[#e2e8f0]">
+                      {resources.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-[#64748b] text-xs">
+                            No private secret items found in this view.
                           </td>
                         </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                      ) : (
+                        resources.map((res) => {
+                          const isRevealed = !!revealedPasswords[res.id];
+                          const displayedPass = isRevealed ? revealedPasswords[res.id] : '••••••••';
+
+                          return (
+                            <tr
+                              key={res.id}
+                              className="hover:bg-[#f1f6fb] transition-all group border-b border-gray-100"
+                            >
+                              <td className="py-4 px-6">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold text-xs shadow">
+                                    {res.name.slice(0, 2).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-bold text-[#0f172a] text-sm group-hover:text-[#1fbbd2] transition-colors">
+                                        {res.name}
+                                      </p>
+                                      {res.isExternalShared && (
+                                        <span
+                                          className="p-1 rounded-lg bg-amber-50 border border-amber-300 text-[#d97706] inline-flex items-center justify-center shadow-sm"
+                                          title="Shared externally with a non-application member"
+                                        >
+                                          <Globe className="w-3.5 h-3.5 text-[#d97706]" />
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-[#64748b]">{res.username || 'amazon.com'}</p>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="py-4 px-4 text-[#334155] font-medium">
+                                <span className="inline-flex items-center gap-1 text-[#334155]">
+                                  <Lock className="w-3 h-3 text-[#d97706]" />
+                                  {res.category || 'Password'}
+                                </span>
+                              </td>
+
+                              <td className="py-4 px-4">
+                                <div className="flex flex-col">
+                                  <span className="text-emerald-600 font-extrabold flex items-center gap-1">
+                                    <ShieldAlert className="w-3 h-3 text-emerald-600" />
+                                    {res.strength || 'Strong'}
+                                  </span>
+                                  <span className="text-[10px] text-[#64748b]">Score: {res.score || 92}/100</span>
+                                </div>
+                              </td>
+
+                              <td className="py-4 px-4 text-[#64748b] text-[11px]">{res.lastModified}</td>
+
+                              {/* PASSWORD COLUMN */}
+                              <td className="py-4 px-4 font-mono">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={`px-2.5 py-1 rounded-lg border text-xs ${
+                                      isRevealed
+                                        ? 'bg-[#e0f2fe] text-[#0284c7] font-extrabold border-[#1fbbd2]/40 shadow-inner'
+                                        : 'bg-[#f8fafc] text-[#64748b] font-bold border-[#cbd5e1]'
+                                    }`}
+                                  >
+                                    {displayedPass}
+                                  </span>
+                                  <button
+                                    onClick={() => handleRevealToggle(res)}
+                                    className="p-1 text-[#64748b] hover:text-[#0284c7] cursor-pointer"
+                                    title={isRevealed ? 'Hide password' : 'Reveal password'}
+                                  >
+                                    {isRevealed ? <EyeOff className="w-3.5 h-3.5 text-[#0284c7]" /> : <Eye className="w-3.5 h-3.5" />}
+                                  </button>
+                                  <button
+                                    onClick={() => handleCopy(res)}
+                                    className="p-1 text-[#64748b] hover:text-[#d97706] cursor-pointer"
+                                    title="Copy password to clipboard"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+
+                              <td className="py-4 px-4 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    onClick={() => setShareResourceId(res.id)}
+                                    className="p-1.5 text-gray-500 hover:text-[#1fbbd2] hover:bg-[#e2e8f0] rounded-lg transition-all cursor-pointer"
+                                    title="Share private item with members, groups, or external users"
+                                  >
+                                    <Share2 className="w-4 h-4" />
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      setEditingItem(res);
+                                      setIsDrawerOpen(true);
+                                    }}
+                                    className="p-1.5 text-gray-500 hover:text-[#d97706] hover:bg-[#e2e8f0] rounded-lg transition-all cursor-pointer"
+                                    title="Edit item"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleDelete(res.id)}
+                                    className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                                    title="Delete item"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
         </main>
