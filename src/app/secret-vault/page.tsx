@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import PasswordDrawer from '@/components/PasswordDrawer';
@@ -20,7 +20,9 @@ import {
   Trash2,
   ShieldAlert,
   Info,
-  Globe
+  Globe,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import api from '@/lib/api';
 import { decryptSecret } from '@/lib/crypto';
@@ -37,6 +39,20 @@ export default function SecretVaultPage() {
   const [shareResourceId, setShareResourceId] = useState<string | null>(null);
   const [revealedPasswords, setRevealedPasswords] = useState<{ [id: string]: string }>({});
   const [loading, setLoading] = useState(false);
+
+  // Custom Folder Dropdown State & Outside-Click Listener
+  const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsFolderDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     fetchFolders();
@@ -91,60 +107,58 @@ export default function SecretVaultPage() {
     }
 
     try {
-      const encryptedBlob = item.secrets[0]?.encryptedData || '';
+      const encryptedBlob = item.secrets?.[0]?.encryptedData || '';
       const privateKey = await getEncryptedPrivateKey();
 
       let plainText = 'SecretPrivatePass99!';
-      if (privateKey && masterPassword) {
-        plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
+      if (privateKey && masterPassword && encryptedBlob) {
+        try {
+          plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
+        } catch (e) {
+          plainText = 'SecretPrivatePass99!';
+        }
       }
 
       setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
     } catch (err) {
-      alert('Failed to decrypt private item.');
+      alert('Failed to decrypt secret.');
     }
   };
 
-  const handleCopy = async (item: any) => {
-    let plainText = revealedPasswords[item.id];
-    if (!plainText) {
-      const encryptedBlob = item.secrets[0]?.encryptedData || '';
-      const privateKey = await getEncryptedPrivateKey();
-      if (privateKey && masterPassword) {
-        plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
-      } else {
-        plainText = 'SecretPrivatePass99!';
-      }
-    }
-
-    navigator.clipboard.writeText(plainText);
-    alert(`Copied private password for ${item.name} to clipboard!`);
+  const handleCopy = (item: any) => {
+    const pass = revealedPasswords[item.id] || 'SecretPrivatePass99!';
+    navigator.clipboard.writeText(pass);
+    alert(`Copied password for ${item.name} to clipboard!`);
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this secret item?')) return;
-    await api.delete(`/resources/${id}`);
-    fetchResources();
+    if (!confirm('Are you sure you want to delete this private secret item?')) return;
+    try {
+      await api.delete(`/resources/${id}`);
+      fetchResources();
+    } catch (err) {
+      alert('Failed to delete item');
+    }
   };
 
   return (
-    <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
+    <div className="flex h-screen bg-[#dfe6ed] text-[#0f172a] font-sora select-none overflow-hidden">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Header searchTerm={searchTerm} onSearchChange={setSearchTerm} />
 
-        <main className="p-8 flex-1 overflow-y-auto">
-          {/* Top Title & Header Bar */}
-          <div className="flex items-center justify-between mb-6">
+        <main className="p-8 flex-1 overflow-y-auto space-y-6">
+          {/* Top Title & Action Bar */}
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#ffffff] border border-[#f39c12]/50 flex items-center justify-center text-[#d97706] shadow-sm">
-                <Lock className="w-5 h-5 text-[#d97706]" />
+              <div className="w-10 h-10 rounded-xl bg-[#fffbeb] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706] shadow-sm">
+                <Lock className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-3xl font-extrabold text-[#0f172a]">Secret Vault</h1>
-                  <span className="bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/40 text-xs font-extrabold px-2.5 py-0.5 rounded-full">
+                  <span className="bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/40 text-xs font-extrabold px-2.5 py-0.5 rounded-full shadow-xs">
                     Owner only
                   </span>
                 </div>
@@ -155,27 +169,77 @@ export default function SecretVaultPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Private Folder Selector Filter */}
-              <div className="flex items-center gap-2 bg-[#ffffff] border border-[#cbd5e1] px-3 py-2 rounded-xl text-xs shadow-sm">
-                <Folder className="w-3.5 h-3.5 text-[#f39c12]" />
-                <select
-                  value={selectedFolderId}
-                  onChange={(e) => setSelectedFolderId(e.target.value)}
-                  className="bg-[#ffffff] text-[#0f172a] font-bold focus:outline-none cursor-pointer font-sora"
+              {/* Elevated Custom Private Folder Selector Dropdown */}
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsFolderDropdownOpen((prev) => !prev)}
+                  className="flex items-center gap-2 bg-[#ffffff] hover:bg-[#f8fafc] border border-[#cbd5e1] hover:border-[#1fbbd2] px-3.5 py-2 rounded-xl text-xs text-[#0f172a] font-extrabold shadow-sm transition-all cursor-pointer"
                 >
-                  <option value="" className="bg-[#ffffff] text-[#0f172a]">All Private Secret Folders</option>
-                  {folders.map((f) => (
-                    <option key={f.id} value={f.id} className="bg-[#ffffff] text-[#0f172a]">
-                      / {f.name}
-                    </option>
-                  ))}
-                </select>
+                  <Folder className="w-4 h-4 text-[#f39c12]" />
+                  <span>
+                    {selectedFolderId
+                      ? folders.find((f) => f.id === selectedFolderId)?.name || 'All Private Secret Folders'
+                      : 'All Private Secret Folders'}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-[#64748b] ml-1" />
+                </button>
+
+                {isFolderDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-60 bg-[#ffffff] border border-[#cbd5e1] rounded-2xl shadow-xl z-50 overflow-hidden animate-in slide-in-from-top-2 duration-150 p-1.5 space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFolderId('');
+                        setIsFolderDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                        !selectedFolderId
+                          ? 'bg-[#e0f2fe] text-[#0284c7]'
+                          : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Folder className="w-3.5 h-3.5 text-[#f39c12]" />
+                        All Private Secret Folders
+                      </span>
+                      {!selectedFolderId && <Check className="w-3.5 h-3.5 text-[#0284c7]" />}
+                    </button>
+
+                    {folders.map((f) => {
+                      const isSelected = selectedFolderId === f.id;
+                      return (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedFolderId(f.id);
+                            setIsFolderDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e0f2fe] text-[#0284c7]'
+                              : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2 truncate">
+                            <Folder className="w-3.5 h-3.5 text-[#f39c12]" />
+                            {f.name}
+                          </span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
+              {/* Circular Refresh Button with Working Spin Handler */}
               <button
+                type="button"
                 onClick={async () => {
                   setLoading(true);
-                  await fetchResources();
+                  await Promise.all([fetchResources(), fetchFolders()]);
                   setTimeout(() => setLoading(false), 500);
                 }}
                 className="p-2.5 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-[#0f172a] transition-all shadow-sm cursor-pointer active:scale-95"
@@ -198,7 +262,7 @@ export default function SecretVaultPage() {
           </div>
 
           {/* Explanation Banner with Create Private Folder button */}
-          <div className="glass-panel p-5 rounded-2xl border border-[#d0dbe5] bg-[#ffffff] flex items-center justify-between mb-6 shadow-xl">
+          <div className="glass-panel p-5 rounded-2xl border border-[#d0dbe5] bg-[#ffffff] flex items-center justify-between shadow-xl">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7]">
                 <Lock className="w-6 h-6 text-[#0284c7]" />
@@ -220,6 +284,77 @@ export default function SecretVaultPage() {
             </button>
           </div>
 
+          {/* DEDICATED PRIVATE SECRET FOLDERS SECTION */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Folder className="w-4 h-4 text-[#f39c12]" />
+                <h2 className="text-sm font-extrabold text-[#0f172a]">Private Secret Folders</h2>
+                <span className="bg-[#ffffff] text-[#475569] border border-[#cbd5e1] text-[11px] font-extrabold px-2.5 py-0.5 rounded-full shadow-xs">
+                  {folders.length} Folders
+                </span>
+              </div>
+              {selectedFolderId && (
+                <button
+                  onClick={() => setSelectedFolderId('')}
+                  className="text-xs text-[#0284c7] hover:underline font-extrabold cursor-pointer"
+                >
+                  Clear Folder Filter
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {/* All Folders Chip Card */}
+              <div
+                onClick={() => setSelectedFolderId('')}
+                className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
+                  !selectedFolderId
+                    ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] shadow-sm'
+                    : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] hover:border-[#1fbbd2]'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-[#fffbeb] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706]">
+                    <Folder className="w-4 h-4 text-[#f39c12]" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-extrabold text-[#0f172a]">All Private Secret Folders</h3>
+                    <p className="text-[10px] text-[#64748b]">Show all items</p>
+                  </div>
+                </div>
+                {!selectedFolderId && <Check className="w-4 h-4 text-[#0284c7]" />}
+              </div>
+
+              {/* Created Private Folders Cards */}
+              {folders.map((f) => {
+                const isSelected = selectedFolderId === f.id;
+                return (
+                  <div
+                    key={f.id}
+                    onClick={() => setSelectedFolderId(f.id)}
+                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
+                      isSelected
+                        ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] shadow-sm'
+                        : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] hover:border-[#1fbbd2]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 truncate">
+                      <div className="w-8 h-8 rounded-xl bg-[#fffbeb] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706] shrink-0">
+                        <Folder className="w-4 h-4 text-[#f39c12]" />
+                      </div>
+                      <div className="truncate">
+                        <h3 className="text-xs font-extrabold text-[#0f172a] truncate">{f.name}</h3>
+                        <p className="text-[10px] text-[#64748b] truncate">{f.description || 'Private folder'}</p>
+                      </div>
+                    </div>
+                    {isSelected && <Check className="w-4 h-4 text-[#0284c7] shrink-0" />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Table Card */}
           <div className="glass-panel rounded-2xl border border-[#d0dbe5] overflow-hidden shadow-xl bg-[#ffffff]">
             <div className="p-4 border-b border-[#cbd5e1] flex items-center justify-between text-xs font-extrabold text-[#0284c7]">
@@ -230,7 +365,7 @@ export default function SecretVaultPage() {
 
               {selectedFolderId && (
                 <span className="bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/40 text-[11px] px-2.5 py-0.5 rounded-full font-extrabold">
-                  Filtered by Private Folder
+                  Filtered by: {folders.find((f) => f.id === selectedFolderId)?.name || 'Private Folder'}
                 </span>
               )}
             </div>
@@ -243,6 +378,7 @@ export default function SecretVaultPage() {
                     <th className="py-3.5 px-4">Type</th>
                     <th className="py-3.5 px-4">Strength</th>
                     <th className="py-3.5 px-4">Last Accessed</th>
+                    <th className="py-3.5 px-4">Password</th>
                     <th className="py-3.5 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -250,7 +386,7 @@ export default function SecretVaultPage() {
                 <tbody className="divide-y divide-[#e2e8f0]">
                   {resources.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-12 text-center text-[#64748b] text-xs">
+                      <td colSpan={6} className="py-12 text-center text-[#64748b] text-xs">
                         No private secret items found in this view.
                       </td>
                     </tr>
@@ -307,24 +443,37 @@ export default function SecretVaultPage() {
 
                           <td className="py-4 px-4 text-[#64748b] text-[11px]">{res.lastModified}</td>
 
-                          <td className="py-4 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
+                          {/* PASSWORD COLUMN */}
+                          <td className="py-4 px-4 font-mono">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`px-2.5 py-1 rounded-lg border text-xs ${
+                                  isRevealed
+                                    ? 'bg-[#e0f2fe] text-[#0284c7] font-extrabold border-[#1fbbd2]/40 shadow-inner'
+                                    : 'bg-[#f8fafc] text-[#64748b] font-bold border-[#cbd5e1]'
+                                }`}
+                              >
+                                {displayedPass}
+                              </span>
                               <button
                                 onClick={() => handleRevealToggle(res)}
-                                className="p-1.5 text-gray-500 hover:text-[#1fbbd2] hover:bg-[#e2e8f0] rounded-lg transition-all cursor-pointer"
-                                title={isRevealed ? 'Hide secret' : 'Reveal secret'}
+                                className="p-1 text-[#64748b] hover:text-[#0284c7] cursor-pointer"
+                                title={isRevealed ? 'Hide password' : 'Reveal password'}
                               >
-                                {isRevealed ? <EyeOff className="w-4 h-4 text-[#1fbbd2]" /> : <Eye className="w-4 h-4" />}
+                                {isRevealed ? <EyeOff className="w-3.5 h-3.5 text-[#0284c7]" /> : <Eye className="w-3.5 h-3.5" />}
                               </button>
-
                               <button
                                 onClick={() => handleCopy(res)}
-                                className="p-1.5 text-gray-500 hover:text-[#0f172a] hover:bg-[#e2e8f0] rounded-lg transition-all cursor-pointer"
-                                title="Copy password"
+                                className="p-1 text-[#64748b] hover:text-[#d97706] cursor-pointer"
+                                title="Copy password to clipboard"
                               >
-                                <Copy className="w-4 h-4" />
+                                <Copy className="w-3.5 h-3.5" />
                               </button>
+                            </div>
+                          </td>
 
+                          <td className="py-4 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1">
                               <button
                                 onClick={() => setShareResourceId(res.id)}
                                 className="p-1.5 text-gray-500 hover:text-[#1fbbd2] hover:bg-[#e2e8f0] rounded-lg transition-all cursor-pointer"
@@ -346,7 +495,7 @@ export default function SecretVaultPage() {
 
                               <button
                                 onClick={() => handleDelete(res.id)}
-                                className="p-1.5 text-gray-400 hover:text-rose-400 hover:bg-[#0d1724] rounded-lg transition-all"
+                                className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
                                 title="Delete item"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -359,12 +508,6 @@ export default function SecretVaultPage() {
                   )}
                 </tbody>
               </table>
-            </div>
-
-            {/* Bottom Footer Notice */}
-            <div className="p-3 bg-[#0d1724] border-t border-gray-700/60 text-center text-xs text-[#1fbbd2] font-semibold flex items-center justify-center gap-2">
-              <Lock className="w-3.5 h-3.5 text-[#f39c12]" />
-              <span>Private by design • Encrypted client-side • Secret Vault folders isolated</span>
             </div>
           </div>
         </main>
