@@ -37,7 +37,7 @@ export default function PasswordDrawer({
   defaultFolderId = '',
   initialFolderId = '',
 }: PasswordDrawerProps) {
-  const { user, masterPassword } = useAuth();
+  const { user, masterPassword, getEncryptedPrivateKey } = useAuth();
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [url, setUrl] = useState('');
@@ -100,42 +100,52 @@ export default function PasswordDrawer({
       useSymbols: incSymbols,
     });
     setPassword(gen);
-    setShowPassword(true);
   };
 
   const handleCopy = () => {
-    if (!password) return;
-    navigator.clipboard.writeText(password);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (password) {
+      navigator.clipboard.writeText(password);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name || (!password && !editItem)) {
+      alert('Please fill in required fields.');
+      return;
+    }
+
     setLoading(true);
-
     try {
-      let encryptedBlob = `[PGP-ENCRYPTED-BLOB::${Buffer.from(password || 'AcmePass123!').toString('base64')}]`;
+      let encryptedBlob = '';
 
-      if (user?.publicKey) {
-        try {
-          encryptedBlob = await encryptSecret(password || 'AcmePass123!', user.publicKey);
-        } catch (err) {
-          console.warn('Fallback encryption:', err);
+      if (password) {
+        if (user?.publicKey) {
+          encryptedBlob = await encryptSecret(password, user.publicKey);
+        } else {
+          encryptedBlob = `[PGP-ENCRYPTED-BLOB::${Buffer.from(password).toString('base64')}]`;
         }
       }
 
       if (editItem) {
-        await api.put(`/resources/${editItem.id}`, {
+        const updateData: any = {
           name,
           username,
           url,
           category,
           folderId: folderId || null,
           isPrivateOnly: isSecretVault,
-          strength: strength.tier,
-          encryptedData: encryptedBlob,
-        });
+        };
+
+        if (password) {
+          updateData.password = password;
+          updateData.encryptedData = encryptedBlob;
+          updateData.strength = strength.tier;
+        }
+
+        await api.put(`/resources/${editItem.id}`, updateData);
       } else {
         await api.post('/resources', {
           name,
@@ -153,6 +163,7 @@ export default function PasswordDrawer({
       onSaved();
       onClose();
     } catch (err) {
+      console.error(err);
       alert('Failed to save password item.');
     } finally {
       setLoading(false);
@@ -160,19 +171,19 @@ export default function PasswordDrawer({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-sm flex justify-end font-sora">
-      <div className="w-full max-w-md bg-[#17283b] border-l border-[rgba(31,187,210,0.3)] h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-sm flex justify-end font-sora select-none animate-in fade-in duration-200">
+      <div className="w-full max-w-md bg-[#ffffff] border-l border-[#d0dbe5] h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
         {/* Header */}
-        <div className="p-6 border-b border-gray-700/60 flex items-center justify-between bg-[#0d1724]">
+        <div className="p-6 border-b border-[#cbd5e1] flex items-center justify-between bg-[#f8fafc]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center font-bold text-[#0d1724]">
-              <Lock className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center font-bold text-[#0284c7] shadow-xs">
+              <Lock className="w-5 h-5 text-[#0284c7]" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">
+              <h2 className="text-base font-extrabold text-[#0f172a]">
                 {editItem ? 'Edit Password Item' : isSecretVault ? 'New Private Secret' : 'New Password Item'}
               </h2>
-              <p className="text-[11px] text-[#1fbbd2]">
+              <p className="text-[11px] text-[#0284c7] font-bold">
                 {isSecretVault ? 'Secret Vault Private Folder Scope' : 'Client-side OpenPGP Encryption'}
               </p>
             </div>
@@ -180,7 +191,7 @@ export default function PasswordDrawer({
 
           <button
             onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-all"
+            className="p-1.5 text-gray-400 hover:text-[#0f172a] rounded-lg hover:bg-[#f1f5f9] transition-all cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -189,41 +200,41 @@ export default function PasswordDrawer({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
           <div>
-            <label className="block font-semibold text-gray-300 mb-1">Item Title</label>
+            <label className="block font-extrabold text-[#334155] mb-1">Item Title</label>
             <input
               type="text"
               placeholder="e.g. GitHub Production API"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full bg-[#0d1724] border border-gray-700 rounded-lg p-2.5 text-white focus:border-[#1fbbd2] outline-none"
+              className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none font-bold shadow-xs transition-all"
               required
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-gray-300 mb-1">Username / Email</label>
+              <label className="block font-extrabold text-[#334155] mb-1">Username / Email</label>
               <input
                 type="text"
                 placeholder="alex.morgan"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full bg-[#0d1724] border border-gray-700 rounded-lg p-2.5 text-white focus:border-[#1fbbd2] outline-none"
+                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none font-bold shadow-xs transition-all"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-gray-300 mb-1">
+              <label className="block font-extrabold text-[#334155] mb-1">
                 {isSecretVault ? 'Private Folder' : 'Folder'}
               </label>
               <select
                 value={folderId}
                 onChange={(e) => setFolderId(e.target.value)}
-                className="w-full bg-[#0d1724] border border-gray-700 rounded-lg p-2.5 text-white focus:border-[#1fbbd2] outline-none cursor-pointer font-sora"
+                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] focus:border-[#1fbbd2] focus:outline-none cursor-pointer font-sora font-bold shadow-xs transition-all"
               >
-                <option value="" className="bg-[#17283b] text-white">No Folder</option>
+                <option value="" className="bg-[#ffffff] text-[#0f172a]">No Folder</option>
                 {folders.map((f) => (
-                  <option key={f.id} value={f.id} className="bg-[#17283b] text-white">
+                  <option key={f.id} value={f.id} className="bg-[#ffffff] text-[#0f172a]">
                     / {f.name}
                   </option>
                 ))}
@@ -232,26 +243,26 @@ export default function PasswordDrawer({
           </div>
 
           <div>
-            <label className="block font-semibold text-gray-300 mb-1">Website URL</label>
+            <label className="block font-extrabold text-[#334155] mb-1">Website URL</label>
             <input
               type="text"
               placeholder="github.com"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              className="w-full bg-[#0d1724] border border-gray-700 rounded-lg p-2.5 text-white focus:border-[#1fbbd2] outline-none"
+              className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none font-bold shadow-xs transition-all"
             />
           </div>
 
           {/* Password Input & Reveal */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="font-semibold text-gray-300">Password</label>
+              <label className="font-extrabold text-[#334155]">Password</label>
               <button
                 type="button"
                 onClick={handleGenerate}
-                className="text-[#f39c12] hover:underline text-[11px] font-bold flex items-center gap-1"
+                className="text-[#d97706] hover:underline text-[11px] font-extrabold flex items-center gap-1 cursor-pointer"
               >
-                <RefreshCw className="w-3 h-3" /> Auto-generate
+                <RefreshCw className="w-3 h-3 text-[#d97706]" /> Auto-generate
               </button>
             </div>
 
@@ -261,24 +272,24 @@ export default function PasswordDrawer({
                 placeholder="Enter password..."
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#0d1724] border border-gray-700 rounded-lg p-2.5 pr-20 font-mono text-white focus:border-[#1fbbd2] outline-none"
+                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 pr-20 font-mono font-bold text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none shadow-xs transition-all"
               />
 
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="p-1 text-gray-400 hover:text-white"
+                  className="p-1 text-gray-400 hover:text-[#0f172a] cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="p-1 text-gray-400 hover:text-white"
+                  className="p-1 text-gray-400 hover:text-[#0f172a] cursor-pointer"
                   title="Copy password"
                 >
-                  {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>
             </div>
@@ -286,10 +297,10 @@ export default function PasswordDrawer({
             {password && (
               <div className="mt-2 space-y-1">
                 <div className="flex justify-between text-[10px]">
-                  <span className="text-gray-400">Strength Rating</span>
-                  <span className="font-bold text-[#f39c12]">{strength.tier} ({strength.score}/100)</span>
+                  <span className="text-[#64748b] font-bold">Strength Rating</span>
+                  <span className="font-extrabold text-[#d97706]">{strength.tier} ({strength.score}/100)</span>
                 </div>
-                <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                <div className="w-full bg-[#cbd5e1] h-1.5 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-[#f39c12] to-[#1fbbd2] transition-all"
                     style={{ width: `${strength.score}%` }}
@@ -300,10 +311,10 @@ export default function PasswordDrawer({
           </div>
 
           {/* Generator Controls */}
-          <div className="glass-panel-gold p-4 rounded-xl space-y-3 bg-[#0d1724]/80">
-            <div className="flex items-center justify-between text-xs font-bold text-white">
+          <div className="p-4 rounded-2xl space-y-3 bg-[#f8fafc] border border-[#cbd5e1] shadow-xs">
+            <div className="flex items-center justify-between text-xs font-extrabold text-[#0f172a]">
               <span>Generator Customizer</span>
-              <span className="text-[#f39c12] font-mono">{passLength} chars</span>
+              <span className="text-[#d97706] font-mono font-extrabold">{passLength} chars</span>
             </div>
 
             <input
@@ -312,10 +323,10 @@ export default function PasswordDrawer({
               max={32}
               value={passLength}
               onChange={(e) => setPassLength(Number(e.target.value))}
-              className="w-full accent-[#f39c12] bg-gray-800 h-1.5 rounded-lg cursor-pointer"
+              className="w-full accent-[#f39c12] bg-[#cbd5e1] h-1.5 rounded-lg cursor-pointer"
             />
 
-            <div className="grid grid-cols-3 gap-2 text-[10px] text-gray-300 pt-1">
+            <div className="grid grid-cols-3 gap-2 text-[10px] text-[#334155] font-extrabold pt-1">
               <label className="flex items-center gap-1.5 cursor-pointer">
                 <input
                   type="checkbox"
@@ -352,7 +363,7 @@ export default function PasswordDrawer({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 bg-gray-800 text-gray-300 rounded-xl font-bold hover:bg-gray-700 transition-all"
+              className="flex-1 py-2.5 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] text-[#334155] rounded-xl font-extrabold transition-all cursor-pointer shadow-xs"
             >
               Cancel
             </button>
@@ -360,7 +371,7 @@ export default function PasswordDrawer({
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 py-2.5 gold-cyan-gradient-btn rounded-xl text-[#0d1724] font-extrabold shadow-lg transition-all"
+              className="flex-1 py-2.5 gold-cyan-gradient-btn rounded-xl text-white font-extrabold shadow-md transition-all cursor-pointer"
             >
               {loading ? 'Encrypting & Saving...' : editItem ? 'Save Changes' : 'Create Item'}
             </button>
