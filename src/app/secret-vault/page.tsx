@@ -173,14 +173,15 @@ export default function SecretVaultPage() {
               </div>
 
               <button
-                onClick={() => {
-                  fetchFolders();
-                  fetchResources();
+                onClick={async () => {
+                  setLoading(true);
+                  await fetchResources();
+                  setTimeout(() => setLoading(false), 500);
                 }}
-                className="p-2.5 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl text-[#475569] transition-all shadow-sm cursor-pointer"
-                title="Refresh Secret Vault"
+                className="p-2.5 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-[#0f172a] transition-all shadow-sm cursor-pointer active:scale-95"
+                title="Refresh Secret Vault Data"
               >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 text-[#0284c7] ${loading ? 'animate-spin' : ''}`} />
               </button>
 
               <button
