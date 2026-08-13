@@ -5,6 +5,7 @@ import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import PasswordDrawer from '@/components/PasswordDrawer';
 import ShareModal from '@/components/ShareModal';
+import CreateFolderModal from '@/components/CreateFolderModal';
 import {
   Lock,
   Plus,
@@ -35,6 +36,7 @@ export default function SecretVaultPage() {
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [shareResourceId, setShareResourceId] = useState<string | null>(null);
   const [revealedPasswords, setRevealedPasswords] = useState<{ [id: string]: string }>({});
@@ -512,6 +514,13 @@ export default function SecretVaultPage() {
       <ShareModal
         resourceId={shareResourceId}
         onClose={() => setShareResourceId(null)}
+      />
+
+      <CreateFolderModal
+        isOpen={isFolderModalOpen}
+        onClose={() => setIsFolderModalOpen(false)}
+        onCreated={fetchFolders}
+        isPrivateOnly={true}
       />
     </div>
   );

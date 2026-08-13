@@ -7,12 +7,15 @@ import PasswordDrawer from '@/components/PasswordDrawer';
 import { Folder, Plus, FolderPlus, Trash2, Edit2, Shield, Eye, EyeOff, Copy } from 'lucide-react';
 import api from '@/lib/api';
 
+import CreateFolderModal from '@/components/CreateFolderModal';
+
 export default function FoldersPage() {
   const [folders, setFolders] = useState<any[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [folderItems, setFolderItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
 
   useEffect(() => {
     fetchFolders();
@@ -80,16 +83,7 @@ export default function FoldersPage() {
             </div>
 
             <button
-              onClick={async () => {
-                const folderName = prompt('Enter new Workplace Folder Name:');
-                if (!folderName) return;
-                try {
-                  await api.post('/folders', { name: folderName, isPrivateOnly: false });
-                  fetchFolders();
-                } catch (e) {
-                  alert('Error creating folder');
-                }
-              }}
+              onClick={() => setIsFolderModalOpen(true)}
               className="gold-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow-md cursor-pointer"
             >
               <FolderPlus className="w-4 h-4" />
@@ -212,12 +206,17 @@ export default function FoldersPage() {
         </main>
       </div>
 
-      {/* Password Drawer for adding item to this folder */}
       <PasswordDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
         onSaved={handleSavedItem}
         initialFolderId={selectedFolderId}
+      />
+
+      <CreateFolderModal
+        isOpen={isFolderModalOpen}
+        onClose={() => setIsFolderModalOpen(false)}
+        onCreated={fetchFolders}
       />
     </div>
   );

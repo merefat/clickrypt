@@ -6,6 +6,7 @@ import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import PasswordDrawer from '@/components/PasswordDrawer';
 import ShareModal from '@/components/ShareModal';
+import CreateFolderModal from '@/components/CreateFolderModal';
 import {
   Plus,
   RefreshCw,
@@ -40,6 +41,7 @@ export default function VaultPage() {
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [shareResourceId, setShareResourceId] = useState<string | null>(null);
   const [revealedPasswords, setRevealedPasswords] = useState<{ [id: string]: string }>({});
@@ -345,14 +347,24 @@ export default function VaultPage() {
                       <h2 className="text-sm font-extrabold text-[#0f172a]">Vault Folders</h2>
                     </div>
 
-                    {selectedFolderId && (
+                    <div className="flex items-center gap-2">
+                      {selectedFolderId && (
+                        <button
+                          onClick={() => setSelectedFolderId('')}
+                          className="text-[11px] text-[#0284c7] hover:underline font-extrabold cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
                       <button
-                        onClick={() => setSelectedFolderId('')}
-                        className="text-[11px] text-[#0284c7] hover:underline font-extrabold cursor-pointer"
+                        onClick={() => setIsFolderModalOpen(true)}
+                        className="gold-cyan-gradient-btn px-2.5 py-1 text-[11px] rounded-lg text-white font-extrabold shadow-sm flex items-center gap-1 cursor-pointer"
+                        title="Create New Folder"
                       >
-                        Clear Filter
+                        <Plus className="w-3 h-3" />
+                        <span>New</span>
                       </button>
-                    )}
+                    </div>
                   </div>
 
                   {/* Vertical Folders List */}
@@ -558,6 +570,12 @@ export default function VaultPage() {
       />
 
       <ShareModal resourceId={shareResourceId} onClose={() => setShareResourceId(null)} />
+
+      <CreateFolderModal
+        isOpen={isFolderModalOpen}
+        onClose={() => setIsFolderModalOpen(false)}
+        onCreated={fetchFolders}
+      />
 
       {/* External Shared Secret Preview Modal */}
       {externalSharedSecret && (
