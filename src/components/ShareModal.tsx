@@ -110,6 +110,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
         console.warn('Resource fetch fallback for external share:', err);
       }
 
+      const shortId = Math.random().toString(36).substring(2, 8);
       const rawPayload = JSON.stringify({
         resourceId,
         title,
@@ -117,8 +118,13 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
         exp: Date.now() + 86400000,
       });
 
-      const encodedToken = Buffer.from(rawPayload, 'utf-8').toString('base64');
-      const generatedUrl = `${window.location.origin}/vault?shareToken=${encodedToken}`;
+      try {
+        localStorage.setItem(`clickrypt_share_${shortId}`, rawPayload);
+      } catch (e) {
+        console.warn('LocalStorage share item write warning:', e);
+      }
+
+      const generatedUrl = `${window.location.origin}/vault?st=${shortId}`;
       setExternalShareLink(generatedUrl);
     } catch (err) {
       console.error(err);

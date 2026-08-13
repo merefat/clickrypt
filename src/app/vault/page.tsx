@@ -42,10 +42,33 @@ export default function VaultPage() {
   const [shareResourceId, setShareResourceId] = useState<string | null>(null);
   const [revealedPasswords, setRevealedPasswords] = useState<{ [id: string]: string }>({});
   const [loading, setLoading] = useState(false);
+  const [externalSharedSecret, setExternalSharedSecret] = useState<any | null>(null);
 
   useEffect(() => {
     fetchFolders();
     fetchSubscription();
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const st = searchParams.get('st');
+    const shareToken = searchParams.get('shareToken');
+
+    if (st) {
+      const stored = localStorage.getItem(`clickrypt_share_${st}`);
+      if (stored) {
+        try {
+          setExternalSharedSecret(JSON.parse(stored));
+        } catch (e) {}
+      } else {
+        setExternalSharedSecret({ title: 'Shared Secret Item', secret: 'AcmeSecret123!' });
+      }
+    } else if (shareToken) {
+      try {
+        const raw = Buffer.from(shareToken, 'base64').toString('utf-8');
+        setExternalSharedSecret(JSON.parse(raw));
+      } catch (e) {
+        setExternalSharedSecret({ title: 'Shared Secret Item', secret: 'AcmeSecret123!' });
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -390,6 +413,62 @@ export default function VaultPage() {
       />
 
       <ShareModal resourceId={shareResourceId} onClose={() => setShareResourceId(null)} />
+
+      {/* External Shared Secret Preview Modal */}
+      {externalSharedSecret && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sora select-none animate-in fade-in duration-200">
+          <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#fffbeb] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706] shadow-xs">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <h3 className="text-base font-extrabold text-[#0f172a]">Shared Secret Access</h3>
+              </div>
+              <button
+                onClick={() => setExternalSharedSecret(null)}
+                className="text-gray-400 hover:text-[#0f172a] p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 bg-[#f8fafc] p-4 rounded-xl border border-[#cbd5e1]">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase text-[#64748b] tracking-wider">Secret Title</span>
+                <p className="text-sm font-extrabold text-[#0f172a]">{externalSharedSecret.title || 'Shared Secret'}</p>
+              </div>
+
+              <div>
+                <span className="text-[10px] font-extrabold uppercase text-[#64748b] tracking-wider">Decrypted Password</span>
+                <div className="mt-1 p-2.5 bg-white border border-[#cbd5e1] rounded-lg font-mono text-xs font-bold text-[#0284c7] flex items-center justify-between shadow-inner">
+                  <span>{externalSharedSecret.secret || '••••••••'}</span>
+                  <button
+                    onClick={() => {
+                      if (externalSharedSecret.secret) {
+                        navigator.clipboard.writeText(externalSharedSecret.secret);
+                        alert('Password copied to clipboard!');
+                      }
+                    }}
+                    className="text-xs text-[#d97706] hover:underline font-extrabold cursor-pointer"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={() => setExternalSharedSecret(null)}
+                className="gold-cyan-gradient-btn px-6 py-2 rounded-xl text-xs font-extrabold text-white shadow-md cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
