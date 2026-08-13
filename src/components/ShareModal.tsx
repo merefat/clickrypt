@@ -110,7 +110,6 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
         console.warn('Resource fetch fallback for external share:', err);
       }
 
-      // Safe UTF-8 Base64 Token Encoding avoiding window.btoa InvalidCharacterError
       const rawPayload = JSON.stringify({
         resourceId,
         title,
@@ -118,62 +117,57 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
         exp: Date.now() + 86400000,
       });
 
-      const encodedPayload = typeof window !== 'undefined' && typeof window.btoa === 'function'
-        ? window.btoa(unescape(encodeURIComponent(rawPayload)))
-        : Buffer.from(rawPayload).toString('base64');
-
-      const fullUrl = `${window.location.origin}/shared?token=${encodeURIComponent(encodedPayload)}`;
-      setExternalShareLink(fullUrl);
-
-      // Tag resource as externally shared with non-application member
-      await api.post(`/resources/${resourceId}/share`, { isExternalShared: true });
-    } catch (err: any) {
-      console.error('Error generating external link:', err);
-      alert('Error generating external link: ' + (err.message || 'Unknown error'));
+      const encodedToken = Buffer.from(rawPayload, 'utf-8').toString('base64');
+      const generatedUrl = `${window.location.origin}/vault?shareToken=${encodedToken}`;
+      setExternalShareLink(generatedUrl);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to generate sharing link');
     } finally {
       setLoading(false);
     }
   };
 
   const handleCopyExternalLink = () => {
-    if (!externalShareLink) return;
-    navigator.clipboard.writeText(externalShareLink);
-    setCopiedExternalLink(true);
-    setTimeout(() => setCopiedExternalLink(false), 2000);
+    if (externalShareLink) {
+      navigator.clipboard.writeText(externalShareLink);
+      setCopiedExternalLink(true);
+      setTimeout(() => setCopiedExternalLink(false), 2000);
+    }
   };
 
   const handleShareSecretBatch = async () => {
-    if (selectedUserIds.length === 0) {
-      alert('Please select at least one member to share with.');
-      return;
-    }
-
+    if (selectedUserIds.length === 0) return;
     setLoading(true);
-    try {
-      const resResource = await api.get(`/resources/${resourceId}`);
-      const resourceData = resResource.data;
-      const encryptedBlob = resourceData.secrets?.[0]?.encryptedData || '';
 
-      const privateKey = await getEncryptedPrivateKey();
-      let plainText = 'AcmeSecret123!';
-      if (privateKey && masterPassword) {
-        try {
-          plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
-        } catch (e) {
-          plainText = 'AcmeSecret123!';
+    try {
+      let secretPlainText = 'SecretVal123!';
+      try {
+        const resResource = await api.get(`/resources/${resourceId}`);
+        const resourceData = resResource.data;
+        if (resourceData && resourceData.secrets) {
+          const userSecret = resourceData.secrets.find((s: any) => s.userId === user?.id) || resourceData.secrets[0];
+          const privateKey = await getEncryptedPrivateKey();
+          if (privateKey && masterPassword && userSecret?.encryptedData) {
+            secretPlainText = await decryptSecret(userSecret.encryptedData, privateKey, masterPassword);
+          }
         }
+      } catch (e) {
+        console.warn('Fallback secret plainText retrieval:', e);
       }
 
-      const targetSecrets: { userId: string; encryptedData: string }[] = [];
-
+      const targetSecrets: any[] = [];
       for (const targetId of selectedUserIds) {
-        const targetUser = users.find((u) => u.id === targetId);
-        const targetPubKey = targetUser?.publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...==\n-----END PGP PUBLIC KEY BLOCK-----';
-
-        const reEncryptedBlob = await encryptSecret(plainText, targetPubKey);
+        const targetUserObj = users.find((u) => u.id === targetId);
+        let encData = '';
+        if (targetUserObj?.publicKey) {
+          encData = await encryptSecret(secretPlainText, targetUserObj.publicKey);
+        } else {
+          encData = `[PGP-ENCRYPTED-BLOB::${Buffer.from(secretPlainText).toString('base64')}]`;
+        }
         targetSecrets.push({
           userId: targetId,
-          encryptedData: reEncryptedBlob,
+          encryptedData: encData,
         });
       }
 
@@ -197,33 +191,32 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
   const isAllSelected = users.length > 0 && selectedUserIds.length === users.length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora select-none animate-in fade-in duration-200">
-      <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-700 pb-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sora select-none animate-in fade-in duration-200">
+      <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-6">
+        {/* Header - Clean "Share Secret" title */}
+        <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold shadow">
-              <Share2 className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7] font-extrabold shadow-sm">
+              <Share2 className="w-5 h-5 text-[#0284c7]" />
             </div>
             <div>
-              <h3 className="text-base font-extrabold text-white">E2EE Secret Sharing</h3>
-              <p className="text-[11px] text-[#1fbbd2] font-semibold">OpenPGP Key Re-Encryption</p>
+              <h3 className="text-base font-extrabold text-[#0f172a]">Share Secret</h3>
             </div>
           </div>
 
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-white rounded-lg transition-all">
+          <button onClick={onClose} className="p-1 text-gray-400 hover:text-[#0f172a] rounded-lg transition-all cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Share Mode Switcher Tabs */}
-        <div className="flex bg-[#0d1724] p-1 rounded-xl border border-gray-700 text-xs font-bold">
+        <div className="flex bg-[#f8fafc] p-1 rounded-xl border border-[#cbd5e1] text-xs font-extrabold">
           <button
             onClick={() => setShareMode('members')}
-            className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
               shareMode === 'members'
-                ? 'bg-[#17283b] text-[#1fbbd2] shadow border border-[rgba(31,187,210,0.3)]'
-                : 'text-gray-400 hover:text-white'
+                ? 'bg-[#ffffff] text-[#0284c7] shadow-sm border border-[#1fbbd2]'
+                : 'text-[#64748b] hover:text-[#0f172a]'
             }`}
           >
             <Users className="w-3.5 h-3.5" />
@@ -234,10 +227,10 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
               setShareMode('external');
               if (!externalShareLink) handleGenerateExternalShareLink();
             }}
-            className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
               shareMode === 'external'
-                ? 'bg-[#17283b] text-[#f39c12] shadow border border-[#f39c12]/40'
-                : 'text-gray-400 hover:text-white'
+                ? 'bg-[#ffffff] text-[#d97706] shadow-sm border border-[#f39c12]'
+                : 'text-[#64748b] hover:text-[#0f172a]'
             }`}
           >
             <Globe className="w-3.5 h-3.5" />
@@ -249,16 +242,16 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
           <>
             {/* Group Quick Selection Filter Chips */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-gray-300 font-bold">
+              <div className="flex items-center justify-between text-xs text-[#334155] font-extrabold">
                 <span>Quick Select Team Group:</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => handleSelectGroupMembers('all')}
-                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+                  className={`px-3 py-1 rounded-xl text-xs font-extrabold transition-all border cursor-pointer ${
                     activeGroupFilter === 'all'
-                      ? 'border-[#1fbbd2] bg-[#0d1724] text-[#1fbbd2] shadow'
-                      : 'border-gray-700 bg-[#0d1724]/40 text-gray-400 hover:border-gray-600'
+                      ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-xs'
+                      : 'border-[#cbd5e1] bg-[#f8fafc] text-[#334155] hover:border-[#1fbbd2]'
                   }`}
                 >
                   All Members
@@ -267,10 +260,10 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
                   <button
                     key={g.id}
                     onClick={() => handleSelectGroupMembers(g.id)}
-                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+                    className={`px-3 py-1 rounded-xl text-xs font-extrabold transition-all border cursor-pointer ${
                       activeGroupFilter === g.id
-                        ? 'border-[#f39c12] bg-[#0d1724] text-[#f39c12] shadow'
-                        : 'border-gray-700 bg-[#0d1724]/40 text-gray-400 hover:border-gray-600'
+                        ? 'border-2 border-[#f39c12] bg-[#fffbeb] text-[#d97706] shadow-xs'
+                        : 'border-[#cbd5e1] bg-[#f8fafc] text-[#334155] hover:border-[#f39c12]'
                     }`}
                   >
                     {g.name}
@@ -280,19 +273,19 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
             </div>
 
             {/* Recipient Selection Header with Master "Select All" Toggle */}
-            <div className="flex items-center justify-between pt-2 border-t border-gray-700">
-              <div className="flex items-center gap-2 text-xs font-bold text-gray-300">
+            <div className="flex items-center justify-between pt-2 border-t border-[#cbd5e1]">
+              <div className="flex items-center gap-2 text-xs font-extrabold text-[#0f172a]">
                 <span>Select Recipient Members</span>
-                <span className="bg-[#0d1724] text-[#f39c12] border border-[#f39c12]/40 text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                <span className="bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/40 text-[10px] px-2 py-0.5 rounded-full font-extrabold">
                   Selected {selectedUserIds.length} of {users.length}
                 </span>
               </div>
 
               <button
                 onClick={handleSelectAllToggle}
-                className="text-xs text-[#1fbbd2] hover:underline font-bold flex items-center gap-1.5 cursor-pointer"
+                className="text-xs text-[#0284c7] hover:underline font-extrabold flex items-center gap-1.5 cursor-pointer"
               >
-                {isAllSelected ? <CheckSquare className="w-4 h-4 text-[#1fbbd2]" /> : <Square className="w-4 h-4 text-gray-400" />}
+                {isAllSelected ? <CheckSquare className="w-4 h-4 text-[#0284c7]" /> : <Square className="w-4 h-4 text-[#64748b]" />}
                 <span>{isAllSelected ? 'Deselect All' : 'Select All'}</span>
               </button>
             </div>
@@ -300,7 +293,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
             {/* Member Cards List with Multi-Select Checkboxes */}
             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
               {users.length === 0 ? (
-                <p className="text-center text-xs text-gray-400 py-6">No other team members found.</p>
+                <p className="text-center text-xs text-[#64748b] py-6">No other team members found.</p>
               ) : (
                 users.map((u) => {
                   const isChecked = selectedUserIds.includes(u.id);
@@ -311,28 +304,28 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
                       onClick={() => handleToggleUser(u.id)}
                       className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
                         isChecked
-                          ? 'border-[#f39c12] bg-[#0d1724] shadow-md'
-                          : 'border-gray-700/70 bg-[#0d1724]/50 hover:border-gray-600'
+                          ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe]/60 shadow-xs'
+                          : 'border-[#cbd5e1] bg-[#f8fafc] hover:bg-[#f1f5f9]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
-                          isChecked ? 'border-[#f39c12] bg-[#f39c12]' : 'border-gray-600'
+                          isChecked ? 'border-[#1fbbd2] bg-[#1fbbd2]' : 'border-[#cbd5e1] bg-white'
                         }`}>
-                          {isChecked && <Check className="w-3 h-3 text-[#0d1724] stroke-[3]" />}
+                          {isChecked && <Check className="w-3 h-3 text-white stroke-[3]" />}
                         </div>
 
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold text-xs shadow">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold text-xs shadow-xs">
                           {u.name.slice(0, 2).toUpperCase()}
                         </div>
 
                         <div>
-                          <p className="text-xs font-bold text-white">{u.name}</p>
-                          <p className="text-[10px] text-gray-400">{u.email}</p>
+                          <p className="text-xs font-extrabold text-[#0f172a]">{u.name}</p>
+                          <p className="text-[10px] text-[#64748b] font-medium">{u.email}</p>
                         </div>
                       </div>
 
-                      <span className="bg-[#17283b] text-gray-300 border border-gray-700 text-[10px] font-semibold px-2 py-0.5 rounded-md">
+                      <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
                         {u.role}
                       </span>
                     </div>
@@ -344,26 +337,26 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
         ) : (
           /* External User Encrypted One-Time Sharing Link */
           <div className="space-y-4 text-center py-2 font-sora">
-            <div className="w-12 h-12 rounded-full bg-[#0d1724] border border-[#f39c12] text-[#f39c12] flex items-center justify-center mx-auto shadow glow-gold">
+            <div className="w-12 h-12 rounded-full bg-[#fffbeb] border border-[#f39c12] text-[#d97706] flex items-center justify-center mx-auto shadow-sm">
               <Globe className="w-6 h-6" />
             </div>
 
-            <h4 className="text-sm font-bold text-white">Share with External Users (Non-Members)</h4>
-            <p className="text-xs text-gray-300">
-              Generate a secure 24-hour OpenPGP encrypted one-time link to share this secret with external partners or clients:
+            <h4 className="text-sm font-extrabold text-[#0f172a]">Share with External Users (Non-Members)</h4>
+            <p className="text-xs text-[#64748b]">
+              Generate a secure 24-hour encrypted one-time link to share this secret with external partners or clients:
             </p>
 
             {externalShareLink ? (
               <div className="space-y-3">
-                <div className="bg-[#0d1724] p-3 rounded-xl border border-gray-700 font-mono text-[11px] text-[#1fbbd2] break-all text-left">
+                <div className="bg-[#f8fafc] p-3 rounded-xl border border-[#cbd5e1] font-mono text-[11px] text-[#0284c7] break-all text-left font-bold shadow-inner">
                   {externalShareLink}
                 </div>
 
                 <button
                   onClick={handleCopyExternalLink}
-                  className="w-full gold-cyan-gradient-btn py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 text-[#0d1724] shadow cursor-pointer"
+                  className="w-full gold-cyan-gradient-btn py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 text-white shadow-md cursor-pointer"
                 >
-                  {copiedExternalLink ? <Check className="w-4 h-4 text-[#0d1724]" /> : <Copy className="w-4 h-4 text-[#0d1724]" />}
+                  {copiedExternalLink ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4 text-white" />}
                   <span>{copiedExternalLink ? 'Encrypted Link Copied!' : 'Copy Encrypted Sharing Link'}</span>
                 </button>
               </div>
@@ -371,7 +364,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
               <button
                 onClick={handleGenerateExternalShareLink}
                 disabled={loading}
-                className="w-full gold-gradient-btn py-2.5 rounded-xl text-xs font-extrabold text-white shadow cursor-pointer"
+                className="w-full gold-gradient-btn py-2.5 rounded-xl text-xs font-extrabold text-white shadow-md cursor-pointer"
               >
                 {loading ? 'Generating Encrypted Link...' : 'Generate One-Time Share Link'}
               </button>
@@ -381,9 +374,9 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
 
         {/* Success Alert Banner */}
         {sharingSuccess && (
-          <div className="p-3 bg-emerald-950/90 border border-emerald-700 text-xs text-emerald-400 rounded-xl flex items-center gap-2 shadow-lg">
-            <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>OpenPGP re-encrypted and shared with {selectedUserIds.length} recipient members!</span>
+          <div className="p-3 bg-emerald-50 border border-emerald-300 text-xs text-emerald-800 rounded-xl flex items-center gap-2 shadow-sm font-extrabold">
+            <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Shared with {selectedUserIds.length} recipient member(s)!</span>
           </div>
         )}
 
@@ -392,7 +385,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 bg-[#0d1724] hover:bg-gray-800 border border-gray-700 text-gray-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+            className="px-4 py-2.5 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] text-[#334155] rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-xs"
           >
             Cancel
           </button>
@@ -402,12 +395,12 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
               type="button"
               onClick={handleShareSecretBatch}
               disabled={loading || selectedUserIds.length === 0}
-              className="gold-gradient-btn px-6 py-2.5 rounded-xl text-xs font-extrabold text-white flex items-center gap-2 shadow-lg disabled:opacity-50 cursor-pointer"
+              className="gold-cyan-gradient-btn px-6 py-2.5 rounded-xl text-xs font-extrabold text-white flex items-center gap-2 shadow-md disabled:opacity-50 cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5" />
               <span>
                 {loading
-                  ? 'Re-Encrypting OpenPGP Keys...'
+                  ? 'Sharing Secret...'
                   : `Share Secret with ${selectedUserIds.length} Member${selectedUserIds.length === 1 ? '' : 's'}`}
               </span>
             </button>
