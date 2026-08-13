@@ -279,8 +279,8 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
                     <Bell className="w-4 h-4 text-[#d97706]" />
                     <h3 className="text-xs font-extrabold text-[#0f172a]">Security & Vault Notifications</h3>
                     {unreadCount > 0 && (
-                      <span className="bg-[#fffbeb] text-[#d97706] text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-[#f39c12]/40">
-                        {unreadCount} new
+                      <span className="bg-[#f39c12] text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-full shadow-xs whitespace-nowrap">
+                        {unreadCount} New
                       </span>
                     )}
                   </div>
