@@ -36,18 +36,8 @@ export default function Sidebar() {
     <aside className="w-64 bg-[#e4ecf3] border-r border-[#cbd5e1] flex flex-col justify-between p-5 select-none font-sora min-h-screen">
       <div className="space-y-6">
         {/* Brand Header */}
-        <div className="flex items-center gap-3 px-2 py-1">
-          <div className="w-10 h-10 rounded-xl bg-white p-1 border border-[#cbd5e1] flex items-center justify-center shadow-sm overflow-hidden">
-            <img src="/logo.png" alt="Clickrypt Logo" className="w-full h-full object-contain" />
-          </div>
-          <div>
-            <span className="font-extrabold text-lg text-[#0f172a] tracking-wide block leading-none">
-              Clic<span className="text-[#f39c12]">K</span>rypt
-            </span>
-            <span className="text-[10px] text-[#0284c7] font-extrabold tracking-wider uppercase leading-none mt-1 block">
-              Where Passwords Stay Safe
-            </span>
-          </div>
+        <div className="flex items-center justify-start px-2 py-1">
+          <img src="/logo.png" alt="Clickrypt Logo" className="h-14 w-auto object-contain drop-shadow-sm" />
         </div>
 
         {/* Navigation Items */}

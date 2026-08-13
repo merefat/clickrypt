@@ -131,14 +131,8 @@ function RegisterForm() {
       <div className="absolute top-1/3 left-10 w-96 h-96 bg-purple-900/10 rounded-full blur-[120px] pointer-events-none" />
 
       {/* Brand Header */}
-      <div className="flex flex-col items-center gap-1 mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-white p-1 border border-[#cbd5e1] flex items-center justify-center shadow-lg">
-            <img src="/logo.png" alt="Clickrypt Logo" className="w-full h-full object-contain" />
-          </div>
-          <span className="text-3xl font-extrabold text-white">Clic<span className="text-[#f39c12]">K</span>rypt</span>
-        </div>
-        <p className="text-xs text-[#1fbbd2] font-extrabold tracking-wide mt-1">Where Passwords Stay Safe</p>
+      <div className="flex flex-col items-center justify-center mb-6">
+        <img src="/logo.png" alt="Clickrypt Logo" className="h-20 w-auto object-contain drop-shadow-md" />
       </div>
 
       {/* Profile Setup & Pay-to-Enroll Box */}
