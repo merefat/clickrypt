@@ -16,6 +16,8 @@ import {
   Lock,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Check,
   ExternalLink,
   Edit2,
   Trash2,
@@ -43,6 +45,18 @@ export default function VaultPage() {
   const [revealedPasswords, setRevealedPasswords] = useState<{ [id: string]: string }>({});
   const [loading, setLoading] = useState(false);
   const [externalSharedSecret, setExternalSharedSecret] = useState<any | null>(null);
+  const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsFolderDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     fetchFolders();
@@ -74,6 +88,14 @@ export default function VaultPage() {
   useEffect(() => {
     fetchResources();
   }, [searchTerm, selectedFolderId]);
+
+  const handleFullRefresh = async () => {
+    setLoading(true);
+    await Promise.all([fetchResources(), fetchFolders(), fetchSubscription()]);
+    setTimeout(() => {
+      setLoading(false);
+    }, 600);
+  };
 
   const fetchSubscription = async () => {
     try {
@@ -185,29 +207,79 @@ export default function VaultPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Folder Selector Filter with Readable Dropdown Styling */}
-              <div className="flex items-center gap-2 bg-[#ffffff] border border-[#cbd5e1] px-3 py-2 rounded-xl text-xs shadow-sm">
-                <Folder className="w-3.5 h-3.5 text-[#f39c12]" />
-                <select
-                  value={selectedFolderId}
-                  onChange={(e) => setSelectedFolderId(e.target.value)}
-                  className="bg-[#ffffff] text-[#0f172a] font-bold focus:outline-none cursor-pointer font-sora"
+              {/* Custom Styled Elevated Folder Selector Dropdown */}
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsFolderDropdownOpen((prev) => !prev)}
+                  className="flex items-center gap-2 bg-[#ffffff] hover:bg-[#f8fafc] border border-[#cbd5e1] hover:border-[#1fbbd2] px-3.5 py-2 rounded-xl text-xs text-[#0f172a] font-extrabold shadow-sm transition-all cursor-pointer"
                 >
-                  <option value="" className="bg-[#ffffff] text-[#0f172a]">All Folders</option>
-                  {folders.map((f) => (
-                    <option key={f.id} value={f.id} className="bg-[#ffffff] text-[#0f172a]">
-                      {f.name}
-                    </option>
-                  ))}
-                </select>
+                  <Folder className="w-4 h-4 text-[#f39c12]" />
+                  <span>
+                    {selectedFolderId
+                      ? folders.find((f) => f.id === selectedFolderId)?.name || 'All Folders'
+                      : 'All Folders'}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-[#64748b] ml-1" />
+                </button>
+
+                {isFolderDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-52 bg-[#ffffff] border border-[#cbd5e1] rounded-2xl shadow-xl z-50 overflow-hidden animate-in slide-in-from-top-2 duration-150 p-1.5 space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFolderId('');
+                        setIsFolderDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                        !selectedFolderId
+                          ? 'bg-[#e0f2fe] text-[#0284c7]'
+                          : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Folder className="w-3.5 h-3.5 text-[#f39c12]" />
+                        All Folders
+                      </span>
+                      {!selectedFolderId && <Check className="w-3.5 h-3.5 text-[#0284c7]" />}
+                    </button>
+
+                    {folders.map((f) => {
+                      const isSelected = selectedFolderId === f.id;
+                      return (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedFolderId(f.id);
+                            setIsFolderDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#e0f2fe] text-[#0284c7]'
+                              : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2 truncate">
+                            <Folder className="w-3.5 h-3.5 text-[#f39c12]" />
+                            {f.name}
+                          </span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
+              {/* Working Circular Refresh Button with Live Animation Feedback */}
               <button
-                onClick={fetchResources}
-                className="p-2.5 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl text-[#475569] transition-all shadow-sm cursor-pointer"
-                title="Refresh Vault"
+                type="button"
+                onClick={handleFullRefresh}
+                className="p-2.5 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-[#0f172a] transition-all shadow-sm cursor-pointer active:scale-95"
+                title="Refresh Vault Data"
               >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 text-[#0284c7] ${loading ? 'animate-spin' : ''}`} />
               </button>
 
               <button
