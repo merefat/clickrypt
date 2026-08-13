@@ -2,13 +2,38 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Search, Bell, Shield, AlertTriangle, ArrowRight, X, Database, Check, ExternalLink, Lock, Share2 } from 'lucide-react';
+import {
+  Search,
+  Bell,
+  Shield,
+  ShieldAlert,
+  AlertTriangle,
+  ArrowRight,
+  X,
+  Check,
+  ExternalLink,
+  Share2,
+  Clock,
+  KeyRound,
+  Folder
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
 
 interface HeaderProps {
   searchTerm?: string;
   onSearchChange?: (val: string) => void;
+}
+
+interface VaultNotification {
+  id: string;
+  title: string;
+  desc: string;
+  time: string;
+  type: 'leak' | 'outdated' | 'shared';
+  unread: boolean;
+  actionUrl: string;
+  actionText: string;
 }
 
 export default function Header({ searchTerm = '', onSearchChange }: HeaderProps) {
@@ -18,49 +43,49 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
   const [subscription, setSubscription] = useState<any | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(3);
 
-  const [notifications, setNotifications] = useState([
+  // Notifications state strictly constrained to the 3 user-requested categories:
+  // 1. Leaked / Compromised Passwords
+  // 2. Passwords older than 6 months
+  // 3. Shared passwords or folders with other people
+  const [notifications, setNotifications] = useState<VaultNotification[]>([
     {
-      id: 'notif-1',
-      title: 'Subscription Renewal Notice',
-      desc: 'Your credit is almost finished (3 days left). Renew now to prevent vault lock out.',
-      time: '10m ago',
-      type: 'warning',
+      id: 'notif-leak-1',
+      title: '🚨 Leaked Password Detected!',
+      desc: 'Master credential for "AWS Production API Key" was found in a recent public data breach database. Change this password immediately.',
+      time: 'Just now',
+      type: 'leak',
       unread: true,
-      actionUrl: '/pay',
-      actionText: 'Renew via Stripe',
+      actionUrl: '/vault',
+      actionText: 'Change Leaked Password',
     },
     {
-      id: 'notif-2',
-      title: 'Secret Shared with You',
-      desc: 'Alex Morgan shared GitHub developer credentials with your OpenPGP public key.',
-      time: '1h ago',
-      type: 'share',
+      id: 'notif-old-1',
+      title: '⏳ Outdated Password Alert (>6 Months)',
+      desc: 'Your master password for "Corporate Email Portal" was last updated 7 months ago (Jan 12, 2025). Please rotate it for optimal security.',
+      time: '2h ago',
+      type: 'outdated',
+      unread: true,
+      actionUrl: '/vault',
+      actionText: 'Rotate Outdated Password',
+    },
+    {
+      id: 'notif-share-1',
+      title: '🔗 Secret & Folder Shared Alert',
+      desc: 'Folder "Engineering Credentials" and secret "Production DB Secret" were shared with Sarah Johnson & Mark Wilson via OpenPGP.',
+      time: '1d ago',
+      type: 'shared',
       unread: true,
       actionUrl: '/shared',
-      actionText: 'View Shared Secret',
-    },
-    {
-      id: 'notif-3',
-      title: 'Supabase PostgreSQL Cloud Connected',
-      desc: 'Real-time database sync active with project wnhqpfcahtelehdxnwod.supabase.co.',
-      time: '3h ago',
-      type: 'supabase',
-      unread: true,
-    },
-    {
-      id: 'notif-4',
-      title: 'OpenPGP Keyring Verified',
-      desc: 'Client-side RSA 2048-bit keypair generated and stored securely in IndexedDB.',
-      time: '5h ago',
-      type: 'security',
-      unread: false,
+      actionText: 'Manage Shared Access',
     },
   ]);
 
+  const unreadCount = notifications.filter((n) => n.unread).length;
+
   useEffect(() => {
     fetchSubscription();
+    evaluateRealVaultNotifications();
   }, []);
 
   // Listen for outside clicks to auto-close popover
@@ -97,12 +122,85 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
     }
   };
 
+  const evaluateRealVaultNotifications = async () => {
+    try {
+      const [resResources, resFolders] = await Promise.all([
+        api.get('/resources').catch(() => ({ data: [] })),
+        api.get('/folders').catch(() => ({ data: [] })),
+      ]);
+
+      const resources: any[] = resResources.data || [];
+      const folders: any[] = resFolders.data || [];
+      const dynamicNotifs: VaultNotification[] = [];
+
+      // 1. Check for Leaked / Compromised Passwords
+      const leakedItems = resources.filter((r) => r.isPwned || r.isCompromised);
+      if (leakedItems.length > 0) {
+        dynamicNotifs.push({
+          id: 'dyn-leak',
+          title: `🚨 ${leakedItems.length} Leaked Password(s) Found!`,
+          desc: `Secrets such as "${leakedItems[0].name}" were detected in known data breaches. Update them now.`,
+          time: 'Active Alert',
+          type: 'leak',
+          unread: true,
+          actionUrl: '/vault',
+          actionText: 'Fix Compromised Secrets',
+        });
+      }
+
+      // 2. Check for Passwords older than 6 months (180 days)
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+      const oldItems = resources.filter((r) => {
+        if (!r.lastModified) return false;
+        const modDate = new Date(r.lastModified);
+        return modDate < sixMonthsAgo;
+      });
+
+      if (oldItems.length > 0) {
+        dynamicNotifs.push({
+          id: 'dyn-old',
+          title: `⏳ ${oldItems.length} Password(s) Older Than 6 Months`,
+          desc: `Vault item "${oldItems[0].name}" has not been updated in over 6 months. Rotate your passwords regularly.`,
+          time: 'Active Alert',
+          type: 'outdated',
+          unread: true,
+          actionUrl: '/vault',
+          actionText: 'Rotate Old Passwords',
+        });
+      }
+
+      // 3. Check for Shared Folders / Passwords
+      const sharedItems = resources.filter((r) => r.isExternalShared || (r.secrets && r.secrets.length > 1));
+      const sharedFolders = folders.filter((f) => f.isShared || f.groupCount > 0);
+
+      if (sharedItems.length > 0 || sharedFolders.length > 0) {
+        dynamicNotifs.push({
+          id: 'dyn-share',
+          title: '🔗 Active Shared Folders & Passwords',
+          desc: `${sharedItems.length} secret(s) and ${sharedFolders.length} folder(s) are actively shared with team members.`,
+          time: 'Active Sharing',
+          type: 'shared',
+          unread: dynamicNotifs.length === 0,
+          actionUrl: '/shared',
+          actionText: 'Review Shared Access',
+        });
+      }
+
+      if (dynamicNotifs.length > 0) {
+        setNotifications(dynamicNotifs);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleDismissManual = () => {
     setShowBanner(false);
   };
 
   const handleMarkAllAsRead = () => {
-    setUnreadCount(0);
     setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
   };
 
@@ -161,12 +259,14 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
           <div className="relative" ref={popoverRef}>
             <button
               onClick={() => setShowNotifications((prev) => !prev)}
-              className="p-2 text-gray-600 hover:text-black relative bg-[#ffffff] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl transition-all shadow-sm cursor-pointer"
-              title="Notifications"
+              className="w-9 h-9 rounded-full bg-[#ffffff] border border-[#cbd5e1] hover:border-[#1fbbd2] flex items-center justify-center text-[#0f172a] shadow-sm transition-all relative cursor-pointer"
+              title="Vault Notifications"
             >
-              <Bell className="w-4 h-4" />
+              <Bell className="w-4 h-4 text-[#d97706]" />
               {unreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-[#f39c12] rounded-full animate-pulse" />
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#f39c12] text-white text-[9px] font-extrabold flex items-center justify-center shadow">
+                  {unreadCount}
+                </span>
               )}
             </button>
 
@@ -177,9 +277,9 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
                 <div className="p-4 bg-[#f8fafc] border-b border-[#cbd5e1] flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Bell className="w-4 h-4 text-[#d97706]" />
-                    <h3 className="text-xs font-extrabold text-[#0f172a]">Vault Notifications</h3>
+                    <h3 className="text-xs font-extrabold text-[#0f172a]">Security & Vault Notifications</h3>
                     {unreadCount > 0 && (
-                      <span className="bg-[#f39c12]/20 text-[#d97706] text-[10px] font-bold px-2 py-0.5 rounded-full border border-[#f39c12]/30">
+                      <span className="bg-[#fffbeb] text-[#d97706] text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-[#f39c12]/40">
                         {unreadCount} new
                       </span>
                     )}
@@ -188,51 +288,68 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
                   {unreadCount > 0 && (
                     <button
                       onClick={handleMarkAllAsRead}
-                      className="text-[11px] text-[#0284c7] hover:underline font-bold"
+                      className="text-[11px] text-[#0284c7] hover:underline font-extrabold"
                     >
                       Mark all as read
                     </button>
                   )}
                 </div>
 
-                {/* Notifications List */}
+                {/* Notifications List strictly containing 3 categories */}
                 <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
-                  {notifications.map((notif) => (
-                    <div
-                      key={notif.id}
-                      className={`p-4 transition-all hover:bg-[#f1f5f9] ${
-                        notif.unread ? 'bg-[#fffbeb] border-l-2 border-l-[#f39c12]' : ''
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          {notif.type === 'warning' && <AlertTriangle className="w-4 h-4 text-[#d97706] shrink-0" />}
-                          {notif.type === 'share' && <Share2 className="w-4 h-4 text-[#0284c7] shrink-0" />}
-                          {notif.type === 'supabase' && <Database className="w-4 h-4 text-[#d97706] shrink-0" />}
-                          {notif.type === 'security' && <Shield className="w-4 h-4 text-[#0284c7] shrink-0" />}
-                          <h4 className="text-xs font-bold text-[#0f172a]">{notif.title}</h4>
-                        </div>
-                        <span className="text-[10px] text-gray-400 shrink-0">{notif.time}</span>
-                      </div>
-
-                      <p className="text-[11px] text-gray-600 mt-1 pl-6 leading-relaxed">
-                        {notif.desc}
-                      </p>
-
-                      {notif.actionUrl && (
-                        <div className="pl-6 mt-2">
-                          <Link
-                            href={notif.actionUrl}
-                            onClick={() => setShowNotifications(false)}
-                            className="inline-flex items-center gap-1 text-[11px] font-bold text-[#d97706] hover:text-[#b45309] transition-colors"
-                          >
-                            <span>{notif.actionText}</span>
-                            <ArrowRight className="w-3 h-3" />
-                          </Link>
-                        </div>
-                      )}
+                  {notifications.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-[#64748b]">
+                      No active security or sharing notifications.
                     </div>
-                  ))}
+                  ) : (
+                    notifications.map((notif) => (
+                      <div
+                        key={notif.id}
+                        className={`p-4 transition-all hover:bg-[#f1f5f9] ${
+                          notif.unread
+                            ? notif.type === 'leak'
+                              ? 'bg-rose-50/70 border-l-3 border-l-rose-500'
+                              : notif.type === 'outdated'
+                              ? 'bg-[#fffbeb] border-l-3 border-l-[#f39c12]'
+                              : 'bg-[#e0f2fe]/40 border-l-3 border-l-[#1fbbd2]'
+                            : ''
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            {notif.type === 'leak' && <ShieldAlert className="w-4.5 h-4.5 text-rose-600 shrink-0" />}
+                            {notif.type === 'outdated' && <Clock className="w-4.5 h-4.5 text-[#d97706] shrink-0" />}
+                            {notif.type === 'shared' && <Share2 className="w-4.5 h-4.5 text-[#0284c7] shrink-0" />}
+                            <h4 className="text-xs font-extrabold text-[#0f172a]">{notif.title}</h4>
+                          </div>
+                          <span className="text-[10px] text-[#64748b] font-medium shrink-0">{notif.time}</span>
+                        </div>
+
+                        <p className="text-[11px] text-[#334155] mt-1 pl-6 leading-relaxed font-medium">
+                          {notif.desc}
+                        </p>
+
+                        {notif.actionUrl && (
+                          <div className="pl-6 mt-2">
+                            <Link
+                              href={notif.actionUrl}
+                              onClick={() => setShowNotifications(false)}
+                              className={`inline-flex items-center gap-1 text-[11px] font-extrabold transition-colors ${
+                                notif.type === 'leak'
+                                  ? 'text-rose-700 hover:text-rose-900'
+                                  : notif.type === 'outdated'
+                                  ? 'text-[#d97706] hover:text-[#b45309]'
+                                  : 'text-[#0284c7] hover:text-[#0369a1]'
+                              }`}
+                            >
+                              <span>{notif.actionText}</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 {/* Popover Footer */}
@@ -240,9 +357,9 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
                   <Link
                     href="/admin"
                     onClick={() => setShowNotifications(false)}
-                    className="text-xs text-[#0284c7] font-bold hover:underline inline-flex items-center gap-1.5"
+                    className="text-xs text-[#0284c7] font-extrabold hover:underline inline-flex items-center gap-1.5"
                   >
-                    <span>View All Security Audit Logs</span>
+                    <span>View Audit Logs & System Health</span>
                     <ExternalLink className="w-3 h-3" />
                   </Link>
                 </div>
@@ -260,13 +377,13 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
                 className="w-8 h-8 rounded-full object-cover shadow-sm border border-[#1fbbd2]"
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-xs font-extrabold text-[#0f172a] shadow-sm border border-[#1fbbd2]">
-                {user?.name ? user.name.slice(0, 2).toUpperCase() : 'AM'}
+              <div className="w-8 h-8 rounded-full bg-white p-0.5 border border-[#cbd5e1] flex items-center justify-center shadow-sm overflow-hidden">
+                <img src="/logo.png" alt="Clickrypt Logo" className="w-full h-full object-contain" />
               </div>
             )}
             <div className="text-left hidden sm:block">
-              <p className="text-xs font-bold text-[#0f172a] leading-tight">{user?.name || 'Alex Morgan'}</p>
-              <p className="text-[10px] text-[#1fbbd2] font-extrabold leading-tight">{user?.role || 'Owner'}</p>
+              <p className="text-xs font-extrabold text-[#0f172a] leading-tight">{user?.name || 'Alex Morgan'}</p>
+              <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight">{user?.role || 'Owner'}</p>
             </div>
           </div>
         </div>
