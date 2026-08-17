@@ -165,11 +165,12 @@ export default function ImportExportPage() {
     setExportSuccessMessage(null);
 
     try {
-      const res = await api.get('/resources');
-      const allResources = res.data;
+      // Exclude Secret Vault private items from standard vault export
+      const res = await api.get('/resources', { params: { secretVault: false } });
+      const allResources = (res.data || []).filter((r: any) => !r.isPrivateOnly);
 
       if (!allResources || allResources.length === 0) {
-        alert('Vault is empty. No passwords available to export.');
+        alert('Vault is empty. No standard passwords available to export.');
         setLoadingExport(false);
         return;
       }
