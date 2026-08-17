@@ -127,100 +127,100 @@ function RegisterForm() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b0f17] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden select-none">
-      <div className="absolute top-1/3 left-10 w-96 h-96 bg-purple-900/10 rounded-full blur-[120px] pointer-events-none" />
+    <div className="min-h-screen bg-[#dfe6ed] text-[#0f172a] flex flex-col items-center justify-center p-6 relative overflow-hidden select-none font-sora">
+      <div className="absolute top-1/3 left-10 w-96 h-96 bg-[#1fbbd2]/15 rounded-full blur-[140px] pointer-events-none" />
 
       {/* Brand Header */}
       <div className="flex flex-col items-center justify-center mb-6">
-        <img src="/logo.png" alt="Clickrypt Logo" className="h-32 w-auto object-contain drop-shadow-xl" />
+        <img src="/logo.png" alt="Clickrypt Logo" className="h-32 w-auto object-contain drop-shadow-md" />
       </div>
 
       {/* Profile Setup & Pay-to-Enroll Box */}
-      <div className="w-full max-w-xl glass-panel p-8 rounded-2xl border border-[rgba(124,58,237,0.25)] shadow-2xl bg-[#151b28]/95 z-10">
+      <div className="w-full max-w-xl glass-panel p-8 rounded-3xl border border-[#d0dbe5] shadow-2xl bg-[#ffffff] z-10">
         <div className="text-center mb-6">
           {isOrgMode && (
-            <div className="inline-flex items-center gap-1.5 bg-purple-950/80 text-purple-300 border border-purple-800 px-3 py-1 rounded-full text-xs font-semibold mb-3">
-              <Building2 className="w-3.5 h-3.5 text-purple-400" />
+            <div className="inline-flex items-center gap-1.5 bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/40 px-3 py-1 rounded-full text-xs font-extrabold mb-3 shadow-xs">
+              <Building2 className="w-3.5 h-3.5 text-[#d97706]" />
               <span>Organization Enrollment (Stripe Payment Gate)</span>
             </div>
           )}
 
           {isInvited && (
-            <div className="inline-flex items-center gap-1.5 bg-purple-950/80 text-purple-300 border border-purple-800 px-3 py-1 rounded-full text-xs font-semibold mb-3">
-              <MailCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="inline-flex items-center gap-1.5 bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/40 px-3 py-1 rounded-full text-xs font-extrabold mb-3 shadow-xs">
+              <MailCheck className="w-3.5 h-3.5 text-[#0284c7]" />
               <span>Invited Member Account ({invitedRole || 'User'})</span>
             </div>
           )}
 
-          <h1 className="text-2xl font-extrabold text-white mb-1">
+          <h1 className="text-2xl font-extrabold text-[#0f172a] mb-1">
             {isOrgMode ? 'Organization Setup & Credit Card Enrollment' : 'Complete Profile Setup'}
           </h1>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-[#64748b] font-medium">
             {isOrgMode
               ? 'Complete Stripe credit card payment to enroll and activate your team vault.'
               : 'Set up your master password and OpenPGP key pair.'}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs font-sora">
           <div>
-            <label className="block text-[11px] font-semibold text-gray-300 uppercase tracking-wider mb-1">
+            <label className="block text-[11px] font-extrabold text-[#334155] uppercase tracking-wider mb-1">
               Full Name
             </label>
             <div className="relative">
-              <User className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <User className="w-4 h-4 text-[#64748b] absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Alex Morgan"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                className="w-full bg-[#0b0f17] border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-xs text-white focus:border-purple-500 outline-none"
+                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl pl-10 pr-4 py-2.5 text-xs text-[#0f172a] font-bold placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none shadow-xs transition-all"
                 required
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-semibold text-gray-300 uppercase tracking-wider mb-1">
+            <label className="block text-[11px] font-extrabold text-[#334155] uppercase tracking-wider mb-1">
               Email Address {isInvited && '(Invited & Locked)'}
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Mail className="w-4 h-4 text-[#64748b] absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="email"
                 placeholder="alex.morgan@acme.com"
                 value={email}
                 readOnly={isInvited}
                 onChange={(e) => setEmail(e.target.value)}
-                className={`w-full border rounded-lg pl-10 pr-10 py-2.5 text-xs text-white outline-none ${
+                className={`w-full border rounded-xl pl-10 pr-10 py-2.5 text-xs font-bold outline-none shadow-xs ${
                   isInvited
-                    ? 'bg-[#151b28] border-purple-800 text-purple-300 font-semibold'
-                    : 'bg-[#0b0f17] border-gray-700 focus:border-purple-500'
+                    ? 'bg-[#f8fafc] border-[#cbd5e1] text-[#0284c7]'
+                    : 'bg-[#ffffff] border-[#cbd5e1] text-[#0f172a] focus:border-[#1fbbd2]'
                 }`}
                 required
               />
-              <CheckCircle className="w-4 h-4 text-emerald-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+              <CheckCircle className="w-4 h-4 text-emerald-600 absolute right-3.5 top-1/2 -translate-y-1/2" />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="block text-[11px] font-semibold text-gray-300 uppercase tracking-wider">
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-extrabold text-[#334155] uppercase tracking-wider">
               Master Password
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Lock className="w-4 h-4 text-[#64748b] absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Enter a strong master password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#0b0f17] border border-gray-700 rounded-lg pl-10 pr-10 py-2.5 text-xs font-mono text-white focus:border-purple-500 outline-none"
+                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl pl-10 pr-10 py-2.5 text-xs font-mono font-bold text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none shadow-xs transition-all"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748b] hover:text-[#0f172a] cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -230,7 +230,7 @@ function RegisterForm() {
           <button
             type="button"
             onClick={handleAutoGenerate}
-            className="w-full py-2 bg-[#0b0f17] hover:bg-[#1a202c] border border-purple-900/50 text-purple-300 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all"
+            className="w-full py-2.5 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] text-[#0284c7] text-xs font-extrabold rounded-xl flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             Auto-generate strong password
@@ -238,47 +238,47 @@ function RegisterForm() {
 
           {/* Embedded Stripe Credit Card Section for Organization Mode */}
           {isOrgMode && (
-            <div className="glass-panel p-5 rounded-xl border border-purple-600/40 bg-[#0b0f17]/90 space-y-3 mt-4">
-              <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+            <div className="glass-panel p-5 rounded-2xl border border-[#cbd5e1] bg-[#f8fafc] space-y-3 mt-4 shadow-xs">
+              <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-2">
                 <div className="flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-purple-400" />
-                  <span className="text-xs font-bold text-white">Stripe Payment Gate ($6/user/mo)</span>
+                  <CreditCard className="w-4 h-4 text-[#d97706]" />
+                  <span className="text-xs font-extrabold text-[#0f172a]">Stripe Payment Gate ($6/user/mo)</span>
                 </div>
-                <span className="text-xs font-bold text-purple-300">${annualTotal.toLocaleString()}.00 / yr</span>
+                <span className="text-xs font-extrabold text-[#0284c7]">${annualTotal.toLocaleString()}.00 / yr</span>
               </div>
 
               <div>
-                <label className="block text-[10px] font-semibold text-gray-300 mb-1">Cardholder Name</label>
+                <label className="block text-[10px] font-extrabold text-[#334155] mb-1">Cardholder Name</label>
                 <input
                   type="text"
                   placeholder="Alex Morgan"
                   value={cardHolder}
                   onChange={(e) => setCardHolder(e.target.value)}
-                  className="w-full bg-[#151b28] border border-gray-700 rounded-lg p-2 text-xs text-white"
+                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2 text-xs font-bold text-[#0f172a] shadow-xs"
                   required={isOrgMode}
                 />
               </div>
 
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2">
-                  <label className="block text-[10px] font-semibold text-gray-300 mb-1">Card Number</label>
+                  <label className="block text-[10px] font-extrabold text-[#334155] mb-1">Card Number</label>
                   <input
                     type="text"
                     placeholder="4242 4242 4242 4242"
                     value={cardNumber}
                     onChange={handleCardNumberChange}
-                    className="w-full bg-[#151b28] border border-gray-700 rounded-lg p-2 text-xs font-mono text-white"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2 text-xs font-mono font-bold text-[#0f172a] shadow-xs"
                     required={isOrgMode}
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-gray-300 mb-1">Expiry & CVC</label>
+                  <label className="block text-[10px] font-extrabold text-[#334155] mb-1">Expiry & CVC</label>
                   <input
                     type="text"
                     placeholder="12/28"
                     value={expiry}
                     onChange={(e) => setExpiry(e.target.value)}
-                    className="w-full bg-[#151b28] border border-gray-700 rounded-lg p-2 text-xs font-mono text-white"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2 text-xs font-mono font-bold text-[#0f172a] shadow-xs"
                     required={isOrgMode}
                   />
                 </div>
@@ -289,7 +289,7 @@ function RegisterForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 purple-gradient-btn text-xs font-bold rounded-xl flex items-center justify-center gap-2 mt-4 shadow-xl"
+            className="w-full py-3.5 gold-cyan-gradient-btn text-xs font-extrabold text-white rounded-xl flex items-center justify-center gap-2 mt-4 shadow-md hover:opacity-95 transition-all cursor-pointer"
           >
             <span>
               {loading
@@ -308,7 +308,7 @@ function RegisterForm() {
 
 export default function RegisterPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#0b0f17] flex items-center justify-center text-white text-xs">Loading onboarding...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-[#dfe6ed] flex items-center justify-center text-[#0f172a] text-xs font-bold font-sora">Loading onboarding...</div>}>
       <RegisterForm />
     </Suspense>
   );
