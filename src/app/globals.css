@@ -108,8 +108,20 @@ select option {
   background: #1fbbd2;
 }
 
-/* Print-to-PDF invoice mode */
+/* Print-to-PDF invoice mode: Strict Single-Page Output */
 @media print {
+  @page {
+    size: auto;
+    margin: 8mm;
+  }
+  html, body {
+    height: auto !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+    color: #091528 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
   * {
     visibility: hidden;
   }
@@ -122,9 +134,16 @@ select option {
     left: 0;
     top: 0;
     width: 100%;
+    height: auto;
+    max-height: 270mm;
+    box-sizing: border-box;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
     display: block !important;
-    padding: 2rem;
-    background: #ffffff;
-    color: #091528;
+    padding: 1rem 1.5rem;
+    background: #ffffff !important;
+    color: #091528 !important;
   }
 }

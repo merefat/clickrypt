@@ -436,54 +436,65 @@ export default function StandaloneCheckoutPage() {
         </div>
       )}
       {paymentSuccess && (
-        <div className="invoice-print hidden bg-white text-[#091528] p-8 min-h-screen">
-          <div className="flex items-center gap-3 mb-6">
-            <img src="/logo.png" alt="Clickrypt" className="h-16 w-auto" />
-            <div>
-              <h1 className="text-2xl font-extrabold text-[#091528]">Clickrypt</h1>
-              <p className="text-[#1fbbd2] text-xs">Zero-Knowledge Password Vault</p>
+        <div className="invoice-print hidden bg-white text-[#091528] p-4 max-w-3xl mx-auto box-border">
+          <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-4 mb-4">
+            <div className="flex items-center gap-3">
+              <img src="/logo.png" alt="Clickrypt" className="h-12 w-auto" />
+              <div>
+                <h1 className="text-xl font-extrabold text-[#091528] leading-none">Clickrypt</h1>
+                <p className="text-[#0284c7] text-[11px] font-bold mt-0.5">Zero-Knowledge Password Vault</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <h2 className="text-2xl font-extrabold text-[#091528] tracking-tight">OFFICIAL INVOICE</h2>
+              <p className="text-xs text-[#64748b] font-medium">Stripe Payment Receipt</p>
             </div>
           </div>
 
-          <h2 className="text-3xl font-extrabold text-[#091528] mb-6">INVOICE</h2>
-
-          <div className="text-sm space-y-1 mb-6">
-            <p><span className="font-bold">Invoice #:</span> {paymentSuccess.invoiceId}</p>
-            <p><span className="font-bold">Date:</span> {new Date().toLocaleDateString()}</p>
-            <p><span className="font-bold">Payment ID:</span> {paymentSuccess.paymentIntentId}</p>
-            <p><span className="font-bold">Billed to:</span> {cardHolder}</p>
+          <div className="grid grid-cols-2 gap-4 text-xs mb-4 bg-[#f8fafc] p-3 rounded-xl border border-[#cbd5e1]">
+            <div>
+              <p><span className="font-extrabold text-[#334155]">Invoice #:</span> <span className="font-mono text-[#0284c7] font-bold">{paymentSuccess.invoiceId}</span></p>
+              <p><span className="font-extrabold text-[#334155]">Payment Date:</span> {new Date().toLocaleDateString()}</p>
+            </div>
+            <div className="text-right">
+              <p><span className="font-extrabold text-[#334155]">Billed To:</span> <span className="font-bold text-[#0f172a]">{cardHolder}</span></p>
+              <p><span className="font-extrabold text-[#334155]">Stripe Tx ID:</span> <span className="font-mono text-gray-600">{paymentSuccess.paymentIntentId}</span></p>
+            </div>
           </div>
 
-          <table className="w-full text-sm border-collapse">
-            <thead className="bg-[#1fbbd2] text-white">
+          <table className="w-full text-xs border-collapse border border-[#cbd5e1] rounded-xl overflow-hidden mb-4">
+            <thead className="bg-[#0284c7] text-white font-extrabold">
               <tr>
-                <th className="text-left p-2">Description</th>
-                <th className="text-left p-2">Qty</th>
-                <th className="text-left p-2">Unit Price</th>
-                <th className="text-right p-2">Amount</th>
+                <th className="text-left p-2.5">Description</th>
+                <th className="text-center p-2.5">Qty / Seats</th>
+                <th className="text-left p-2.5">Unit Rate</th>
+                <th className="text-right p-2.5">Amount</th>
               </tr>
             </thead>
-            <tbody>
-              <tr className="border-b border-[#1fbbd2]/40">
-                <td className="p-2">Organization Plan (Annual)</td>
-                <td className="p-2">{seats}</td>
-                <td className="p-2">${pricePerUserPerMonth * 12}.00 / user / year</td>
-                <td className="p-2 text-right">${paymentSuccess.amount}.00</td>
+            <tbody className="divide-y divide-[#e2e8f0]">
+              <tr className="bg-white">
+                <td className="p-2.5 font-bold text-[#0f172a]">Organization Plan (Annual Subscription)</td>
+                <td className="p-2.5 text-center font-bold">{seats} Users</td>
+                <td className="p-2.5 text-[#475569]">${pricePerUserPerMonth * 12}.00 / seat / yr</td>
+                <td className="p-2.5 text-right font-extrabold text-[#0f172a]">${paymentSuccess.amount}.00</td>
               </tr>
-              <tr className="text-emerald-600">
-                <td className="p-2" colSpan={3}>Discount</td>
-                <td className="p-2 text-right">-$0.00</td>
+              <tr className="bg-[#f8fafc] text-emerald-600 font-medium">
+                <td className="p-2.5" colSpan={3}>Volume Subscription Discount</td>
+                <td className="p-2.5 text-right font-extrabold">-$0.00</td>
               </tr>
             </tbody>
-            <tfoot className="bg-[#091528] text-white">
+            <tfoot className="bg-[#0f172a] text-white">
               <tr>
-                <td className="p-2 font-bold" colSpan={3}>Total</td>
-                <td className="p-2 text-right font-bold">${paymentSuccess.amount}.00</td>
+                <td className="p-2.5 font-extrabold text-sm" colSpan={3}>Total Paid (USD)</td>
+                <td className="p-2.5 text-right font-extrabold text-sm text-[#f39c12]">${paymentSuccess.amount}.00</td>
               </tr>
             </tfoot>
           </table>
 
-          <p className="mt-8 text-xs text-[#1fbbd2]">Clickrypt Zero-Knowledge Password Vault • Stripe Payment Portal • Encrypted with OpenPGP</p>
+          <div className="text-center pt-3 border-t border-[#cbd5e1] text-[10px] text-[#64748b]">
+            <p className="font-bold text-[#0284c7]">Clickrypt Zero-Knowledge Password Vault • Stripe Payment Portal • PCI DSS Compliant</p>
+            <p className="mt-0.5">Thank you for your business! Restored sign-in access is active for all organization team members.</p>
+          </div>
         </div>
       )}
     </div>
