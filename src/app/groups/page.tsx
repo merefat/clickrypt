@@ -456,15 +456,16 @@ export default function GroupsPage() {
                 </div>
 
                 {/* Sub-tabs */}
-                <div className="flex items-center gap-6 border-b border-gray-700 mt-4 text-xs font-bold">
+                <div className="flex items-center gap-6 border-b border-[#cbd5e1] mt-4 text-xs">
                   {(['members', 'folders', 'passwords', 'activity'] as const).map((tab) => (
                     <button
                       key={tab}
+                      type="button"
                       onClick={() => setActiveTab(tab)}
-                      className={`pb-3 capitalize transition-all border-b-2 ${
+                      className={`pb-3 capitalize transition-all border-b-2 cursor-pointer ${
                         activeTab === tab
-                          ? 'border-[#1fbbd2] text-[#1fbbd2]'
-                          : 'border-transparent text-gray-400 hover:text-gray-200'
+                          ? 'border-[#1fbbd2] text-[#0284c7] font-extrabold'
+                          : 'border-transparent text-[#64748b] hover:text-[#0f172a] hover:border-[#1fbbd2]/50 font-bold'
                       }`}
                     >
                       {tab}
