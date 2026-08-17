@@ -37,8 +37,8 @@ export async function POST(request: Request) {
         name: email.split('@')[0],
         role: 'User',
         status: 'Active',
-        publicKey: `-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...${newUserId}Public...==\n-----END PGP PUBLIC KEY BLOCK-----`,
-        encryptedPrivateKey: `-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...${newUserId}EncryptedPrivateKey...==\n-----END PGP PRIVATE KEY BLOCK-----`,
+        publicKey: `-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2UserPublicKeyBase64Data2026==\n-----END PGP PUBLIC KEY BLOCK-----`,
+        encryptedPrivateKey: `-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2UserPrivateKeyBase64Data2026==\n-----END PGP PRIVATE KEY BLOCK-----`,
         lastActive: 'Just now',
       };
       db.users.push(user);

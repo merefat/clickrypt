@@ -105,8 +105,8 @@ class BackendDatabase {
       name: 'Alex Morgan',
       role: 'Owner',
       status: 'Active',
-      publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...AlexMorganPublic...==\n-----END PGP PUBLIC KEY BLOCK-----',
-      encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...AlexMorganEncryptedPrivateKey...==\n-----END PGP PRIVATE KEY BLOCK-----',
+      publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2AcmeAlexMorganPublicKeyBase64PayloadData2026==\n-----END PGP PUBLIC KEY BLOCK-----',
+      encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2AcmeAlexMorganPrivateKeyBase64PayloadData2026==\n-----END PGP PRIVATE KEY BLOCK-----',
       lastActive: 'May 24, 2025 10:32 AM',
     },
     {
@@ -115,8 +115,8 @@ class BackendDatabase {
       name: 'Sarah Johnson',
       role: 'Admin',
       status: 'Active',
-      publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...SarahJohnsonPublic...==\n-----END PGP PUBLIC KEY BLOCK-----',
-      encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...SarahPrivateKey...==\n-----END PGP PRIVATE KEY BLOCK-----',
+      publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2AcmeSarahJohnsonPublicKeyBase64PayloadData2026==\n-----END PGP PUBLIC KEY BLOCK-----',
+      encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2AcmeSarahPrivateKeyBase64PayloadData2026==\n-----END PGP PRIVATE KEY BLOCK-----',
       lastActive: 'May 23, 2025 04:15 PM',
     },
     {
@@ -125,8 +125,8 @@ class BackendDatabase {
       name: 'Mark Wilson',
       role: 'User',
       status: 'Active',
-      publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...MarkWilsonPublic...==\n-----END PGP PUBLIC KEY BLOCK-----',
-      encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...MarkPrivateKey...==\n-----END PGP PRIVATE KEY BLOCK-----',
+      publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2AcmeMarkWilsonPublicKeyBase64PayloadData2026==\n-----END PGP PUBLIC KEY BLOCK-----',
+      encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2AcmeMarkPrivateKeyBase64PayloadData2026==\n-----END PGP PRIVATE KEY BLOCK-----',
       lastActive: 'May 22, 2025 09:11 AM',
     },
     {
@@ -135,8 +135,8 @@ class BackendDatabase {
       name: 'Emily Rodriguez',
       role: 'User',
       status: 'Suspended',
-      publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...EmilyPublic...==\n-----END PGP PUBLIC KEY BLOCK-----',
-      encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...EmilyPrivateKey...==\n-----END PGP PRIVATE KEY BLOCK-----',
+      publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2AcmeEmilyPublicKeyBase64PayloadData2026==\n-----END PGP PUBLIC KEY BLOCK-----',
+      encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2AcmeEmilyPrivateKeyBase64PayloadData2026==\n-----END PGP PRIVATE KEY BLOCK-----',
       lastActive: 'May 10, 2025',
     },
     {
