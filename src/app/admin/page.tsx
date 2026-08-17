@@ -424,27 +424,27 @@ export default function AdminPage() {
 
           {/* Account Recovery Requests Tab */}
           {activeTab === 'recovery' && (
-            <div className="glass-panel rounded-2xl border border-[rgba(31,187,210,0.25)] overflow-hidden shadow-2xl bg-[#17283b] space-y-4 p-6">
-              <div className="flex items-center justify-between">
+            <div className="glass-panel rounded-2xl border border-[#d0dbe5] overflow-hidden shadow-xl bg-[#ffffff] space-y-4 p-6">
+              <div className="flex items-center justify-between pb-3 border-b border-[#cbd5e1]">
                 <div>
-                  <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
-                    <KeyRound className="w-5 h-5 text-[#f39c12]" />
+                  <h2 className="text-lg font-extrabold text-[#0f172a] flex items-center gap-2">
+                    <KeyRound className="w-5 h-5 text-[#d97706]" />
                     <span>Account Recovery Requests</span>
                   </h2>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs text-[#64748b] mt-0.5 font-medium">
                     Review and approve zero-knowledge account recovery requests using the Organization Recovery Key.
                   </p>
                 </div>
               </div>
 
               {recoveryRequests.length === 0 ? (
-                <div className="text-center py-12 bg-[#0d1724]/60 rounded-xl border border-gray-700/60 text-xs text-gray-400">
+                <div className="text-center py-12 bg-[#f8fafc] rounded-xl border border-[#cbd5e1] text-xs text-[#64748b] font-medium">
                   No active or past recovery requests found.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-[#0d1724]/90 text-gray-300 font-bold uppercase tracking-wider border-b border-gray-700">
+                    <thead className="bg-[#e6eff7] text-[#334155] font-extrabold uppercase tracking-wider border-b border-[#cbd5e1]">
                       <tr>
                         <th className="py-3.5 px-6">User</th>
                         <th className="py-3.5 px-4">Fingerprint</th>
@@ -453,36 +453,38 @@ export default function AdminPage() {
                         <th className="py-3.5 px-6 text-right">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-700/60">
+                    <tbody className="divide-y divide-[#e2e8f0]">
                       {recoveryRequests.map((req) => (
-                        <tr key={req.id} className="hover:bg-[#0d1724]/60 transition-all border-b border-gray-700/40">
-                          <td className="py-4 px-6 font-bold text-white">
+                        <tr key={req.id} className="hover:bg-[#f1f6fb] transition-all border-b border-gray-100">
+                          <td className="py-4 px-6 font-bold text-[#0f172a]">
                             <div>
-                              <p className="text-white text-sm">{req.userName || 'User'}</p>
-                              <p className="text-[11px] text-gray-400 font-mono">{req.userEmail}</p>
+                              <p className="text-[#0f172a] text-sm font-extrabold">{req.userName || 'User'}</p>
+                              <p className="text-xs text-[#334155] font-mono font-semibold">{req.userEmail}</p>
                             </div>
                           </td>
-                          <td className="py-4 px-4 font-mono text-gray-300 text-[11px]">
-                            {req.fingerprint ? `${req.fingerprint.slice(0, 16)}...` : 'Pending Key'}
+                          <td className="py-4 px-4 font-mono">
+                            <span className="bg-[#e0f2fe] text-[#0284c7] font-extrabold text-[11px] px-2 py-1 rounded-lg border border-[#1fbbd2]/30 shadow-xs inline-block">
+                              {req.fingerprint ? `${req.fingerprint.slice(0, 16)}...` : 'Pending Key'}
+                            </span>
                           </td>
-                          <td className="py-4 px-4 text-gray-400">
+                          <td className="py-4 px-4 text-[#475569] font-medium text-xs">
                             {new Date(req.createdAt).toLocaleDateString()} {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </td>
                           <td className="py-4 px-4">
                             {req.status === 'pending' ? (
-                              <span className="bg-amber-950/80 text-amber-400 border border-amber-600/60 px-2.5 py-1 rounded-full font-bold text-[10px]">
+                              <span className="bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/40 px-3 py-1 rounded-full font-extrabold text-[11px] shadow-xs">
                                 Pending Review
                               </span>
                             ) : req.status === 'approved' ? (
-                              <span className="bg-emerald-950/80 text-emerald-400 border border-emerald-600/60 px-2.5 py-1 rounded-full font-bold text-[10px]">
+                              <span className="bg-emerald-50 text-emerald-700 border border-emerald-300 px-3 py-1 rounded-full font-extrabold text-[11px] shadow-xs">
                                 Approved
                               </span>
                             ) : req.status === 'completed' ? (
-                              <span className="bg-cyan-950/80 text-[#1fbbd2] border border-[#1fbbd2]/60 px-2.5 py-1 rounded-full font-bold text-[10px]">
+                              <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/40 px-3 py-1 rounded-full font-extrabold text-[11px] shadow-xs">
                                 Completed
                               </span>
                             ) : (
-                              <span className="bg-red-950/80 text-red-400 border border-red-600/60 px-2.5 py-1 rounded-full font-bold text-[10px]">
+                              <span className="bg-rose-50 text-rose-700 border border-rose-300 px-3 py-1 rounded-full font-extrabold text-[11px] shadow-xs">
                                 Rejected
                               </span>
                             )}
@@ -491,20 +493,22 @@ export default function AdminPage() {
                             {req.status === 'pending' ? (
                               <div className="flex items-center justify-end gap-2">
                                 <button
+                                  type="button"
                                   onClick={() => handleApproveRecovery(req.id)}
-                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs shadow transition-all"
+                                  className="gold-cyan-gradient-btn px-3.5 py-1.5 rounded-xl font-extrabold text-xs text-white shadow-xs transition-all cursor-pointer active:scale-95"
                                 >
                                   Approve
                                 </button>
                                 <button
+                                  type="button"
                                   onClick={() => handleRejectRecovery(req.id)}
-                                  className="px-3 py-1.5 bg-red-950 hover:bg-red-900 border border-red-700/60 text-red-300 rounded-lg font-bold text-xs shadow transition-all"
+                                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-extrabold text-xs shadow-xs transition-all cursor-pointer active:scale-95"
                                 >
                                   Reject
                                 </button>
                               </div>
                             ) : (
-                              <span className="text-[11px] text-gray-500 italic">No Action Needed</span>
+                              <span className="text-[11px] text-[#64748b] font-extrabold italic">No Action Needed</span>
                             )}
                           </td>
                         </tr>
