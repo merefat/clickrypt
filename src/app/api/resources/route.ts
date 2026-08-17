@@ -14,6 +14,7 @@ export async function GET(request: Request) {
   const search = searchParams.get('search')?.toLowerCase() || '';
   const folderId = searchParams.get('folderId');
   const secretVaultStr = searchParams.get('secretVault');
+  const sharedWithUserId = searchParams.get('sharedWithUserId');
 
   let result = db.resources;
 
@@ -25,6 +26,16 @@ export async function GET(request: Request) {
 
   if (folderId) {
     result = result.filter((r) => r.folderId === folderId);
+  }
+
+  if (sharedWithUserId) {
+    result = result.filter((r) => {
+      const isOwner = r.ownerId === sharedWithUserId;
+      const isSharedOut = isOwner && ((r.secrets && r.secrets.length > 1) || r.isExternalShared);
+      const isRecipient = r.secrets && r.secrets.some((s) => s.userId === sharedWithUserId);
+      const isExplicitlyShared = r.sharedWith && r.sharedWith.includes(sharedWithUserId);
+      return isSharedOut || isRecipient || isExplicitlyShared;
+    });
   }
 
   if (search) {

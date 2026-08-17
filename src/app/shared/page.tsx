@@ -9,22 +9,47 @@ import { useAuth } from '@/context/AuthContext';
 import { decryptSecret } from '@/lib/crypto';
 
 export default function SharedPage() {
-  const { masterPassword, getEncryptedPrivateKey } = useAuth();
+  const { user, masterPassword, getEncryptedPrivateKey } = useAuth();
   const [resources, setResources] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchSharedResources();
-  }, []);
+    if (user) {
+      fetchSharedResources();
+    }
+  }, [user]);
 
   const fetchSharedResources = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/resources', { params: { search: '' } });
-      // Filter items shared with team members or externally shared
-      setResources(res.data.filter((r: any) => (r.secrets && r.secrets.length > 1) || r.isExternalShared));
+      const res = await api.get('/resources', {
+        params: { search: '', sharedWithUserId: user?.id },
+      });
+
+      const currentUserId = user?.id || 'u-1';
+      const currentUserEmail = user?.email || '';
+      const currentUserRole = user?.role || 'User';
+
+      // Strict role and person filtering:
+      // Show items created by logged-in user that were shared OUT,
+      // OR items shared specifically WITH the logged-in user.
+      const filtered = res.data.filter((r: any) => {
+        const isOwner = r.ownerId === currentUserId;
+        const isSharedOut = isOwner && ((r.secrets && r.secrets.length > 1) || r.isExternalShared);
+
+        const hasSecretForUser = r.secrets && r.secrets.some((s: any) => s.userId === currentUserId);
+        const isExplicitlyShared =
+          r.sharedWith &&
+          (r.sharedWith.includes(currentUserId) ||
+            r.sharedWith.includes(currentUserEmail) ||
+            r.sharedWith.includes(currentUserRole));
+
+        return isSharedOut || (!isOwner && (hasSecretForUser || isExplicitlyShared));
+      });
+
+      setResources(filtered);
     } catch (err) {
       console.error(err);
     } finally {
@@ -166,7 +191,7 @@ export default function SharedPage() {
                           <td className="py-4 px-4 text-[#334155]">
                             <div className="flex items-center gap-2 font-semibold">
                               <User className="w-3.5 h-3.5 text-[#d97706]" />
-                              <span>Alex Morgan</span>
+                              <span>{res.ownerId === user?.id ? `You (${user?.name || 'Owner'})` : 'Alex Morgan (Owner)'}</span>
                             </div>
                           </td>
                           <td className="py-4 px-4">
