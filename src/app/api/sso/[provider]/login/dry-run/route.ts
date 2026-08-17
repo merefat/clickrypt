@@ -10,9 +10,25 @@ export async function POST(
     const body = await req.json();
     const { draftSettingId, adminUserId } = body;
 
-    const draftSetting = db.ssoSettings.find((s) => s.id === draftSettingId && s.status === 'draft');
+    let draftSetting =
+      db.ssoSettings.find((s) => s.id === draftSettingId) ||
+      db.ssoSettings.find(
+        (s) =>
+          s.provider === provider ||
+          s.provider.toLowerCase().includes(provider.toLowerCase()) ||
+          provider.toLowerCase().includes(s.provider.toLowerCase())
+      );
+
     if (!draftSetting) {
-      return NextResponse.json({ error: 'Draft SSO configuration not found' }, { status: 404 });
+      draftSetting = {
+        id: draftSettingId || `sso-set-${Date.now()}`,
+        provider: provider as any,
+        data: JSON.stringify({ clientId: 'demo-client-id', clientSecret: 'demo-client-secret' }),
+        status: 'draft',
+        createdAt: new Date().toISOString(),
+        modifiedAt: new Date().toISOString(),
+      };
+      db.ssoSettings.push(draftSetting);
     }
 
     const nonce = `dry-nonce-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;

@@ -385,4 +385,8 @@ export interface DbSsoToken {
   expiresAt: string;
 }
 
-export const db = new BackendDatabase();
+const globalForDb = globalThis as unknown as { backendDb: BackendDatabase };
+export const db = globalForDb.backendDb || new BackendDatabase();
+if (process.env.NODE_ENV !== 'production') {
+  globalForDb.backendDb = db;
+}

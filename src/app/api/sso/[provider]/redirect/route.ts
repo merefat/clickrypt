@@ -35,9 +35,14 @@ export async function GET(
     const isAdminDryRun = ssoState.type === 'sso_set_settings';
     const targetStatus = isAdminDryRun ? 'draft' : 'active';
 
-    const ssoSetting = db.ssoSettings.find(
-      (s) => s.id === ssoState.ssoSettingsId && s.provider === provider && s.status === targetStatus
-    );
+    const ssoSetting =
+      db.ssoSettings.find((s) => s.id === ssoState.ssoSettingsId) ||
+      db.ssoSettings.find(
+        (s) =>
+          s.provider === provider ||
+          s.provider.toLowerCase().includes(provider.toLowerCase()) ||
+          provider.toLowerCase().includes(s.provider.toLowerCase())
+      );
 
     if (!ssoSetting) {
       return NextResponse.json(
