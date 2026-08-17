@@ -446,12 +446,12 @@ export default function VaultPage() {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#e6eff7] text-[#334155] font-extrabold uppercase tracking-wider border-b border-[#cbd5e1]">
                     <tr>
-                      <th className="py-3.5 px-6">Name</th>
-                      <th className="py-3.5 px-4">Username</th>
-                      <th className="py-3.5 px-4">URL</th>
-                      <th className="py-3.5 px-4">Password</th>
-                      <th className="py-3.5 px-4">Last modified</th>
-                      <th className="py-3.5 px-4 text-right">Actions</th>
+                      <th className="py-3.5 px-6 font-extrabold uppercase tracking-wider">Name</th>
+                      <th className="py-3.5 px-4 font-extrabold uppercase tracking-wider">Username</th>
+                      <th className="py-3.5 px-4 font-extrabold uppercase tracking-wider">URL</th>
+                      <th className="py-3.5 px-4 font-extrabold uppercase tracking-wider">Password</th>
+                      <th className="py-3.5 px-4 font-extrabold uppercase tracking-wider">Last modified</th>
+                      <th className="py-3.5 px-6 text-center font-extrabold uppercase tracking-wider min-w-[210px]">Actions</th>
                     </tr>
                   </thead>
 
@@ -536,31 +536,37 @@ export default function VaultPage() {
 
                           <td className="py-4 px-4 text-[#64748b] text-[11px]">{res.lastModified}</td>
 
-                          <td className="py-4 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
+                          <td className="py-4 px-6 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
                               <button
+                                type="button"
                                 onClick={() => setShareResourceId(res.id)}
-                                className="p-1.5 text-gray-500 hover:text-[#1fbbd2] hover:bg-[#e2e8f0] rounded-lg transition-all cursor-pointer"
-                                title="Share secret"
+                                className="px-2.5 py-1 bg-[#e0f2fe] hover:bg-[#bae6fd] border border-[#1fbbd2]/40 text-[#0284c7] rounded-lg text-xs font-extrabold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                                title="Share password with member or group"
                               >
-                                <Share2 className="w-4 h-4" />
+                                <Share2 className="w-3.5 h-3.5 text-[#0284c7]" />
+                                <span>Share</span>
                               </button>
                               <button
+                                type="button"
                                 onClick={() => {
                                   setEditingItem(res);
                                   setIsDrawerOpen(true);
                                 }}
-                                className="p-1.5 text-gray-500 hover:text-[#d97706] hover:bg-[#e2e8f0] rounded-lg transition-all cursor-pointer"
-                                title="Edit item"
+                                className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-[#d97706] rounded-lg text-xs font-extrabold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                                title="Edit password item"
                               >
-                                <Edit2 className="w-4 h-4" />
+                                <Edit2 className="w-3.5 h-3.5 text-[#d97706]" />
+                                <span>Edit</span>
                               </button>
                               <button
+                                type="button"
                                 onClick={() => handleDelete(res.id)}
-                                className="p-1.5 text-gray-500 hover:text-rose-600 hover:bg-rose-100 rounded-lg transition-all cursor-pointer"
-                                title="Delete item"
+                                className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-lg text-xs font-extrabold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                                title="Delete password item"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Delete</span>
                               </button>
                             </div>
                           </td>
