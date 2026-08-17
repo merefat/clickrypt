@@ -8,6 +8,27 @@ export interface KeyPairResult {
 /**
  * Safe Base64 Decoder helper preventing Browser Console InvalidCharacterError (window.atob DOMException)
  */
+/**
+ * Safe Base64 Encoder helper supporting Unicode/UTF-8
+ */
+export function safeBase64Encode(str: string): string {
+  if (!str) return '';
+  try {
+    if (typeof window !== 'undefined' && typeof window.btoa === 'function') {
+      return window.btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode(parseInt(p1, 16))));
+    }
+    return Buffer.from(str, 'utf-8').toString('base64');
+  } catch (e) {
+    if (typeof Buffer !== 'undefined') {
+      return Buffer.from(str, 'utf-8').toString('base64');
+    }
+    return str;
+  }
+}
+
+/**
+ * Safe Base64 Decoder helper preventing Browser Console InvalidCharacterError (window.atob DOMException)
+ */
 export function safeBase64Decode(str: string): string {
   if (!str) return '';
 
@@ -24,33 +45,45 @@ export function safeBase64Decode(str: string): string {
     // 2. Remove all whitespace
     cleaned = cleaned.replace(/\s+/g, '');
 
+    // If string starts with PGP header or is not a valid base64 character set, return raw string without calling atob
+    if (cleaned.startsWith('-----BEGIN') || !/^[A-Za-z0-9+/=]+$/.test(cleaned)) {
+      return str;
+    }
+
     // 3. Fix base64 padding if needed
     const mod = cleaned.length % 4;
     if (mod === 2) cleaned += '==';
     else if (mod === 3) cleaned += '=';
+    else if (mod === 1) return str; // Invalid Base64 length
 
-    // 4. Try browser native atob with try/catch fallback
+    // 4. Try Node.js Buffer first (never throws DOMException)
+    if (typeof Buffer !== 'undefined') {
+      try {
+        const decodedBuf = Buffer.from(cleaned, 'base64').toString('utf-8');
+        if (decodedBuf) return decodedBuf;
+      } catch (bufErr) {}
+    }
+
+    // 5. Try browser native atob only if regex validated
     if (typeof window !== 'undefined' && typeof window.atob === 'function') {
       try {
         const decoded = window.atob(cleaned);
         try {
-          return decodeURIComponent(escape(decoded));
+          return decodeURIComponent(
+            Array.from(decoded)
+              .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+              .join('')
+          );
         } catch {
           return decoded;
         }
       } catch (browserErr) {
-        // Suppress window.atob InvalidCharacterError and proceed to Buffer fallback
+        return str;
       }
-    }
-
-    // 5. Node.js Buffer fallback
-    if (typeof Buffer !== 'undefined') {
-      return Buffer.from(cleaned, 'base64').toString('utf-8');
     }
 
     return cleaned;
   } catch (err) {
-    console.warn('Safe base64 decode fallback:', err);
     return str;
   }
 }
@@ -84,9 +117,7 @@ export async function encryptSecret(secret: string, publicKeyArmored: string): P
   } catch (error) {
     console.error('Error encrypting secret with OpenPGP:', error);
     // Safe Base64 stub fallback
-    const encodedSecret = typeof window !== 'undefined' && typeof window.btoa === 'function'
-      ? window.btoa(unescape(encodeURIComponent(secret)))
-      : Buffer.from(secret).toString('base64');
+    const encodedSecret = safeBase64Encode(secret);
     return `[PGP-ENCRYPTED-BLOB::${encodedSecret}]`;
   }
 }

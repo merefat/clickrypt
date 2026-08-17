@@ -14,7 +14,7 @@ import {
   FolderPlus
 } from 'lucide-react';
 import { generatePassword } from '@/lib/generator';
-import { evaluatePasswordStrength, encryptSecret } from '@/lib/crypto';
+import { evaluatePasswordStrength, encryptSecret, safeBase64Encode } from '@/lib/crypto';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
 
@@ -137,7 +137,7 @@ export default function PasswordDrawer({
         if (user?.publicKey) {
           encryptedBlob = await encryptSecret(password, user.publicKey);
         } else {
-          encryptedBlob = `[PGP-ENCRYPTED-BLOB::${Buffer.from(password).toString('base64')}]`;
+          encryptedBlob = `[PGP-ENCRYPTED-BLOB::${safeBase64Encode(password)}]`;
         }
       }
 
