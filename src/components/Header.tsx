@@ -15,7 +15,8 @@ import {
   Share2,
   Clock,
   KeyRound,
-  Folder
+  Folder,
+  LogOut
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
@@ -37,7 +38,7 @@ interface VaultNotification {
 }
 
 export default function Header({ searchTerm = '', onSearchChange }: HeaderProps) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const [subscription, setSubscription] = useState<any | null>(null);
@@ -392,6 +393,15 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
               <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight">{user?.role || 'Owner'}</p>
             </div>
           </Link>
+
+          <button
+            onClick={logout}
+            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 rounded-xl text-rose-700 text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+            title="Log Out of Account"
+          >
+            <LogOut className="w-3.5 h-3.5 text-rose-600" />
+            <span className="hidden sm:inline">Log Out</span>
+          </button>
         </div>
       </div>
     </header>
