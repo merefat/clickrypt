@@ -144,11 +144,41 @@ export default function SettingsPage() {
   const [totpSecret] = useState('JBSWY3DPEHPK3PXP');
   const [totpInputCode, setTotpInputCode] = useState('');
   const [copiedSecret, setCopiedSecret] = useState(false);
+  const [copiedBackupCodes, setCopiedBackupCodes] = useState(false);
   const [backupCodes] = useState([
     '8492-1094', '3920-5812', '7104-9281', '4019-3820',
     '9182-3710', '5819-2041', '1092-3847', '6720-4912'
   ]);
   const [totpSuccessMsg, setTotpSuccessMsg] = useState('');
+
+  const handleDownloadBackupCodes = () => {
+    const textContent = `====================================================
+CLICKRYPT 2FA EMERGENCY RECOVERY CODES
+Account Email: ${user?.email || 'alex.morgan@acme.com'}
+Generated Date: ${new Date().toLocaleString()}
+====================================================
+
+Store these 8 emergency recovery codes in a safe place.
+Each code can be used once to access your account if you lose your 2FA authenticator app.
+
+${backupCodes.map((code, idx) => `${idx + 1}. ${code}`).join('\n')}
+
+====================================================
+`;
+    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `clickrypt_2fa_recovery_codes_${(user?.email || 'user').replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyBackupCodes = () => {
+    navigator.clipboard.writeText(backupCodes.join('\n'));
+    setCopiedBackupCodes(true);
+    setTimeout(() => setCopiedBackupCodes(false), 2000);
+  };
 
   // Change Password state
   const [currentPass, setCurrentPass] = useState('');
@@ -987,7 +1017,31 @@ ${privKey}
 
               {/* Emergency Backup Codes */}
               <div>
-                <label className="block font-extrabold text-[#334155] mb-1">Emergency Recovery Codes</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="font-extrabold text-[#334155]">Emergency Recovery Codes</label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyBackupCodes}
+                      className="px-2.5 py-1 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-lg text-[11px] font-extrabold text-[#0284c7] flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                      title="Copy all recovery codes"
+                    >
+                      {copiedBackupCodes ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3 text-[#0284c7]" />}
+                      <span>{copiedBackupCodes ? 'Copied!' : 'Copy'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDownloadBackupCodes}
+                      className="px-2.5 py-1 gold-cyan-gradient-btn rounded-lg text-[11px] font-extrabold text-white flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                      title="Download recovery codes text file"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>Download</span>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-1.5 p-3 bg-[#f8fafc] rounded-xl border border-[#cbd5e1] font-mono text-[10px] text-[#334155]">
                   {backupCodes.map((code, idx) => (
                     <span key={idx} className="bg-[#ffffff] border border-[#cbd5e1] px-2 py-1 rounded text-center font-bold text-[#0f172a]">
