@@ -50,27 +50,29 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`bg-[#e4ecf3] border-r border-[#cbd5e1] flex flex-col justify-between p-3.5 select-none font-sora min-h-screen transition-all duration-300 ease-in-out shrink-0 ${
+      className={`bg-[#e4ecf3] border-r border-[#cbd5e1] flex flex-col justify-between p-3.5 select-none font-sora min-h-screen transition-[width] duration-300 ease-in-out shrink-0 overflow-hidden ${
         isCollapsed ? 'w-20' : 'w-64'
       }`}
     >
       <div className="space-y-6">
-        {/* Brand Header with Collapse Toggle Button */}
-        <div className="flex items-center justify-between px-1 py-1">
-          {!isCollapsed ? (
-            <img src="/logo.png" alt="Clickrypt Logo" className="h-16 w-auto max-w-[170px] object-contain drop-shadow-md" />
-          ) : (
-            <img src="/logo.png" alt="Clickrypt Logo" className="h-8 w-8 object-contain drop-shadow-md mx-auto" />
-          )}
+        {/* Brand Header with Vibrant Cyan Collapse Toggle Button */}
+        <div className={`flex items-center ${isCollapsed ? 'justify-center flex-col gap-3' : 'justify-between'} px-1 py-1`}>
+          <img
+            src="/logo.png"
+            alt="Clickrypt Logo"
+            className={`object-contain drop-shadow-md transition-all duration-300 ease-in-out ${
+              isCollapsed ? 'h-9 w-9' : 'h-14 w-auto max-w-[150px]'
+            }`}
+          />
 
           <button
             type="button"
             onClick={toggleCollapse}
-            className="p-2 rounded-xl text-[#64748b] hover:text-[#0f172a] hover:bg-[#d8e2ec] transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-xl bg-[#0284c7]/10 hover:bg-[#0284c7]/20 border border-[#0284c7]/30 text-[#0284c7] flex items-center justify-center transition-all cursor-pointer shadow-xs hover:scale-105 active:scale-95 shrink-0"
             title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
           >
             <ChevronLeft
-              className={`w-5 h-5 text-[#0f172a] transition-transform duration-300 ${
+              className={`w-4.5 h-4.5 text-[#0284c7] transition-transform duration-300 ease-in-out ${
                 isCollapsed ? 'rotate-180' : ''
               }`}
             />
@@ -97,7 +99,7 @@ export default function Sidebar() {
                 title={isCollapsed ? item.name : undefined}
                 className={`flex items-center ${
                   isCollapsed ? 'justify-center p-3' : 'justify-between px-3.5 py-2.5'
-                } rounded-xl text-xs font-bold transition-all relative ${
+                } rounded-xl text-xs font-bold transition-all duration-200 relative overflow-hidden ${
                   isActive
                     ? 'bg-[#f5f8fb] text-[#0f172a] shadow-md border border-[#d0dbe5] shadow-[#1fbbd2]/10'
                     : 'text-[#475569] hover:text-[#0f172a] hover:bg-[#d8e2ec]'
@@ -107,13 +109,23 @@ export default function Sidebar() {
                   <div className="absolute left-0 top-2 bottom-2 w-1.5 bg-[#1fbbd2] rounded-r-full" />
                 )}
 
-                <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3 pl-1'}`}>
+                <div className="flex items-center gap-3 pl-1 min-w-0">
                   <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#1fbbd2]' : 'text-[#64748b]'}`} />
-                  {!isCollapsed && <span className="truncate">{item.name}</span>}
+                  <span
+                    className={`transition-all duration-300 ease-in-out whitespace-nowrap truncate ${
+                      isCollapsed ? 'max-w-0 opacity-0 pointer-events-none' : 'max-w-[140px] opacity-100'
+                    }`}
+                  >
+                    {item.name}
+                  </span>
                 </div>
 
-                {!isCollapsed && item.badge && (
-                  <span className="bg-[#f39c12]/15 text-[#d97706] text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-[#f39c12]/30 shrink-0">
+                {item.badge && (
+                  <span
+                    className={`bg-[#f39c12]/15 text-[#d97706] text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-[#f39c12]/30 shrink-0 transition-all duration-300 ease-in-out ${
+                      isCollapsed ? 'max-w-0 opacity-0 pointer-events-none px-0 border-0' : 'max-w-[60px] opacity-100'
+                    }`}
+                  >
                     {item.badge}
                   </span>
                 )}
@@ -127,7 +139,7 @@ export default function Sidebar() {
       <div className="pt-4 border-t border-[#cbd5e1] space-y-2.5">
         <Link
           href="/settings"
-          className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2.5'} p-2 rounded-xl hover:bg-[#d8e2ec] transition-all cursor-pointer group`}
+          className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2.5'} p-2 rounded-xl hover:bg-[#d8e2ec] transition-all cursor-pointer group overflow-hidden`}
           title={user?.name || 'Alex Morgan'}
         >
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-xs font-extrabold text-[#0f172a] group-hover:scale-105 transition-transform shadow-xs overflow-hidden shrink-0">
@@ -139,16 +151,19 @@ export default function Sidebar() {
               'AM'
             )}
           </div>
-          {!isCollapsed && (
-            <div className="overflow-hidden">
-              <p className="text-xs font-extrabold text-[#0f172a] group-hover:text-[#0284c7] leading-tight transition-colors truncate">
-                {user?.name || 'Alex Morgan'}
-              </p>
-              <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight truncate">
-                {user?.role || 'Owner'}
-              </p>
-            </div>
-          )}
+
+          <div
+            className={`transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden ${
+              isCollapsed ? 'max-w-0 opacity-0 pointer-events-none' : 'max-w-[140px] opacity-100'
+            }`}
+          >
+            <p className="text-xs font-extrabold text-[#0f172a] group-hover:text-[#0284c7] leading-tight transition-colors truncate">
+              {user?.name || 'Alex Morgan'}
+            </p>
+            <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight truncate">
+              {user?.role || 'Owner'}
+            </p>
+          </div>
         </Link>
 
         <button
@@ -156,11 +171,17 @@ export default function Sidebar() {
           onClick={logout}
           className={`w-full py-2 ${
             isCollapsed ? 'px-0 justify-center' : 'px-3 justify-center gap-2'
-          } bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 rounded-xl text-rose-700 text-xs font-extrabold flex items-center transition-all cursor-pointer shadow-xs`}
+          } bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 rounded-xl text-rose-700 text-xs font-extrabold flex items-center transition-all cursor-pointer shadow-xs overflow-hidden`}
           title="Sign Out of Account"
         >
           <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
-          {!isCollapsed && <span>Log Out</span>}
+          <span
+            className={`transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden ${
+              isCollapsed ? 'max-w-0 opacity-0 pointer-events-none' : 'max-w-[100px] opacity-100'
+            }`}
+          >
+            Log Out
+          </span>
         </button>
       </div>
     </aside>
