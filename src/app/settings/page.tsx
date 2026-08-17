@@ -694,50 +694,50 @@ ${privKey}
 
       {/* CHANGE MASTER PASSWORD MODAL */}
       {showChangePassModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
-          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sora animate-in fade-in duration-200">
+          <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
-                  <Lock className="w-5 h-5" />
+                <div className="w-9 h-9 rounded-xl bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7] font-extrabold shadow-xs">
+                  <Lock className="w-5 h-5 text-[#0284c7]" />
                 </div>
-                <h3 className="text-base font-extrabold text-white">Change Master Password</h3>
+                <h3 className="text-base font-extrabold text-[#0f172a]">Change Master Password</h3>
               </div>
-              <button onClick={() => setShowChangePassModal(false)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setShowChangePassModal(false)} className="text-[#64748b] hover:text-[#0f172a] transition-colors cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleChangePasswordSubmit} className="space-y-4 text-xs">
               {passError && (
-                <div className="p-3 bg-rose-950/80 border border-rose-700 rounded-xl text-rose-300 text-xs flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 shrink-0" />
-                  <span>{passError}</span>
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2 shadow-xs">
+                  <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span className="font-extrabold">{passError}</span>
                 </div>
               )}
 
               {passSuccessMsg && (
-                <div className="p-3 bg-emerald-950/80 border border-emerald-700 rounded-xl text-emerald-300 text-xs flex items-center gap-2">
-                  <Check className="w-4 h-4 shrink-0" />
-                  <span>{passSuccessMsg}</span>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2 shadow-xs">
+                  <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span className="font-extrabold">{passSuccessMsg}</span>
                 </div>
               )}
 
               <div>
-                <label className="block font-semibold text-gray-300 mb-1">Current Master Password</label>
+                <label className="block font-extrabold text-[#334155] mb-1">Current Master Password</label>
                 <div className="relative">
                   <input
                     type={showCurrentPass ? 'text' : 'password'}
                     placeholder="Enter current password..."
                     value={currentPass}
                     onChange={(e) => setCurrentPass(e.target.value)}
-                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 pr-10 text-white focus:border-[#1fbbd2] outline-none"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 pr-10 text-[#0f172a] font-bold focus:border-[#1fbbd2] focus:outline-none shadow-sm"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowCurrentPass(!showCurrentPass)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748b] hover:text-[#0f172a]"
                   >
                     {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -745,20 +745,20 @@ ${privKey}
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-300 mb-1">New Master Password</label>
+                <label className="block font-extrabold text-[#334155] mb-1">New Master Password</label>
                 <div className="relative">
                   <input
                     type={showNewPass ? 'text' : 'password'}
                     placeholder="At least 8 characters..."
                     value={newPass}
                     onChange={(e) => setNewPass(e.target.value)}
-                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 pr-10 text-white focus:border-[#1fbbd2] outline-none font-mono"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 pr-10 text-[#0f172a] font-mono font-bold focus:border-[#1fbbd2] focus:outline-none shadow-sm"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowNewPass(!showNewPass)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748b] hover:text-[#0f172a]"
                   >
                     {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -766,29 +766,29 @@ ${privKey}
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-300 mb-1">Confirm New Master Password</label>
+                <label className="block font-extrabold text-[#334155] mb-1">Confirm New Master Password</label>
                 <input
                   type="password"
                   placeholder="Re-enter new password..."
                   value={confirmPass}
                   onChange={(e) => setConfirmPass(e.target.value)}
-                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none font-mono"
+                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] font-mono font-bold focus:border-[#1fbbd2] focus:outline-none shadow-sm"
                   required
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-gray-700">
+              <div className="flex justify-end gap-3 pt-3 border-t border-[#cbd5e1]">
                 <button
                   type="button"
                   onClick={() => setShowChangePassModal(false)}
-                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                  className="px-4 py-2 bg-[#ffffff] hover:bg-[#f1f5f9] text-[#334155] border border-[#cbd5e1] rounded-xl font-extrabold transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isChangingPass}
-                  className="gold-gradient-btn px-5 py-2 text-white rounded-xl font-extrabold shadow-lg disabled:opacity-50 cursor-pointer"
+                  className="gold-gradient-btn px-5 py-2 text-white rounded-xl font-extrabold shadow-md disabled:opacity-50 cursor-pointer"
                 >
                   {isChangingPass ? 'Re-encrypting PGP Key...' : 'Update Master Password'}
                 </button>
@@ -800,51 +800,51 @@ ${privKey}
 
       {/* MANAGE PASSKEYS MODAL */}
       {showPasskeysModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
-          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sora animate-in fade-in duration-200">
+          <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
-                  <Fingerprint className="w-5 h-5" />
+                <div className="w-9 h-9 rounded-xl bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7] font-extrabold shadow-xs">
+                  <Fingerprint className="w-5 h-5 text-[#0284c7]" />
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-white">Manage WebAuthn Passkeys</h3>
-                  <p className="text-[10px] text-[#1fbbd2] font-semibold">Passwordless & Biometric Sign-in Credentials</p>
+                  <h3 className="text-base font-extrabold text-[#0f172a]">Manage WebAuthn Passkeys</h3>
+                  <p className="text-[10px] text-[#0284c7] font-bold">Passwordless & Biometric Sign-in Credentials</p>
                 </div>
               </div>
-              <button onClick={() => setShowPasskeysModal(false)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setShowPasskeysModal(false)} className="text-[#64748b] hover:text-[#0f172a] transition-colors cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-3">
               {/* Localhost Windows Security Note Banner */}
-              <div className="p-3 bg-[#0d1724] border border-[#1fbbd2]/30 rounded-xl text-[11px] text-gray-300 space-y-1">
-                <div className="flex items-center gap-1.5 text-[#1fbbd2] font-bold">
-                  <ShieldAlert className="w-4 h-4 shrink-0" />
+              <div className="p-3 bg-[#f8fafc] border border-[#cbd5e1] rounded-xl text-[11px] text-[#334155] space-y-1 shadow-xs">
+                <div className="flex items-center gap-1.5 text-[#0284c7] font-extrabold">
+                  <ShieldAlert className="w-4 h-4 shrink-0 text-[#0284c7]" />
                   <span>Windows Security Localhost Note</span>
                 </div>
-                <p className="text-gray-400 leading-tight">
-                  Windows Security QR scanning over Bluetooth requires HTTPS. On <code className="text-[#f39c12]">http://localhost:3000</code>, use PC biometrics or click <strong className="text-white font-bold">Simulate Passkey Approval</strong> below!
+                <p className="text-[#64748b] leading-tight font-medium">
+                  Windows Security QR scanning over Bluetooth requires HTTPS. On <code className="text-[#d97706] font-bold">http://localhost:3000</code>, use PC biometrics or click <strong className="text-[#0f172a] font-bold">Simulate Passkey Approval</strong> below!
                 </p>
               </div>
 
               {passkeyTestMsg && (
-                <div className="p-3 bg-emerald-950/80 border border-emerald-700 rounded-xl text-emerald-300 text-xs flex items-center gap-2">
-                  <Check className="w-4 h-4 shrink-0" />
-                  <span>{passkeyTestMsg}</span>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2 shadow-xs">
+                  <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span className="font-extrabold">{passkeyTestMsg}</span>
                 </div>
               )}
 
               <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-400 font-bold">Registered Passkeys ({passkeys.length})</span>
+                <span className="text-xs text-[#64748b] font-extrabold">Registered Passkeys ({passkeys.length})</span>
 
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={handleTestPasskey}
                     disabled={isTestingPasskey}
-                    className="px-3 py-1.5 bg-[#0d1724] hover:bg-gray-800 border border-[#1fbbd2]/40 rounded-xl text-xs font-bold text-[#1fbbd2] flex items-center gap-1.5 shadow transition-all cursor-pointer disabled:opacity-50"
+                    className="px-3 py-1.5 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-xs font-extrabold text-[#0284c7] flex items-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
                   >
                     <ShieldCheck className="w-3.5 h-3.5" />
                     <span>{isTestingPasskey ? 'Verifying...' : 'Test Passkey'}</span>
@@ -853,7 +853,7 @@ ${privKey}
                   <button
                     type="button"
                     onClick={handleSimulatePasskey}
-                    className="gold-cyan-gradient-btn px-3 py-1.5 rounded-xl text-xs font-extrabold text-[#0d1724] flex items-center gap-1.5 shadow cursor-pointer"
+                    className="gold-cyan-gradient-btn px-3 py-1.5 rounded-xl text-xs font-extrabold text-white flex items-center gap-1.5 shadow cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Simulate Passkey Approval</span>
@@ -862,24 +862,24 @@ ${privKey}
               </div>
 
               {passkeys.length === 0 ? (
-                <div className="p-8 text-center text-gray-400 text-xs bg-[#0d1724] rounded-xl border border-gray-700/60">
-                  <Fingerprint className="w-8 h-8 text-[#1fbbd2] mx-auto mb-2 opacity-80" />
-                  <p>No passkeys registered yet. Click "Register New Passkey" above.</p>
+                <div className="p-8 text-center text-[#64748b] text-xs bg-[#f8fafc] rounded-xl border border-[#cbd5e1]">
+                  <Fingerprint className="w-8 h-8 text-[#0284c7] mx-auto mb-2 opacity-80" />
+                  <p className="font-medium">No passkeys registered yet. Click "Register New Passkey" above.</p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {passkeys.map((pk) => (
                     <div
                       key={pk.id}
-                      className="p-3.5 bg-[#0d1724] border border-gray-700/60 rounded-xl flex items-center justify-between text-xs"
+                      className="p-3.5 bg-[#f8fafc] border border-[#cbd5e1] rounded-xl flex items-center justify-between text-xs hover:border-[#1fbbd2] transition-colors"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-[#17283b] border border-[#1fbbd2]/40 flex items-center justify-center text-[#1fbbd2]">
+                        <div className="w-8 h-8 rounded-lg bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7]">
                           <Smartphone className="w-4 h-4" />
                         </div>
                         <div>
-                          <h4 className="font-bold text-white">{pk.name}</h4>
-                          <p className="text-[10px] text-gray-400 mt-0.5">
+                          <h4 className="font-extrabold text-[#0f172a]">{pk.name}</h4>
+                          <p className="text-[10px] text-[#64748b] mt-0.5 font-medium">
                             {pk.type} • Created {pk.createdAt} • Last used {pk.lastUsed}
                           </p>
                         </div>
@@ -887,7 +887,7 @@ ${privKey}
 
                       <button
                         onClick={() => handleDeletePasskey(pk.id)}
-                        className="p-1.5 text-gray-500 hover:text-rose-400 hover:bg-[#17283b] rounded-lg transition-all"
+                        className="p-1.5 text-[#64748b] hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
                         title="Revoke passkey"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -898,11 +898,11 @@ ${privKey}
               )}
             </div>
 
-            <div className="flex justify-end pt-3 border-t border-gray-700">
+            <div className="flex justify-end pt-3 border-t border-[#cbd5e1]">
               <button
                 type="button"
                 onClick={() => setShowPasskeysModal(false)}
-                className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl text-xs font-bold"
+                className="px-4 py-2 bg-[#ffffff] hover:bg-[#f1f5f9] text-[#334155] border border-[#cbd5e1] rounded-xl text-xs font-extrabold cursor-pointer"
               >
                 Close
               </button>
@@ -913,34 +913,34 @@ ${privKey}
 
       {/* TWO-FACTOR AUTHENTICATION (2FA) MODAL */}
       {showTwoFactorModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
-          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sora animate-in fade-in duration-200">
+          <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
-                  <QrCode className="w-5 h-5" />
+                <div className="w-9 h-9 rounded-xl bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7] font-extrabold shadow-xs">
+                  <QrCode className="w-5 h-5 text-[#0284c7]" />
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-white">Two-Factor Authentication</h3>
-                  <p className="text-[10px] text-[#1fbbd2] font-semibold">Microsoft Authenticator / TOTP Setup</p>
+                  <h3 className="text-base font-extrabold text-[#0f172a]">Two-Factor Authentication</h3>
+                  <p className="text-[10px] text-[#0284c7] font-bold">Microsoft Authenticator / TOTP Setup</p>
                 </div>
               </div>
-              <button onClick={() => setShowTwoFactorModal(false)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setShowTwoFactorModal(false)} className="text-[#64748b] hover:text-[#0f172a] transition-colors cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleToggle2FA} className="space-y-4 text-xs">
               {totpSuccessMsg && (
-                <div className="p-3 bg-emerald-950/80 border border-emerald-700 rounded-xl text-emerald-300 text-xs flex items-center gap-2">
-                  <Check className="w-4 h-4 shrink-0" />
-                  <span>{totpSuccessMsg}</span>
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2 shadow-xs">
+                  <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span className="font-extrabold">{totpSuccessMsg}</span>
                 </div>
               )}
 
               {/* QR Code Scan Section */}
-              <div className="bg-[#0d1724] p-4 rounded-xl border border-gray-700 flex flex-col items-center text-center space-y-3">
-                <div className="w-36 h-36 bg-white p-2 rounded-xl flex items-center justify-center shadow border border-gray-200">
+              <div className="bg-[#f8fafc] p-4 rounded-xl border border-[#cbd5e1] flex flex-col items-center text-center space-y-3">
+                <div className="w-36 h-36 bg-white p-2 rounded-xl flex items-center justify-center shadow border border-[#cbd5e1]">
                   <img
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
                       `otpauth://totp/Clickrypt:${user?.email || 'alex.morgan@acme.com'}?secret=${totpSecret}&issuer=Clickrypt`
@@ -949,68 +949,68 @@ ${privKey}
                     className="w-full h-full object-contain"
                   />
                 </div>
-                <p className="text-[11px] text-gray-300">
+                <p className="text-[11px] text-[#64748b] font-medium">
                   Scan this QR code with Microsoft Authenticator, Google Authenticator, or Authy.
                 </p>
               </div>
 
               {/* Secret Key Box */}
               <div>
-                <label className="block font-semibold text-gray-300 mb-1">Manual Setup Secret Key</label>
+                <label className="block font-extrabold text-[#334155] mb-1">Manual Setup Secret Key</label>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 font-mono text-[#f39c12] font-bold text-center tracking-widest">
+                  <div className="flex-1 bg-[#fffbeb] border border-[#f39c12]/40 rounded-xl p-2.5 font-mono text-[#d97706] font-bold text-center tracking-widest">
                     {totpSecret}
                   </div>
                   <button
                     type="button"
                     onClick={handleCopyTotpSecret}
-                    className="p-2.5 bg-[#0d1724] hover:bg-gray-800 border border-gray-700 text-gray-300 rounded-xl font-bold flex items-center gap-1"
+                    className="p-2.5 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] text-[#334155] rounded-xl font-bold flex items-center gap-1 cursor-pointer"
                     title="Copy Secret"
                   >
-                    {copiedSecret ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    {copiedSecret ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-[#0284c7]" />}
                   </button>
                 </div>
               </div>
 
               {/* Verification Code */}
               <div>
-                <label className="block font-semibold text-gray-300 mb-1">Verify 6-Digit TOTP Code</label>
+                <label className="block font-extrabold text-[#334155] mb-1">Verify 6-Digit TOTP Code</label>
                 <input
                   type="text"
                   maxLength={6}
                   placeholder="e.g. 492019"
                   value={totpInputCode}
                   onChange={(e) => setTotpInputCode(e.target.value.replace(/\D/g, ''))}
-                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 font-mono text-center text-white text-base tracking-widest focus:border-[#1fbbd2] outline-none"
+                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 font-mono text-center text-[#0f172a] text-base tracking-widest focus:border-[#1fbbd2] focus:outline-none font-bold shadow-sm"
                 />
               </div>
 
               {/* Emergency Backup Codes */}
               <div>
-                <label className="block font-semibold text-gray-300 mb-1">Emergency Recovery Codes</label>
-                <div className="grid grid-cols-2 gap-1.5 p-3 bg-[#0d1724] rounded-xl border border-gray-700 font-mono text-[10px] text-gray-300">
+                <label className="block font-extrabold text-[#334155] mb-1">Emergency Recovery Codes</label>
+                <div className="grid grid-cols-2 gap-1.5 p-3 bg-[#f8fafc] rounded-xl border border-[#cbd5e1] font-mono text-[10px] text-[#334155]">
                   {backupCodes.map((code, idx) => (
-                    <span key={idx} className="bg-[#17283b] px-2 py-1 rounded text-center">
+                    <span key={idx} className="bg-[#ffffff] border border-[#cbd5e1] px-2 py-1 rounded text-center font-bold text-[#0f172a]">
                       {code}
                     </span>
                   ))}
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-gray-700">
+              <div className="flex justify-end gap-3 pt-3 border-t border-[#cbd5e1]">
                 <button
                   type="button"
                   onClick={() => setShowTwoFactorModal(false)}
-                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                  className="px-4 py-2 bg-[#ffffff] hover:bg-[#f1f5f9] text-[#334155] border border-[#cbd5e1] rounded-xl font-extrabold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className={`px-5 py-2 rounded-xl text-xs font-extrabold shadow-lg cursor-pointer ${
+                  className={`px-5 py-2 rounded-xl text-xs font-extrabold shadow-md cursor-pointer ${
                     is2FAEnabled
-                      ? 'bg-rose-900/80 hover:bg-rose-800 text-rose-200 border border-rose-600'
-                      : 'gold-cyan-gradient-btn text-[#0d1724]'
+                      ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                      : 'gold-cyan-gradient-btn text-white'
                   }`}
                 >
                   {is2FAEnabled ? 'Disable 2FA' : 'Enable 2FA'}
@@ -1023,52 +1023,52 @@ ${privKey}
 
       {/* OPENPGP KEY INSPECTOR MODAL */}
       {showViewBackupKeyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
-          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sora animate-in fade-in duration-200">
+          <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
-                  <Eye className="w-5 h-5" />
+                <div className="w-9 h-9 rounded-xl bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7] font-extrabold shadow-xs">
+                  <Eye className="w-5 h-5 text-[#0284c7]" />
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-white">OpenPGP Emergency Key Pair Inspector</h3>
-                  <p className="text-[10px] text-[#1fbbd2] font-semibold">{user?.name} ({user?.email})</p>
+                  <h3 className="text-base font-extrabold text-[#0f172a]">OpenPGP Emergency Key Pair Inspector</h3>
+                  <p className="text-[10px] text-[#0284c7] font-bold">{user?.name} ({user?.email})</p>
                 </div>
               </div>
-              <button onClick={() => setShowViewBackupKeyModal(false)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setShowViewBackupKeyModal(false)} className="text-[#64748b] hover:text-[#0f172a] transition-colors cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-4 text-xs max-h-[60vh] overflow-y-auto pr-1">
               <div>
-                <label className="block font-semibold text-[#f39c12] mb-1">ASCII Armored Public Key</label>
+                <label className="block font-extrabold text-[#d97706] mb-1">ASCII Armored Public Key</label>
                 <textarea
                   readOnly
                   rows={5}
                   value={user?.publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...ClickryptPublicKey...==\n-----END PGP PUBLIC KEY BLOCK-----'}
-                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-3 font-mono text-[10px] text-gray-300 focus:outline-none"
+                  className="w-full bg-[#f8fafc] border border-[#cbd5e1] rounded-xl p-3 font-mono text-[10px] text-[#0f172a] font-semibold focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-[#1fbbd2] mb-1">Client-Side Encrypted Private Key</label>
+                <label className="block font-extrabold text-[#0284c7] mb-1">Client-Side Encrypted Private Key</label>
                 <textarea
                   readOnly
                   rows={5}
                   value={inspectPrivateKey || '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...ClickryptPrivateKey...==\n-----END PGP PRIVATE KEY BLOCK-----'}
-                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-3 font-mono text-[10px] text-gray-300 focus:outline-none"
+                  className="w-full bg-[#f8fafc] border border-[#cbd5e1] rounded-xl p-3 font-mono text-[10px] text-[#0f172a] font-semibold focus:outline-none"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-gray-700 text-xs">
+            <div className="flex items-center justify-between pt-3 border-t border-[#cbd5e1] text-xs">
               <button
                 type="button"
                 onClick={handleCopyPgpKeys}
-                className="px-4 py-2 bg-[#0d1724] hover:bg-gray-800 border border-gray-700 text-white rounded-xl font-bold flex items-center gap-2 cursor-pointer"
+                className="px-4 py-2 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] text-[#0284c7] rounded-xl font-extrabold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
               >
-                {copiedPgpKeys ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-[#1fbbd2]" />}
+                {copiedPgpKeys ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-[#0284c7]" />}
                 <span>{copiedPgpKeys ? 'Keys Copied to Clipboard!' : 'Copy Keys to Clipboard'}</span>
               </button>
 
@@ -1076,7 +1076,7 @@ ${privKey}
                 <button
                   type="button"
                   onClick={() => setShowViewBackupKeyModal(false)}
-                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                  className="px-4 py-2 bg-[#ffffff] hover:bg-[#f1f5f9] text-[#334155] border border-[#cbd5e1] rounded-xl font-extrabold cursor-pointer"
                 >
                   Close
                 </button>
@@ -1084,7 +1084,7 @@ ${privKey}
                 <button
                   type="button"
                   onClick={handleDownloadBackupKey}
-                  className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-[#0d1724] shadow cursor-pointer"
+                  className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
                   <span>Download .asc File</span>
@@ -1097,30 +1097,30 @@ ${privKey}
 
       {/* ACCOUNT RECOVERY POLICY MODAL */}
       {showRecPolicyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
-          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sora animate-in fade-in duration-200">
+          <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
-                  <KeyRound className="w-5 h-5" />
+                <div className="w-9 h-9 rounded-xl bg-[#fffbeb] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706] font-extrabold shadow-xs">
+                  <KeyRound className="w-5 h-5 text-[#d97706]" />
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-white">Account Recovery Policy Configuration</h3>
-                  <p className="text-[10px] text-gray-400">Zero-Knowledge Organization Key Escrow</p>
+                  <h3 className="text-base font-extrabold text-[#0f172a]">Account Recovery Policy Configuration</h3>
+                  <p className="text-[10px] text-[#64748b] font-medium">Zero-Knowledge Organization Key Escrow</p>
                 </div>
               </div>
-              <button onClick={() => setShowRecPolicyModal(false)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setShowRecPolicyModal(false)} className="text-[#64748b] hover:text-[#0f172a] transition-colors cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveRecPolicy} className="space-y-4 text-xs">
               <div>
-                <label className="block font-bold text-gray-300 mb-1">Organization Policy Mode</label>
+                <label className="block font-extrabold text-[#334155] mb-1">Organization Policy Mode</label>
                 <select
                   value={recPolicy}
                   onChange={(e) => setRecPolicy(e.target.value as any)}
-                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-3 text-white font-bold focus:border-[#1fbbd2] outline-none"
+                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-3 text-[#0f172a] font-extrabold focus:border-[#1fbbd2] focus:outline-none shadow-sm cursor-pointer"
                 >
                   <option value="disabled">Disabled (No recovery allowed)</option>
                   <option value="opt-in">Opt-In (Users choose during setup)</option>
@@ -1131,31 +1131,31 @@ ${privKey}
 
               {recPolicy !== 'disabled' && (
                 <div>
-                  <label className="block font-bold text-[#f39c12] mb-1">Organization Recovery Public Key (OpenPGP)</label>
+                  <label className="block font-extrabold text-[#d97706] mb-1">Organization Recovery Public Key (OpenPGP)</label>
                   <textarea
                     rows={6}
                     value={orgPublicKeyArmored}
                     onChange={(e) => setOrgPublicKeyArmored(e.target.value)}
                     placeholder="-----BEGIN PGP PUBLIC KEY BLOCK----- ..."
-                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-3 font-mono text-[10px] text-gray-300 focus:border-[#1fbbd2] outline-none"
+                    className="w-full bg-[#f8fafc] border border-[#cbd5e1] rounded-xl p-3 font-mono text-[10px] text-[#0f172a] font-semibold focus:border-[#1fbbd2] focus:outline-none shadow-sm"
                   />
-                  <p className="text-[10px] text-gray-400 mt-1">
+                  <p className="text-[10px] text-[#64748b] mt-1 font-medium">
                     Enter the organization's ASCII-armored OpenPGP public key. The server validates structure and fingerprint.
                   </p>
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-gray-700">
+              <div className="flex justify-end gap-3 pt-3 border-t border-[#cbd5e1]">
                 <button
                   type="button"
                   onClick={() => setShowRecPolicyModal(false)}
-                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                  className="px-4 py-2 bg-[#ffffff] hover:bg-[#f1f5f9] text-[#334155] border border-[#cbd5e1] rounded-xl font-extrabold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="gold-cyan-gradient-btn px-5 py-2 rounded-xl text-xs font-extrabold text-[#0d1724] shadow-lg"
+                  className="gold-cyan-gradient-btn px-5 py-2 rounded-xl text-xs font-extrabold text-white shadow-md cursor-pointer"
                 >
                   Save Policy
                 </button>
@@ -1167,19 +1167,19 @@ ${privKey}
 
       {/* SSO CONFIGURATION & DRY-RUN MODAL */}
       {showSsoConfigModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
-          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sora animate-in fade-in duration-200">
+          <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
-                  <Globe className="w-5 h-5" />
+                <div className="w-9 h-9 rounded-xl bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7] font-extrabold shadow-xs">
+                  <Globe className="w-5 h-5 text-[#0284c7]" />
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-white">SSO Providers & Mandatory Dry-Run Testing</h3>
-                  <p className="text-[10px] text-gray-400">Configure Identity Providers with required dry-run verification</p>
+                  <h3 className="text-base font-extrabold text-[#0f172a]">SSO Providers & Mandatory Dry-Run Testing</h3>
+                  <p className="text-[10px] text-[#64748b] font-medium">Configure Identity Providers with required dry-run verification</p>
                 </div>
               </div>
-              <button onClick={() => setShowSsoConfigModal(false)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setShowSsoConfigModal(false)} className="text-[#64748b] hover:text-[#0f172a] transition-colors cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1187,15 +1187,15 @@ ${privKey}
             {/* List of existing SSO Configs */}
             {ssoSettingsList.length > 0 && (
               <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                <h4 className="text-xs font-bold text-gray-300">Configured Providers</h4>
+                <h4 className="text-xs font-extrabold text-[#334155]">Configured Providers</h4>
                 {ssoSettingsList.map((cfg) => (
-                  <div key={cfg.id} className="p-3 bg-[#0d1724] rounded-xl border border-gray-700 flex items-center justify-between text-xs">
+                  <div key={cfg.id} className="p-3 bg-[#f8fafc] rounded-xl border border-[#cbd5e1] flex items-center justify-between text-xs">
                     <div>
-                      <span className="font-bold text-white uppercase">{cfg.provider}</span>
+                      <span className="font-extrabold text-[#0f172a] uppercase">{cfg.provider}</span>
                       <span className={`ml-2 text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
                         cfg.status === 'active'
-                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-600'
-                          : 'bg-amber-950 text-amber-400 border border-amber-600'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-amber-100 text-amber-800 border border-amber-300'
                       }`}>
                         {cfg.status.toUpperCase()}
                       </span>
@@ -1206,7 +1206,7 @@ ${privKey}
                         <button
                           type="button"
                           onClick={() => handleRunSsoDryRun(cfg.id, cfg.provider)}
-                          className="px-3 py-1 bg-gradient-to-r from-[#f39c12] to-[#1fbbd2] text-[#0d1724] font-bold rounded-lg text-[10px]"
+                          className="px-3 py-1 bg-gradient-to-r from-[#f39c12] to-[#1fbbd2] text-white font-extrabold rounded-lg text-[10px] shadow-xs cursor-pointer"
                         >
                           Run Dry-Run Test
                         </button>
@@ -1215,7 +1215,7 @@ ${privKey}
                         <button
                           type="button"
                           onClick={() => handleActivateSsoSetting(cfg.id)}
-                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[10px]"
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-[10px] cursor-pointer"
                         >
                           Activate
                         </button>
@@ -1227,16 +1227,16 @@ ${privKey}
             )}
 
             {/* Add New Draft Config */}
-            <form onSubmit={handleSaveDraftSso} className="space-y-4 text-xs border-t border-gray-700 pt-4">
-              <h4 className="font-bold text-white">Add New SSO Draft Configuration</h4>
+            <form onSubmit={handleSaveDraftSso} className="space-y-4 text-xs border-t border-[#cbd5e1] pt-4">
+              <h4 className="font-extrabold text-[#0f172a]">Add New SSO Draft Configuration</h4>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-gray-300 mb-1">Provider Type</label>
+                  <label className="block font-extrabold text-[#334155] mb-1">Provider Type</label>
                   <select
                     value={ssoProvider}
                     onChange={(e) => setSsoProvider(e.target.value as any)}
-                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white font-bold outline-none"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] font-extrabold focus:border-[#1fbbd2] focus:outline-none shadow-sm cursor-pointer"
                   >
                     <option value="google">Google Workspace</option>
                     <option value="azure">Microsoft Azure AD</option>
@@ -1245,27 +1245,27 @@ ${privKey}
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-gray-300 mb-1">Client ID</label>
+                  <label className="block font-extrabold text-[#334155] mb-1">Client ID</label>
                   <input
                     type="text"
                     required
                     value={ssoClientId}
                     onChange={(e) => setSsoClientId(e.target.value)}
                     placeholder="e.g. client_9281039812.apps.googleusercontent.com"
-                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white outline-none"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] font-bold focus:border-[#1fbbd2] focus:outline-none shadow-sm"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-300 mb-1">Client Secret (Encrypted at rest)</label>
+                <label className="block font-extrabold text-[#334155] mb-1">Client Secret (Encrypted at rest)</label>
                 <input
                   type="password"
                   required
                   value={ssoClientSecret}
                   onChange={(e) => setSsoClientSecret(e.target.value)}
                   placeholder="••••••••••••••••••••••••••••"
-                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white outline-none"
+                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] font-bold focus:border-[#1fbbd2] focus:outline-none shadow-sm"
                 />
               </div>
 
@@ -1273,13 +1273,13 @@ ${privKey}
                 <button
                   type="button"
                   onClick={() => setShowSsoConfigModal(false)}
-                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                  className="px-4 py-2 bg-[#ffffff] hover:bg-[#f1f5f9] text-[#334155] border border-[#cbd5e1] rounded-xl font-extrabold cursor-pointer"
                 >
                   Close
                 </button>
                 <button
                   type="submit"
-                  className="gold-cyan-gradient-btn px-5 py-2 rounded-xl text-xs font-extrabold text-[#0d1724] shadow-lg"
+                  className="gold-cyan-gradient-btn px-5 py-2 rounded-xl text-xs font-extrabold text-white shadow-md cursor-pointer"
                 >
                   Save Draft Config
                 </button>
