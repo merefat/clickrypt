@@ -11,8 +11,8 @@
 
   body {
     font-family: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background-color: #091528;
-    color: #ffffff;
+    background-color: #dfe6ed;
+    color: #0f172a;
     overflow-x: hidden;
   }
 
@@ -34,13 +34,13 @@ select option {
   color: #0f172a !important;
 }
 
-/* Soft Elevated Panel matching Reference UI */
+/* Soft Elevated Panel matching Reference Light UI */
 .glass-panel {
-  background: #091528;
+  background: #ffffff;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid #1fbbd2;
-  box-shadow: 0 10px 25px -5px rgba(31, 187, 210, 0.25), 0 4px 10px -2px rgba(31, 187, 210, 0.1);
+  border: 1px solid #d0dbe5;
+  box-shadow: 0 10px 25px -5px rgba(31, 187, 210, 0.1), 0 4px 10px -2px rgba(0, 0, 0, 0.05);
 }
 
 .glass-panel-gold {

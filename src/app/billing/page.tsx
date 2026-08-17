@@ -14,26 +14,28 @@ export default function BillingPage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-[#0b0f17] text-white select-none">
+    <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
 
-        <main className="p-8 flex-1 overflow-y-auto max-w-6xl">
+        <main className="p-8 flex-1 overflow-y-auto max-w-6xl space-y-6">
           {/* Header Title */}
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-3xl font-extrabold text-white flex items-center gap-3">
-                <CreditCard className="w-8 h-8 text-purple-400" />
-                Billing & Payment
-              </h1>
-              <p className="text-xs text-gray-400">Manage your plan, payments, and invoices.</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#fffbeb] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706] shadow-sm">
+                <CreditCard className="w-5 h-5 text-[#d97706]" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-extrabold text-[#0f172a]">Billing & Payment</h1>
+                <p className="text-xs text-[#64748b] mt-0.5">Manage your plan, payments, and invoices.</p>
+              </div>
             </div>
 
             <Link
               href="/checkout"
-              className="purple-gradient-btn px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2"
+              className="gold-gradient-btn px-5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow-md cursor-pointer"
             >
               <CreditCard className="w-4 h-4" />
               <span>Stripe Checkout</span>
@@ -41,58 +43,60 @@ export default function BillingPage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left: Current Plan & Credit Card Payment Banner */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Current Plan Card (Screenshot pAh24.jpg) */}
-              <div className="glass-panel p-6 rounded-2xl border border-[rgba(124,58,237,0.2)] bg-[#151b28]/90">
-                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-800">
-                  <Building2 className="w-4 h-4 text-purple-400" />
-                  <h2 className="text-sm font-bold text-white">Current Plan</h2>
+              {/* Current Plan Card */}
+              <div className="glass-panel p-6 rounded-2xl border border-[#d0dbe5] bg-[#ffffff] shadow-xl">
+                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[#cbd5e1]">
+                  <Building2 className="w-4 h-4 text-[#0284c7]" />
+                  <h2 className="text-sm font-extrabold text-[#0f172a]">Current Plan</h2>
                 </div>
 
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                      Organization <span className="text-[10px] bg-purple-950 text-purple-300 border border-purple-800 px-2 py-0.5 rounded font-semibold">Self-hosted</span>
+                    <h3 className="text-lg font-extrabold text-[#0f172a] flex items-center gap-2">
+                      Organization <span className="text-[10px] bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/40 px-2 py-0.5 rounded font-extrabold">Self-hosted</span>
                     </h3>
-                    <p className="text-xs text-gray-400">For teams and businesses managing their own PassVault server.</p>
+                    <p className="text-xs text-[#64748b] mt-0.5">For teams and businesses managing their own PassVault server.</p>
                   </div>
-                  <span className="flex items-center gap-1 bg-emerald-950 text-emerald-400 border border-emerald-800 px-2.5 py-1 rounded-full text-xs font-semibold">
+                  <span className="flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-300 px-3 py-1 rounded-full text-xs font-extrabold shadow-xs">
                     <CheckCircle className="w-3.5 h-3.5" /> Active
                   </span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-800 text-xs">
+                <div className="grid grid-cols-3 gap-4 pt-4 border-t border-[#cbd5e1] text-xs">
                   <div>
-                    <span className="text-gray-400 block text-[10px]">Users</span>
-                    <span className="font-bold text-white text-sm">25 / 100</span>
+                    <span className="text-[#64748b] block text-[10px] font-bold">Users</span>
+                    <span className="font-extrabold text-[#0f172a] text-sm">25 / 100</span>
                   </div>
                   <div>
-                    <span className="text-gray-400 block text-[10px]">Self-hosted Server</span>
-                    <span className="font-bold text-white text-sm">On-premise</span>
+                    <span className="text-[#64748b] block text-[10px] font-bold">Self-hosted Server</span>
+                    <span className="font-extrabold text-[#0f172a] text-sm">On-premise</span>
                   </div>
                   <div>
-                    <span className="text-gray-400 block text-[10px]">Renewal Date</span>
-                    <span className="font-bold text-white text-sm">May 18, 2025</span>
+                    <span className="text-[#64748b] block text-[10px] font-bold">Renewal Date</span>
+                    <span className="font-extrabold text-[#0f172a] text-sm">May 18, 2025</span>
                   </div>
                 </div>
               </div>
 
               {/* Credit Card Payment Banner linking to Stripe Checkout */}
-              <div className="glass-panel p-6 rounded-2xl border border-[rgba(124,58,237,0.2)] bg-[#151b28]/90 space-y-4">
+              <div className="glass-panel p-6 rounded-2xl border border-[#d0dbe5] bg-[#ffffff] space-y-4 shadow-xl">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-5 h-5 text-purple-400" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#fffbeb] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706] shadow-xs">
+                      <CreditCard className="w-5 h-5 text-[#d97706]" />
+                    </div>
                     <div>
-                      <h3 className="text-sm font-bold text-white">Pay with Credit Card</h3>
-                      <p className="text-xs text-gray-400">Secure payment powered by Stripe Payments.</p>
+                      <h3 className="text-sm font-extrabold text-[#0f172a]">Pay with Credit Card</h3>
+                      <p className="text-xs text-[#64748b]">Secure payment powered by Stripe Payments.</p>
                     </div>
                   </div>
 
                   <Link
                     href="/checkout"
-                    className="purple-gradient-btn px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
+                    className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 text-white shadow-md cursor-pointer"
                   >
                     <span>Proceed to Stripe Checkout</span>
                     <ArrowRight className="w-4 h-4" />
@@ -101,73 +105,75 @@ export default function BillingPage() {
               </div>
             </div>
 
-            {/* Right: Order Summary */}
-            <div className="glass-panel p-6 rounded-2xl border border-[rgba(124,58,237,0.2)] bg-[#151b28]/90 flex flex-col justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-white mb-4">Order Summary</h3>
-                <div className="space-y-3 text-xs border-b border-gray-800 pb-4">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Organization Plan (Self-hosted)</span>
-                    <span className="font-bold text-white">$2,148.00</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">25 Users Annual Subscription</span>
-                    <span className="font-bold text-white">$2,148.00</span>
-                  </div>
-                  <div className="flex justify-between text-emerald-400">
-                    <span>Discount</span>
-                    <span>-$0.00</span>
-                  </div>
-                </div>
-
-                <div className="pt-4 flex justify-between items-center mb-6">
-                  <span className="text-sm font-bold text-white">Total Due Today</span>
-                  <span className="text-2xl font-extrabold text-purple-400">$2,388.00</span>
-                </div>
+            {/* Right: Payment Security Overview */}
+            <div className="glass-panel p-6 rounded-2xl border border-[#d0dbe5] bg-[#ffffff] space-y-4 shadow-xl">
+              <div className="flex items-center gap-2 pb-3 border-b border-[#cbd5e1]">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <h2 className="text-sm font-extrabold text-[#0f172a]">Payment Security</h2>
               </div>
 
-              <div className="p-3 bg-emerald-950/30 border border-emerald-800/40 rounded-xl text-xs text-emerald-300 flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
-                <span>30-Day Money-Back Guarantee. Cancel anytime with 1-click.</span>
+              <p className="text-xs text-[#64748b] leading-relaxed">
+                All transactions are encrypted with zero-knowledge keys and processed via PCI-DSS Level 1 certified gateways.
+              </p>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center gap-2 text-emerald-700 font-bold">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  <span>Stripe 256-bit SSL Encryption</span>
+                </div>
+                <div className="flex items-center gap-2 text-emerald-700 font-bold">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  <span>Zero Credit Card Data Saved</span>
+                </div>
+                <div className="flex items-center gap-2 text-emerald-700 font-bold">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  <span>Instant Automatic Renewal</span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Invoice History Table */}
-          <div className="glass-panel p-6 rounded-2xl border border-[rgba(124,58,237,0.2)] bg-[#151b28]/90">
-            <h3 className="text-sm font-bold text-white mb-4">Invoice History</h3>
-            <table className="w-full text-left text-xs">
-              <thead className="bg-[#0b0f17] text-gray-400 uppercase border-b border-gray-800">
-                <tr>
-                  <th className="py-2.5 px-4">Invoice #</th>
-                  <th className="py-2.5 px-4">Date</th>
-                  <th className="py-2.5 px-4">Plan</th>
-                  <th className="py-2.5 px-4">Amount</th>
-                  <th className="py-2.5 px-4">Status</th>
-                  <th className="py-2.5 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800">
-                {invoices.map((inv) => (
-                  <tr key={inv.id}>
-                    <td className="py-3 px-4 font-mono text-purple-300">{inv.id}</td>
-                    <td className="py-3 px-4 text-gray-400">{inv.date}</td>
-                    <td className="py-3 px-4 text-white font-medium">{inv.plan}</td>
-                    <td className="py-3 px-4 font-bold text-white">{inv.amount}</td>
-                    <td className="py-3 px-4">
-                      <span className="bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded text-[10px] font-semibold">
-                        {inv.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <button className="px-2.5 py-1 bg-[#0b0f17] border border-gray-700 text-gray-300 rounded hover:text-white text-[10px]">
-                        PDF Receipt
-                      </button>
-                    </td>
+          {/* Invoices History Table */}
+          <div className="glass-panel rounded-2xl border border-[#d0dbe5] overflow-hidden bg-[#ffffff] shadow-xl">
+            <div className="p-4 border-b border-[#cbd5e1] flex items-center justify-between text-xs font-extrabold text-[#0284c7]">
+              <span>Billing History & Invoices</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#e6eff7] text-[#334155] font-extrabold uppercase tracking-wider border-b border-[#cbd5e1]">
+                  <tr>
+                    <th className="py-3.5 px-6">Invoice ID</th>
+                    <th className="py-3.5 px-4">Date</th>
+                    <th className="py-3.5 px-4">Plan</th>
+                    <th className="py-3.5 px-4">Amount</th>
+                    <th className="py-3.5 px-4">Status</th>
+                    <th className="py-3.5 px-4 text-right">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-[#e2e8f0]">
+                  {invoices.map((inv) => (
+                    <tr key={inv.id} className="hover:bg-[#f1f6fb] transition-all border-b border-gray-100">
+                      <td className="py-4 px-6 font-bold text-[#0f172a]">{inv.id}</td>
+                      <td className="py-4 px-4 text-[#64748b]">{inv.date}</td>
+                      <td className="py-4 px-4 text-[#334155] font-medium">{inv.plan}</td>
+                      <td className="py-4 px-4 font-bold text-[#0f172a]">{inv.amount}</td>
+                      <td className="py-4 px-4">
+                        <span className="bg-emerald-50 text-emerald-700 border border-emerald-300 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full">
+                          {inv.status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-right">
+                        <button className="text-[#0284c7] hover:underline font-extrabold text-xs inline-flex items-center gap-1 cursor-pointer">
+                          <Download className="w-3.5 h-3.5" />
+                          <span>PDF</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </main>
       </div>
