@@ -25,8 +25,33 @@ export default function ImportExportPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedFormat, setSelectedFormat] = useState<'csv' | 'json' | '1password' | 'lastpass' | 'bitwarden'>('csv');
-  const [exportOption, setExportOption] = useState<'all' | 'vault' | 'group' | 'selected'>('all');
+  const [exportOption, setExportOption] = useState<'all' | 'group' | 'selected'>('all');
   const [exportType, setExportType] = useState<'csv' | 'json' | 'pdf'>('csv');
+  const [groups, setGroups] = useState<any[]>([]);
+  const [folders, setFolders] = useState<any[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+  const [selectedFolderId, setSelectedFolderId] = useState<string>('');
+
+  React.useEffect(() => {
+    fetchGroupsAndFolders();
+  }, []);
+
+  const fetchGroupsAndFolders = async () => {
+    try {
+      const [groupsRes, foldersRes] = await Promise.all([
+        api.get('/groups'),
+        api.get('/folders', { params: { secretVault: false } }),
+      ]);
+      const fetchedGroups = groupsRes.data || [];
+      const fetchedFolders = foldersRes.data || [];
+      setGroups(fetchedGroups);
+      setFolders(fetchedFolders);
+      if (fetchedGroups.length > 0) setSelectedGroupId(fetchedGroups[0].id);
+      if (fetchedFolders.length > 0) setSelectedFolderId(fetchedFolders[0].id);
+    } catch (err) {
+      console.error(err);
+    }
+  };
   
   const [isDragging, setIsDragging] = useState(false);
   const [loadingImport, setLoadingImport] = useState(false);
@@ -167,10 +192,20 @@ export default function ImportExportPage() {
     try {
       // Exclude Secret Vault private items from standard vault export
       const res = await api.get('/resources', { params: { secretVault: false } });
-      const allResources = (res.data || []).filter((r: any) => !r.isPrivateOnly);
+      let allResources = (res.data || []).filter((r: any) => !r.isPrivateOnly);
+
+      if (exportOption === 'group' && selectedGroupId) {
+        const targetGroup = groups.find((g) => g.id === selectedGroupId);
+        if (targetGroup && targetGroup.passwords) {
+          const groupPassIds = targetGroup.passwords.map((p: any) => p.id);
+          allResources = allResources.filter((r: any) => groupPassIds.includes(r.id));
+        }
+      } else if (exportOption === 'selected' && selectedFolderId) {
+        allResources = allResources.filter((r: any) => r.folderId === selectedFolderId);
+      }
 
       if (!allResources || allResources.length === 0) {
-        alert('Vault is empty. No standard passwords available to export.');
+        alert('No passwords available for the selected export filter.');
         setLoadingExport(false);
         return;
       }
@@ -507,31 +542,79 @@ export default function ImportExportPage() {
                   <label className="text-xs font-extrabold text-[#334155]">Choose what to export</label>
                   <div className="space-y-2">
                     {[
-                      { id: 'all', label: 'All Passwords', sub: 'Export all personal and shared passwords.' },
-                      { id: 'vault', label: 'My Workplace', sub: 'Export items from your workplace vault.' },
-                      { id: 'group', label: 'Specific Group', sub: 'Export passwords from a specific group.' },
-                      { id: 'selected', label: 'Selected Items only', sub: 'Export only items you have selected.' },
+                      { id: 'all', label: 'All Main Vault Passwords', sub: 'Export all personal and shared passwords in main vault.' },
+                      { id: 'group', label: 'Specific Team Group', sub: 'Export passwords assigned to a specific group.' },
+                      { id: 'selected', label: 'Specific Folder / Selected Items', sub: 'Export passwords from a chosen workplace folder.' },
                     ].map((opt) => {
                       const isSel = exportOption === opt.id;
                       return (
-                        <div
-                          key={opt.id}
-                          onClick={() => setExportOption(opt.id as any)}
-                          className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${
-                            isSel
-                              ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] shadow-sm'
-                              : 'border-[#cbd5e1] bg-[#f8fafc] hover:bg-[#f1f5f9]'
-                          }`}
-                        >
-                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                            isSel ? 'border-[#1fbbd2] bg-[#1fbbd2]' : 'border-[#cbd5e1] bg-white'
-                          }`}>
-                            {isSel && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        <div key={opt.id} className="space-y-2">
+                          <div
+                            onClick={() => setExportOption(opt.id as any)}
+                            className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${
+                              isSel
+                                ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] shadow-sm'
+                                : 'border-[#cbd5e1] bg-[#f8fafc] hover:bg-[#f1f5f9]'
+                            }`}
+                          >
+                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                              isSel ? 'border-[#1fbbd2] bg-[#1fbbd2]' : 'border-[#cbd5e1] bg-white'
+                            }`}>
+                              {isSel && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs font-extrabold text-[#0f172a]">{opt.label}</p>
+                              <p className="text-[10px] text-[#64748b] font-medium">{opt.sub}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-xs font-extrabold text-[#0f172a]">{opt.label}</p>
-                            <p className="text-[10px] text-[#64748b] font-medium">{opt.sub}</p>
-                          </div>
+
+                          {/* Team Group Select Dropdown */}
+                          {isSel && opt.id === 'group' && (
+                            <div className="pl-7 pr-2 py-2 animate-in fade-in duration-150">
+                              <label className="block text-[11px] font-extrabold text-[#334155] mb-1">
+                                Select Team Group to Export:
+                              </label>
+                              <select
+                                value={selectedGroupId}
+                                onChange={(e) => setSelectedGroupId(e.target.value)}
+                                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-3 py-2 text-xs text-[#0f172a] font-extrabold focus:outline-none focus:border-[#1fbbd2] shadow-xs cursor-pointer"
+                              >
+                                {groups.length === 0 ? (
+                                  <option value="">No team groups available</option>
+                                ) : (
+                                  groups.map((g) => (
+                                    <option key={g.id} value={g.id}>
+                                      {g.name} ({g.members?.length || 0} members)
+                                    </option>
+                                  ))
+                                )}
+                              </select>
+                            </div>
+                          )}
+
+                          {/* Workplace Folder Select Dropdown */}
+                          {isSel && opt.id === 'selected' && (
+                            <div className="pl-7 pr-2 py-2 animate-in fade-in duration-150">
+                              <label className="block text-[11px] font-extrabold text-[#334155] mb-1">
+                                Select Workplace Folder to Export:
+                              </label>
+                              <select
+                                value={selectedFolderId}
+                                onChange={(e) => setSelectedFolderId(e.target.value)}
+                                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-3 py-2 text-xs text-[#0f172a] font-extrabold focus:outline-none focus:border-[#1fbbd2] shadow-xs cursor-pointer"
+                              >
+                                {folders.length === 0 ? (
+                                  <option value="">No workplace folders available</option>
+                                ) : (
+                                  folders.map((f) => (
+                                    <option key={f.id} value={f.id}>
+                                      {f.name} ({f.itemCount || 0} items)
+                                    </option>
+                                  ))
+                                )}
+                              </select>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
