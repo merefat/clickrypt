@@ -395,6 +395,7 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
           </Link>
 
           <button
+            type="button"
             onClick={logout}
             className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 rounded-xl text-rose-700 text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
             title="Log Out of Account"

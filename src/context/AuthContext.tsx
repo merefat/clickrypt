@@ -129,6 +129,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setMasterPassword(null);
     await clearKeys();
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
   };
 
   const getEncryptedPrivateKey = async () => {

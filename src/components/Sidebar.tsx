@@ -110,6 +110,7 @@ export default function Sidebar() {
         </Link>
 
         <button
+          type="button"
           onClick={logout}
           className="w-full py-2 px-3 bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 rounded-xl text-rose-700 text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
           title="Sign Out of Account"
