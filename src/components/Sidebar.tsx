@@ -83,19 +83,33 @@ export default function Sidebar() {
       {/* Footer Profile & Logout */}
       <div className="pt-4 border-t border-[#cbd5e1] space-y-3">
         <div className="flex items-center justify-between px-2">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-xs font-extrabold text-[#0f172a]">
-              {user?.name ? user.name.slice(0, 2).toUpperCase() : 'AM'}
+          <Link
+            href="/settings"
+            className="flex items-center gap-2.5 p-1.5 -ml-1.5 rounded-xl hover:bg-[#d8e2ec] transition-all cursor-pointer group flex-1 mr-2"
+            title="View Profile & Settings"
+          >
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-xs font-extrabold text-[#0f172a] group-hover:scale-105 transition-transform shadow-xs overflow-hidden shrink-0">
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : user?.name ? (
+                user.name.slice(0, 2).toUpperCase()
+              ) : (
+                'AM'
+              )}
             </div>
-            <div>
-              <p className="text-xs font-bold text-[#0f172a] leading-tight">{user?.name || 'Alex Morgan'}</p>
-              <p className="text-[10px] text-[#1fbbd2] font-extrabold leading-tight">{user?.role || 'Owner'}</p>
+            <div className="overflow-hidden">
+              <p className="text-xs font-bold text-[#0f172a] group-hover:text-[#0284c7] leading-tight transition-colors truncate">
+                {user?.name || 'Alex Morgan'}
+              </p>
+              <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight truncate">
+                {user?.role || 'Owner'}
+              </p>
             </div>
-          </div>
+          </Link>
 
           <button
             onClick={logout}
-            className="p-2 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors"
+            className="p-2 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer shrink-0"
             title="Log Out"
           >
             <LogOut className="w-4 h-4" />
