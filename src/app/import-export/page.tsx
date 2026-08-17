@@ -12,7 +12,11 @@ import {
   CheckCircle2,
   AlertTriangle,
   ShieldCheck,
-  Loader2
+  Loader2,
+  Users,
+  Folder,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import api from '@/lib/api';
 import { encryptSecret, decryptSecret } from '@/lib/crypto';
@@ -31,6 +35,24 @@ export default function ImportExportPage() {
   const [folders, setFolders] = useState<any[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
+
+  const [isGroupDropdownOpen, setIsGroupDropdownOpen] = useState(false);
+  const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
+  const groupDropdownRef = useRef<HTMLDivElement>(null);
+  const folderDropdownRef = useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (groupDropdownRef.current && !groupDropdownRef.current.contains(event.target as Node)) {
+        setIsGroupDropdownOpen(false);
+      }
+      if (folderDropdownRef.current && !folderDropdownRef.current.contains(event.target as Node)) {
+        setIsFolderDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   React.useEffect(() => {
     fetchGroupsAndFolders();
@@ -568,51 +590,105 @@ export default function ImportExportPage() {
                             </div>
                           </div>
 
-                          {/* Team Group Select Dropdown */}
+                          {/* Team Group Custom Elevated Floating Dropdown */}
                           {isSel && opt.id === 'group' && (
-                            <div className="pl-7 pr-2 py-2 animate-in fade-in duration-150">
-                              <label className="block text-[11px] font-extrabold text-[#334155] mb-1">
+                            <div className="pl-7 pr-2 py-2 animate-in fade-in duration-150 relative" ref={groupDropdownRef}>
+                              <label className="block text-[11px] font-extrabold text-[#334155] mb-1.5">
                                 Select Team Group to Export:
                               </label>
-                              <select
-                                value={selectedGroupId}
-                                onChange={(e) => setSelectedGroupId(e.target.value)}
-                                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-3 py-2 text-xs text-[#0f172a] font-extrabold focus:outline-none focus:border-[#1fbbd2] shadow-xs cursor-pointer"
+                              <button
+                                type="button"
+                                onClick={() => setIsGroupDropdownOpen((prev) => !prev)}
+                                className="w-full flex items-center justify-between bg-[#ffffff] hover:bg-[#f8fafc] border border-[#cbd5e1] hover:border-[#1fbbd2] px-3.5 py-2.5 rounded-xl text-xs text-[#0f172a] font-extrabold shadow-xs transition-all cursor-pointer"
                               >
-                                {groups.length === 0 ? (
-                                  <option value="">No team groups available</option>
-                                ) : (
-                                  groups.map((g) => (
-                                    <option key={g.id} value={g.id}>
-                                      {g.name} ({g.members?.length || 0} members)
-                                    </option>
-                                  ))
-                                )}
-                              </select>
+                                <span className="flex items-center gap-2 truncate">
+                                  <Users className="w-4 h-4 text-[#0284c7] shrink-0" />
+                                  {groups.find((g) => g.id === selectedGroupId)?.name || 'Select Team Group'}
+                                </span>
+                                <ChevronDown className="w-4 h-4 text-[#64748b] shrink-0" />
+                              </button>
+
+                              {isGroupDropdownOpen && (
+                                <div className="absolute left-7 right-2 mt-1.5 bg-[#ffffff] border border-[#cbd5e1] rounded-2xl shadow-xl z-50 overflow-hidden animate-in slide-in-from-top-2 duration-150 p-1.5 space-y-1">
+                                  {groups.length === 0 ? (
+                                    <p className="px-3 py-2 text-xs text-[#64748b]">No team groups available</p>
+                                  ) : (
+                                    groups.map((g) => {
+                                      const isSelected = selectedGroupId === g.id;
+                                      return (
+                                        <button
+                                          key={g.id}
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedGroupId(g.id);
+                                            setIsGroupDropdownOpen(false);
+                                          }}
+                                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                                            isSelected ? 'bg-[#e0f2fe] text-[#0284c7]' : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                                          }`}
+                                        >
+                                          <span className="flex items-center gap-2 truncate">
+                                            <Users className="w-3.5 h-3.5 text-[#0284c7]" />
+                                            {g.name} ({g.members?.length || 0} members)
+                                          </span>
+                                          {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
+                                        </button>
+                                      );
+                                    })
+                                  )}
+                                </div>
+                              )}
                             </div>
                           )}
 
-                          {/* Workplace Folder Select Dropdown */}
+                          {/* Workplace Folder Custom Elevated Floating Dropdown */}
                           {isSel && opt.id === 'selected' && (
-                            <div className="pl-7 pr-2 py-2 animate-in fade-in duration-150">
-                              <label className="block text-[11px] font-extrabold text-[#334155] mb-1">
+                            <div className="pl-7 pr-2 py-2 animate-in fade-in duration-150 relative" ref={folderDropdownRef}>
+                              <label className="block text-[11px] font-extrabold text-[#334155] mb-1.5">
                                 Select Workplace Folder to Export:
                               </label>
-                              <select
-                                value={selectedFolderId}
-                                onChange={(e) => setSelectedFolderId(e.target.value)}
-                                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-3 py-2 text-xs text-[#0f172a] font-extrabold focus:outline-none focus:border-[#1fbbd2] shadow-xs cursor-pointer"
+                              <button
+                                type="button"
+                                onClick={() => setIsFolderDropdownOpen((prev) => !prev)}
+                                className="w-full flex items-center justify-between bg-[#ffffff] hover:bg-[#f8fafc] border border-[#cbd5e1] hover:border-[#1fbbd2] px-3.5 py-2.5 rounded-xl text-xs text-[#0f172a] font-extrabold shadow-xs transition-all cursor-pointer"
                               >
-                                {folders.length === 0 ? (
-                                  <option value="">No workplace folders available</option>
-                                ) : (
-                                  folders.map((f) => (
-                                    <option key={f.id} value={f.id}>
-                                      {f.name} ({f.itemCount || 0} items)
-                                    </option>
-                                  ))
-                                )}
-                              </select>
+                                <span className="flex items-center gap-2 truncate">
+                                  <Folder className="w-4 h-4 text-[#f39c12] shrink-0" />
+                                  {folders.find((f) => f.id === selectedFolderId)?.name || 'Select Workplace Folder'}
+                                </span>
+                                <ChevronDown className="w-4 h-4 text-[#64748b] shrink-0" />
+                              </button>
+
+                              {isFolderDropdownOpen && (
+                                <div className="absolute left-7 right-2 mt-1.5 bg-[#ffffff] border border-[#cbd5e1] rounded-2xl shadow-xl z-50 overflow-hidden animate-in slide-in-from-top-2 duration-150 p-1.5 space-y-1">
+                                  {folders.length === 0 ? (
+                                    <p className="px-3 py-2 text-xs text-[#64748b]">No workplace folders available</p>
+                                  ) : (
+                                    folders.map((f) => {
+                                      const isSelected = selectedFolderId === f.id;
+                                      return (
+                                        <button
+                                          key={f.id}
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedFolderId(f.id);
+                                            setIsFolderDropdownOpen(false);
+                                          }}
+                                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                                            isSelected ? 'bg-[#e0f2fe] text-[#0284c7]' : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                                          }`}
+                                        >
+                                          <span className="flex items-center gap-2 truncate">
+                                            <Folder className="w-3.5 h-3.5 text-[#f39c12]" />
+                                            {f.name} ({f.itemCount || 0} items)
+                                          </span>
+                                          {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
+                                        </button>
+                                      );
+                                    })
+                                  )}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
