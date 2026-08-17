@@ -1,25 +1,41 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Lock,
   KeyRound,
-  Shield,
   Users,
   Folder,
   Share2,
   FileSpreadsheet,
   Settings,
   LogOut,
-  UserCheck
+  UserCheck,
+  ChevronLeft
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  useEffect(() => {
+    const storedState = localStorage.getItem('clickrypt_sidebar_collapsed');
+    if (storedState !== null) {
+      setIsCollapsed(storedState === 'true');
+    }
+  }, []);
+
+  const toggleCollapse = () => {
+    setIsCollapsed((prev) => {
+      const nextState = !prev;
+      localStorage.setItem('clickrypt_sidebar_collapsed', String(nextState));
+      return nextState;
+    });
+  };
 
   const menuItems = [
     { name: 'Passwords', path: '/vault', icon: KeyRound },
@@ -33,11 +49,32 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className="w-64 bg-[#e4ecf3] border-r border-[#cbd5e1] flex flex-col justify-between p-5 select-none font-sora min-h-screen">
+    <aside
+      className={`bg-[#e4ecf3] border-r border-[#cbd5e1] flex flex-col justify-between p-3.5 select-none font-sora min-h-screen transition-all duration-300 ease-in-out shrink-0 ${
+        isCollapsed ? 'w-20' : 'w-64'
+      }`}
+    >
       <div className="space-y-6">
-        {/* Brand Header */}
-        <div className="flex items-center justify-start px-1 py-1">
-          <img src="/logo.png" alt="Clickrypt Logo" className="h-24 w-full max-w-[210px] object-contain drop-shadow-md" />
+        {/* Brand Header with Collapse Toggle Button */}
+        <div className="flex items-center justify-between px-1 py-1">
+          {!isCollapsed ? (
+            <img src="/logo.png" alt="Clickrypt Logo" className="h-16 w-auto max-w-[170px] object-contain drop-shadow-md" />
+          ) : (
+            <img src="/logo.png" alt="Clickrypt Logo" className="h-8 w-8 object-contain drop-shadow-md mx-auto" />
+          )}
+
+          <button
+            type="button"
+            onClick={toggleCollapse}
+            className="p-2 rounded-xl text-[#64748b] hover:text-[#0f172a] hover:bg-[#d8e2ec] transition-colors cursor-pointer"
+            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          >
+            <ChevronLeft
+              className={`w-5 h-5 text-[#0f172a] transition-transform duration-300 ${
+                isCollapsed ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
         </div>
 
         {/* Navigation Items */}
@@ -57,7 +94,10 @@ export default function Sidebar() {
               <Link
                 key={item.path}
                 href={item.path}
-                className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
+                title={isCollapsed ? item.name : undefined}
+                className={`flex items-center ${
+                  isCollapsed ? 'justify-center p-3' : 'justify-between px-3.5 py-2.5'
+                } rounded-xl text-xs font-bold transition-all relative ${
                   isActive
                     ? 'bg-[#f5f8fb] text-[#0f172a] shadow-md border border-[#d0dbe5] shadow-[#1fbbd2]/10'
                     : 'text-[#475569] hover:text-[#0f172a] hover:bg-[#d8e2ec]'
@@ -67,13 +107,13 @@ export default function Sidebar() {
                   <div className="absolute left-0 top-2 bottom-2 w-1.5 bg-[#1fbbd2] rounded-r-full" />
                 )}
 
-                <div className="flex items-center gap-3 pl-1">
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-[#1fbbd2]' : 'text-[#64748b]'}`} />
-                  <span>{item.name}</span>
+                <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3 pl-1'}`}>
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#1fbbd2]' : 'text-[#64748b]'}`} />
+                  {!isCollapsed && <span className="truncate">{item.name}</span>}
                 </div>
 
-                {item.badge && (
-                  <span className="bg-[#f39c12]/15 text-[#d97706] text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-[#f39c12]/30">
+                {!isCollapsed && item.badge && (
+                  <span className="bg-[#f39c12]/15 text-[#d97706] text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-[#f39c12]/30 shrink-0">
                     {item.badge}
                   </span>
                 )}
@@ -87,8 +127,8 @@ export default function Sidebar() {
       <div className="pt-4 border-t border-[#cbd5e1] space-y-2.5">
         <Link
           href="/settings"
-          className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-[#d8e2ec] transition-all cursor-pointer group"
-          title="View Profile & Settings"
+          className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2.5'} p-2 rounded-xl hover:bg-[#d8e2ec] transition-all cursor-pointer group`}
+          title={user?.name || 'Alex Morgan'}
         >
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-xs font-extrabold text-[#0f172a] group-hover:scale-105 transition-transform shadow-xs overflow-hidden shrink-0">
             {user?.avatarUrl ? (
@@ -99,24 +139,28 @@ export default function Sidebar() {
               'AM'
             )}
           </div>
-          <div className="overflow-hidden">
-            <p className="text-xs font-extrabold text-[#0f172a] group-hover:text-[#0284c7] leading-tight transition-colors truncate">
-              {user?.name || 'Alex Morgan'}
-            </p>
-            <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight truncate">
-              {user?.role || 'Owner'}
-            </p>
-          </div>
+          {!isCollapsed && (
+            <div className="overflow-hidden">
+              <p className="text-xs font-extrabold text-[#0f172a] group-hover:text-[#0284c7] leading-tight transition-colors truncate">
+                {user?.name || 'Alex Morgan'}
+              </p>
+              <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight truncate">
+                {user?.role || 'Owner'}
+              </p>
+            </div>
+          )}
         </Link>
 
         <button
           type="button"
           onClick={logout}
-          className="w-full py-2 px-3 bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 rounded-xl text-rose-700 text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
+          className={`w-full py-2 ${
+            isCollapsed ? 'px-0 justify-center' : 'px-3 justify-center gap-2'
+          } bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 rounded-xl text-rose-700 text-xs font-extrabold flex items-center transition-all cursor-pointer shadow-xs`}
           title="Sign Out of Account"
         >
-          <LogOut className="w-3.5 h-3.5 text-rose-600" />
-          <span>Log Out</span>
+          <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
+          {!isCollapsed && <span>Log Out</span>}
         </button>
       </div>
     </aside>
