@@ -70,13 +70,17 @@ export async function POST(
       }
     }
 
+    const recipientDesc = isExternalShared
+      ? `external recipient (${externalShareEmail || 'external member'})`
+      : `${(targetUserIds || [targetUserId]).filter(Boolean).length || 1} team member(s)`;
+
     db.auditLogs.unshift({
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'SHARE_RESOURCE',
       userId: resource.ownerId,
       resourceId: id,
-      details: `Shared resource ${resource.name} with ${(targetUserIds || [targetUserId]).length} members via OpenPGP re-encryption`,
+      details: `Shared password item "${resource.name}" with ${recipientDesc} via OpenPGP re-encryption`,
     });
 
     return NextResponse.json({ success: true, resource });

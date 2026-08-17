@@ -543,20 +543,34 @@ export default function AdminPage() {
                   </div>
 
                   <div className="space-y-2 font-mono text-xs">
-                    {currentLogs.map((log) => (
-                      <div
-                        key={log.id}
-                        className="p-3 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl flex items-center justify-between shadow-sm transition-all"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/40 text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs">
-                            [{log.action}]
-                          </span>
-                          <span className="text-[#0f172a] font-bold">{log.details}</span>
+                    {currentLogs.map((log) => {
+                      const isDelete = log.action.includes('DELETE');
+                      const isShare = log.action.includes('SHARE');
+                      const isCreate = log.action.includes('CREATE');
+
+                      const badgeStyle = isDelete
+                        ? 'bg-rose-50 text-rose-700 border-rose-300'
+                        : isShare
+                        ? 'bg-sky-50 text-sky-700 border-sky-300'
+                        : isCreate
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                        : 'bg-[#fffbeb] text-[#d97706] border-[#f39c12]/40';
+
+                      return (
+                        <div
+                          key={log.id}
+                          className="p-3 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl flex items-center justify-between shadow-sm transition-all"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className={`border text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs ${badgeStyle}`}>
+                              [{log.action}]
+                            </span>
+                            <span className="text-[#0f172a] font-bold">{log.details}</span>
+                          </div>
+                          <span className="text-[#64748b] text-[10px] font-medium">{new Date(log.timestamp).toLocaleTimeString()}</span>
                         </div>
-                        <span className="text-[#64748b] text-[10px] font-medium">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Audit Logs Pagination Controls */}

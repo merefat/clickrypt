@@ -25,6 +25,16 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
   }
 
-  db.folders.splice(index, 1);
-  return NextResponse.json({ success: true });
+  const deletedFolder = db.folders.splice(index, 1)[0];
+
+  db.auditLogs.unshift({
+    id: `al-${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    action: 'DELETE_FOLDER',
+    userId: 'u-1',
+    resourceId: id,
+    details: `Deleted vault folder "${deletedFolder.name}"`,
+  });
+
+  return NextResponse.json({ success: true, message: `Folder ${deletedFolder.name} deleted successfully` });
 }

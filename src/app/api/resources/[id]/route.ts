@@ -61,10 +61,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     id: `al-${Date.now()}`,
     timestamp: new Date().toISOString(),
     action: 'DELETE_RESOURCE',
-    userId: 'u-1',
+    userId: deleted.ownerId || 'u-1',
     resourceId: id,
-    details: `Deleted resource ${deleted.name}`,
+    details: `Deleted password item "${deleted.name}"`,
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, message: `Password item ${deleted.name} deleted successfully` });
 }
