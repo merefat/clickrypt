@@ -162,13 +162,13 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
       if (oldItems.length > 0) {
         dynamicNotifs.push({
           id: 'dyn-old',
-          title: `⏳ ${oldItems.length} Password(s) Older Than 6 Months`,
-          desc: `Vault item "${oldItems[0].name}" has not been updated in over 6 months. Rotate your passwords regularly.`,
+          title: `⏳ ${oldItems.length} Password(s) Needing Attention`,
+          desc: `Vault item "${oldItems[0].name}" is old and needs to be recreated/changed.`,
           time: 'Active Alert',
           type: 'outdated',
           unread: true,
-          actionUrl: '/vault',
-          actionText: 'Rotate Old Passwords',
+          actionUrl: '/vault?filter=old',
+          actionText: 'View Passwords Needing Attention 🔴',
         });
       }
 

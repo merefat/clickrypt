@@ -8,11 +8,42 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { targetUserId, targetUserIds, encryptedData, secrets, isExternalShared, externalShareEmail } = body;
+    const { action, revokeUserId, targetUserId, targetUserIds, encryptedData, secrets, isExternalShared, externalShareEmail } = body;
 
     const resource = db.resources.find((r) => r.id === id);
     if (!resource) {
       return NextResponse.json({ error: 'Resource not found' }, { status: 404 });
+    }
+
+    // REVOCATION ACTION: Revoke sharing for a specific user ID or external share
+    if (action === 'revoke' || revokeUserId) {
+      const targetToRevoke = revokeUserId || targetUserId;
+      if (targetToRevoke) {
+        // Remove from secrets array (except owner)
+        resource.secrets = resource.secrets.filter(
+          (s) => s.userId !== targetToRevoke || s.userId === resource.ownerId
+        );
+        // Remove from sharedWith array
+        if (resource.sharedWith) {
+          resource.sharedWith = resource.sharedWith.filter((idOrEmail) => idOrEmail !== targetToRevoke);
+        }
+      }
+
+      if (action === 'revoke_external' || isExternalShared === false) {
+        resource.isExternalShared = false;
+        resource.externalShareEmail = undefined;
+      }
+
+      db.auditLogs.unshift({
+        id: `al-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        action: 'REVOKE_SHARE',
+        userId: resource.ownerId,
+        resourceId: id,
+        details: `Revoked share permission for resource ${resource.name} (Recipient: ${targetToRevoke || 'External'})`,
+      });
+
+      return NextResponse.json({ success: true, resource, message: 'Share permission revoked cleanly.' });
     }
 
     if (isExternalShared !== undefined) {
@@ -43,7 +74,7 @@ export async function POST(
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'SHARE_RESOURCE',
-      userId: 'u-1',
+      userId: resource.ownerId,
       resourceId: id,
       details: `Shared resource ${resource.name} with ${(targetUserIds || [targetUserId]).length} members via OpenPGP re-encryption`,
     });

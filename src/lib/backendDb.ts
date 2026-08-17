@@ -12,7 +12,7 @@ export interface DbUser {
   id: string;
   email: string;
   name: string;
-  role: 'Owner' | 'Admin' | 'User';
+  role: 'Owner' | 'Admin' | 'User' | 'External';
   status: 'Active' | 'Suspended' | 'Invited';
   publicKey: string;
   encryptedPrivateKey: string;
@@ -149,6 +149,16 @@ class BackendDatabase {
       encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...ArifPrivateKey...==\n-----END PGP PRIVATE KEY BLOCK-----',
       lastActive: 'Just now',
     },
+    {
+      id: 'u-ext-1',
+      email: 'external.partner@vendor.com',
+      name: 'External Partner',
+      role: 'External',
+      status: 'Active',
+      publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2AcmeExternalPublicKeyBase64PayloadData2026==\n-----END PGP PUBLIC KEY BLOCK-----',
+      encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2AcmeExternalPrivateKeyBase64PayloadData2026==\n-----END PGP PRIVATE KEY BLOCK-----',
+      lastActive: 'Just now',
+    },
   ];
 
   public folders: DbFolder[] = [
@@ -217,6 +227,34 @@ class BackendDatabase {
       strength: 'Strong',
       lastModified: 'May 24, 2025 10:14 AM',
       secrets: [{ userId: 'u-1', encryptedData: '[PGP-ENCRYPTED-BLOB::QW1hem9uU2VjcmV0UGFzczEyMyE=]' }]
+    },
+    {
+      id: 'r-admin-1',
+      name: 'Stripe Admin Portal',
+      username: 'sarah.johnson@acme.com',
+      url: 'dashboard.stripe.com',
+      category: 'Finance',
+      ownerId: 'u-2',
+      strength: 'Strong',
+      lastModified: 'May 24, 2025 11:00 AM',
+      tags: ['Admin', 'Finance'],
+      secrets: [
+        { userId: 'u-2', encryptedData: '[PGP-ENCRYPTED-BLOB::U3RyaXBlQWRtaW5QYXNzNzg5IQ==]' }
+      ]
+    },
+    {
+      id: 'r-user-1',
+      name: 'Personal Figma Account',
+      username: 'mark.wilson@acme.com',
+      url: 'figma.com',
+      category: 'Design',
+      ownerId: 'u-3',
+      strength: 'Strong',
+      lastModified: 'May 24, 2025 11:30 AM',
+      tags: ['User', 'Design'],
+      secrets: [
+        { userId: 'u-3', encryptedData: '[PGP-ENCRYPTED-BLOB::RmlnbWFVc2VyUGFzczQ1NiE=]' }
+      ]
     }
   ];
 

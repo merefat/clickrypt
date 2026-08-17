@@ -9,7 +9,7 @@ export interface UserProfile {
   id: string;
   email: string;
   name: string;
-  role: 'Owner' | 'Admin' | 'User';
+  role: 'Owner' | 'Admin' | 'User' | 'External';
   publicKey?: string;
   encryptedPrivateKey?: string;
   avatarUrl?: string;

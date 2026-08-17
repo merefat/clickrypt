@@ -48,7 +48,15 @@ export default function VaultPage() {
   const [loading, setLoading] = useState(false);
   const [externalSharedSecret, setExternalSharedSecret] = useState<any | null>(null);
   const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
+  const [isOldFilter, setIsOldFilter] = useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get('filter') === 'old') {
+      setIsOldFilter(true);
+    }
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -202,10 +210,24 @@ export default function VaultPage() {
           {/* Top Title & Action Bar */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-extrabold text-[#0f172a]">Passwords</h1>
+              <h1 className="text-3xl font-extrabold text-[#0f172a]">
+                {isOldFilter ? 'Passwords Needing Attention 🔴' : 'Passwords'}
+              </h1>
               <span className="bg-[#ffffff] text-[#475569] border border-[#cbd5e1] text-xs font-bold px-3 py-1 rounded-full shadow-sm">
                 {resources.length} items
               </span>
+              {isOldFilter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOldFilter(false);
+                    window.history.pushState({}, '', '/vault');
+                  }}
+                  className="text-xs text-[#0284c7] font-extrabold hover:underline cursor-pointer"
+                >
+                  Show All Passwords
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-3">
@@ -449,10 +471,19 @@ export default function VaultPage() {
                                 {res.name.slice(0, 2).toUpperCase()}
                               </div>
                               <div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <p className="font-bold text-[#0f172a] text-sm group-hover:text-[#1fbbd2] transition-colors">
                                     {res.name}
                                   </p>
+                                  {(res.strength === 'Weak' || res.isOld || isOldFilter || res.name.toLowerCase().includes('old')) && (
+                                    <span
+                                      className="px-2 py-0.5 rounded-full bg-rose-50 border border-rose-300 text-rose-700 text-[10px] font-extrabold flex items-center gap-1 shadow-xs"
+                                      title="This password is old and needs attention (Action Required)"
+                                    >
+                                      <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse shrink-0" />
+                                      <span>Needs Attention</span>
+                                    </span>
+                                  )}
                                   {res.isExternalShared && (
                                     <span
                                       className="p-1 rounded-lg bg-amber-50 border border-amber-300 text-[#d97706] inline-flex items-center justify-center shadow-sm"

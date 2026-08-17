@@ -82,6 +82,9 @@ export default function Sidebar() {
         {/* Navigation Items */}
         <nav className="space-y-1.5">
           {menuItems.map((item) => {
+            if (user?.role === 'External' && item.path !== '/shared' && item.path !== '/settings') {
+              return null;
+            }
             if (item.role === 'Owner' && user?.role !== 'Owner') {
               return null;
             }

@@ -1,5 +1,22 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { db } from '@/lib/backendDb';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'SuperSecretClickryptJwtKey_2026!';
+
+async function getAuthUser() {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('access_token')?.value;
+    if (!token) return db.users[0];
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const user = db.users.find((u) => u.id === decoded.userId);
+    return user || db.users[0];
+  } catch {
+    return db.users[0];
+  }
+}
 
 export async function GET(request: Request) {
   // Subscription check
@@ -16,7 +33,25 @@ export async function GET(request: Request) {
   const secretVaultStr = searchParams.get('secretVault');
   const sharedWithUserId = searchParams.get('sharedWithUserId');
 
-  let result = db.resources;
+  const authUser = await getAuthUser();
+  const currentUserId = authUser.id;
+  const currentUserEmail = authUser.email.toLowerCase();
+  const currentUserRole = authUser.role;
+
+  // Phase 1 Server-Side Authorization:
+  // A user ONLY receives passwords where they are the owner, a secret recipient, or explicitly shared
+  let result = db.resources.filter((r) => {
+    const isOwner = r.ownerId === currentUserId;
+    const hasSecretAccess = r.secrets && r.secrets.some((s) => s.userId === currentUserId);
+    const isExplicitlyShared =
+      r.sharedWith &&
+      (r.sharedWith.includes(currentUserId) ||
+        r.sharedWith.includes(currentUserEmail) ||
+        r.sharedWith.includes(currentUserRole));
+    const isExternalRecipient = r.isExternalShared && r.externalShareEmail?.toLowerCase() === currentUserEmail;
+
+    return isOwner || hasSecretAccess || isExplicitlyShared || isExternalRecipient;
+  });
 
   if (secretVaultStr === 'true') {
     result = result.filter((r) => r.isPrivateOnly === true);
@@ -60,6 +95,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    const authUser = await getAuthUser();
     const body = await request.json();
     const newResource = {
       id: `r-${Date.now()}`,
@@ -67,14 +103,14 @@ export async function POST(request: Request) {
       username: body.username || '',
       url: body.url || '',
       category: body.category || 'General',
-      ownerId: 'u-1',
+      ownerId: authUser.id,
       folderId: body.folderId || null,
       isPrivateOnly: !!body.isPrivateOnly,
       strength: body.strength || 'Strong',
       lastModified: 'Just now',
       secrets: [
         {
-          userId: 'u-1',
+          userId: authUser.id,
           encryptedData: body.encryptedData || `[PGP-ENCRYPTED-BLOB::${Buffer.from(body.password || 'AcmePass123!').toString('base64')}]`,
         },
       ],
@@ -86,7 +122,7 @@ export async function POST(request: Request) {
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'CREATE_RESOURCE',
-      userId: 'u-1',
+      userId: authUser.id,
       resourceId: newResource.id,
       details: `Created new password item: ${newResource.name}`,
     });
