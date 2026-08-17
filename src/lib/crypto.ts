@@ -42,11 +42,11 @@ export function safeBase64Decode(str: string): string {
       cleaned = cleaned.slice(0, -1);
     }
 
-    // 2. Remove all whitespace
-    cleaned = cleaned.replace(/\s+/g, '');
+    // 2. Remove all whitespace and replace URL-safe base64 characters
+    cleaned = cleaned.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
 
-    // If string starts with PGP header or is not a valid base64 character set, return raw string without calling atob
-    if (cleaned.startsWith('-----BEGIN') || !/^[A-Za-z0-9+/=]+$/.test(cleaned)) {
+    // If string starts with PGP header, return raw string without calling atob
+    if (cleaned.startsWith('-----BEGIN')) {
       return str;
     }
 
@@ -54,17 +54,16 @@ export function safeBase64Decode(str: string): string {
     const mod = cleaned.length % 4;
     if (mod === 2) cleaned += '==';
     else if (mod === 3) cleaned += '=';
-    else if (mod === 1) return str; // Invalid Base64 length
 
     // 4. Try Node.js Buffer first (never throws DOMException)
-    if (typeof Buffer !== 'undefined') {
+    if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
       try {
         const decodedBuf = Buffer.from(cleaned, 'base64').toString('utf-8');
         if (decodedBuf) return decodedBuf;
       } catch (bufErr) {}
     }
 
-    // 5. Try browser native atob only if regex validated
+    // 5. Try browser native atob only inside safe try-catch
     if (typeof window !== 'undefined' && typeof window.atob === 'function') {
       try {
         const decoded = window.atob(cleaned);
