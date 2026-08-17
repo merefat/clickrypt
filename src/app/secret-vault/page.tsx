@@ -25,12 +25,14 @@ import {
   ChevronDown,
   Check
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { decryptSecret } from '@/lib/crypto';
 import { useAuth } from '@/context/AuthContext';
 
 export default function SecretVaultPage() {
-  const { masterPassword, getEncryptedPrivateKey } = useAuth();
+  const router = useRouter();
+  const { user, masterPassword, getEncryptedPrivateKey } = useAuth();
   const [resources, setResources] = useState<any[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
@@ -46,6 +48,13 @@ export default function SecretVaultPage() {
   const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Route Guard: Restrict Secret Vault exclusively to Owner role
+  useEffect(() => {
+    if (user && user.role !== 'Owner') {
+      router.push('/vault');
+    }
+  }, [user, router]);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -57,12 +66,16 @@ export default function SecretVaultPage() {
   }, []);
 
   useEffect(() => {
-    fetchFolders();
-  }, []);
+    if (user?.role === 'Owner') {
+      fetchFolders();
+    }
+  }, [user]);
 
   useEffect(() => {
-    fetchResources();
-  }, [searchTerm, selectedFolderId]);
+    if (user?.role === 'Owner') {
+      fetchResources();
+    }
+  }, [searchTerm, selectedFolderId, user]);
 
   const fetchFolders = async () => {
     try {
