@@ -114,22 +114,18 @@ export default function StandaloneCheckoutPage() {
       <div className="absolute bottom-1/4 right-10 w-96 h-96 bg-[#1fbbd2]/10 rounded-full blur-[140px] pointer-events-none" />
 
       {/* Standalone Brand Navigation Bar */}
-      <header className="max-w-6xl mx-auto w-full flex items-center justify-between py-4 border-b border-gray-300/80 mb-8 z-10">
+      <header className="max-w-6xl mx-auto w-full flex items-center justify-between py-4 border-b border-[#cbd5e1] mb-8 z-10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center shadow-lg shadow-[#f39c12]/20">
-            <Shield className="w-6 h-6 text-[#091528]" />
-          </div>
-          <div>
-            <span className="text-xl font-extrabold text-[#091528] glow-gold">Clickrypt</span>
-            <p className="text-[10px] text-[#1fbbd2] font-semibold">Stripe Secure Payment Portal</p>
-          </div>
+          <img src="/logo.png" alt="Clickrypt Logo" className="h-12 w-auto object-contain drop-shadow-md" />
+          <div className="h-6 w-px bg-[#cbd5e1] mx-1" />
+          <p className="text-xs text-[#0284c7] font-extrabold tracking-wide">Stripe Secure Payment Portal</p>
         </div>
 
         <Link
           href="/login"
-          className="px-4 py-2 !bg-[#f5f8fb] hover:bg-gray-200 border border-[#1fbbd2]/40 text-[#091528] hover:text-[#1fbbd2] text-xs font-bold rounded-xl flex items-center gap-2 transition-all shadow-md"
+          className="px-4 py-2 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#0284c7] text-[#0f172a] hover:text-[#0284c7] text-xs font-bold rounded-xl flex items-center gap-2 transition-all shadow-sm"
         >
-          <ArrowLeft className="w-4 h-4 text-[#f39c12]" />
+          <ArrowLeft className="w-4 h-4 text-[#d97706]" />
           <span>Back to Sign In</span>
         </Link>
       </header>
