@@ -39,6 +39,7 @@ export interface DbResource {
   score?: number;
   strength?: 'Strong' | 'Better' | 'Weak';
   lastModified: string;
+  isOld?: boolean;
   secrets: DbResourceSecret[];
   tags?: string[];
   sharedWith?: string[];
@@ -254,6 +255,54 @@ class BackendDatabase {
       tags: ['User', 'Design'],
       secrets: [
         { userId: 'u-3', encryptedData: '[PGP-ENCRYPTED-BLOB::RmlnbWFVc2VyUGFzczQ1NiE=]' }
+      ]
+    },
+    {
+      id: 'r-old-1',
+      name: 'Legacy Server FTP Login',
+      username: 'admin.legacy',
+      url: 'ftp.legacy-server.internal',
+      category: 'Infrastructure',
+      ownerId: 'u-1',
+      strength: 'Weak',
+      lastModified: 'Jan 10, 2024',
+      isOld: true,
+      tags: ['Legacy', 'FTP'],
+      secrets: [
+        { userId: 'u-1', encryptedData: '[PGP-ENCRYPTED-BLOB::TGVnYWN5RlRQUGFzczEyMyE=]' }
+      ]
+    },
+    {
+      id: 'r-shared-outbound-1',
+      name: 'Marketing Social Media Manager',
+      username: 'social@acme.com',
+      url: 'buffer.com',
+      category: 'Marketing',
+      ownerId: 'u-1',
+      strength: 'Strong',
+      lastModified: 'May 20, 2025 02:15 PM',
+      sharedWith: ['u-3'],
+      tags: ['Marketing', 'Shared'],
+      secrets: [
+        { userId: 'u-1', encryptedData: '[PGP-ENCRYPTED-BLOB::U29jaWFsTWVkaWFQYXNzNzg5IQ==]' },
+        { userId: 'u-3', encryptedData: '[PGP-ENCRYPTED-BLOB::U29jaWFsTWVkaWFQYXNzNzg5IQ==]' }
+      ]
+    },
+    {
+      id: 'r-external-test-1',
+      name: 'Vendor Integration Gateway',
+      username: 'api_partner_v1',
+      url: 'vendor.api.acme.com',
+      category: 'API Gateway',
+      ownerId: 'u-1',
+      strength: 'Strong',
+      isExternalShared: true,
+      externalShareEmail: 'external.partner@vendor.com',
+      lastModified: 'May 21, 2025 09:45 AM',
+      tags: ['External', 'API'],
+      secrets: [
+        { userId: 'u-1', encryptedData: '[PGP-ENCRYPTED-BLOB::VmVuZG9yQVBJS2V5OTk5IQ==]' },
+        { userId: 'u-ext-1', encryptedData: '[PGP-ENCRYPTED-BLOB::VmVuZG9yQVBJS2V5OTk5IQ==]' }
       ]
     }
   ];
