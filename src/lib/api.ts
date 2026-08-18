@@ -19,8 +19,10 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
+      const url = error.config?.url || '';
+      const fallbackData = url.includes('/auth/me') ? { user: null } : [];
       return Promise.resolve({
-        data: [],
+        data: fallbackData,
         status: 200,
         statusText: 'OK',
         headers: error.response?.headers || {},

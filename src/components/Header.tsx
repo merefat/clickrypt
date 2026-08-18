@@ -380,12 +380,18 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
             {user?.avatarUrl ? (
               <img
                 src={user.avatarUrl}
-                alt={user.name}
+                alt={user.name || 'Avatar'}
                 className="w-8 h-8 rounded-full object-cover shadow-sm border border-[#1fbbd2] group-hover:scale-105 transition-transform"
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-white p-0.5 border border-[#cbd5e1] flex items-center justify-center shadow-sm overflow-hidden group-hover:scale-105 transition-transform">
-                <img src="/logo.png" alt="Clickrypt Logo" className="w-full h-full object-contain" />
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-xs font-extrabold text-[#0f172a] shadow-xs overflow-hidden group-hover:scale-105 transition-transform shrink-0">
+                {user?.name ? (
+                  user.name.slice(0, 2).toUpperCase()
+                ) : user?.email ? (
+                  user.email.slice(0, 2).toUpperCase()
+                ) : (
+                  'US'
+                )}
               </div>
             )}
             <div className="text-left hidden sm:block">
