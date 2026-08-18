@@ -43,6 +43,12 @@ export default function GroupsPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const mode = localStorage.getItem('clickrypt_app_mode') || 'personal';
+      if (mode === 'personal') {
+        router.push('/vault');
+      }
+    }
     if (user?.role === 'External') {
       router.push('/shared');
     }

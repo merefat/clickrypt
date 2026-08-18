@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const mode = searchParams.get('mode');
+  if (mode === 'personal') {
+    return NextResponse.json([]);
+  }
   return NextResponse.json(db.users);
 }
 

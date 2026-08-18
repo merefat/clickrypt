@@ -39,18 +39,20 @@ interface PasskeyItem {
 }
 
 export default function SettingsPage() {
-  const { user, masterPassword, updateMasterPassword, getEncryptedPrivateKey, updateProfile } = useAuth();
-  const [name, setName] = useState(user?.name || 'Alex Morgan');
-  const [email, setEmail] = useState(user?.email || 'alex.morgan@acme.com');
+  const { user, masterPassword, updateMasterPassword, getEncryptedPrivateKey, updateProfile, appMode } = useAuth();
+  const [name, setName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (user?.name) setName(user.name);
-    if (user?.email) setEmail(user.email);
-    if (user?.avatarUrl) setAvatarUrl(user.avatarUrl);
-  }, [user]);
+    if (user) {
+      setName(user.name || '');
+      setEmail(user.email || '');
+      setAvatarUrl(user.avatarUrl || '');
+    }
+  }, [user, appMode]);
 
   // Account Recovery & SSO state
   const [recPolicy, setRecPolicy] = useState<'disabled' | 'opt-in' | 'opt-out' | 'mandatory'>('opt-in');
@@ -550,15 +552,16 @@ ${privKey}
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex items-center justify-end gap-3 pt-2">
                 {savedSuccess && (
-                  <span className="text-emerald-400 text-xs font-bold flex items-center gap-1 self-center">
-                    <Check className="w-4 h-4" /> Saved!
-                  </span>
+                  <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-xs animate-in fade-in">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Profile updated & saved to vault database!</span>
+                  </div>
                 )}
                 <button
                   type="submit"
-                  className="gold-gradient-btn px-6 py-2.5 rounded-xl text-xs font-extrabold text-white shadow cursor-pointer"
+                  className="gold-gradient-btn px-6 py-2.5 rounded-xl text-xs font-extrabold text-white shadow-md hover:scale-105 transition-all cursor-pointer"
                 >
                   Save Changes
                 </button>

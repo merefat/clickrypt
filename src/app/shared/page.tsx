@@ -341,10 +341,10 @@ export default function SharedPage() {
                               <User className="w-3.5 h-3.5 text-[#d97706]" />
                               <span>
                                 {activeTab === 'received'
-                                  ? 'Alex Morgan (Owner)'
+                                  ? res.ownerName || 'Vault Owner'
                                   : res.isExternalShared
                                   ? res.externalShareEmail || 'External Recipient'
-                                  : `Sarah Johnson (Admin) + ${recipientCount} user(s)`}
+                                  : `Team Member + ${recipientCount} user(s)`}
                               </span>
                             </div>
                           </td>

@@ -591,10 +591,10 @@ export default function ImportExportPage() {
                   <label className="text-xs font-extrabold text-[#334155]">Choose what to export</label>
                   <div className="space-y-2">
                     {[
-                      { id: 'all', label: 'All Main Vault Passwords', sub: 'Export all personal and shared passwords in main vault.' },
-                      { id: 'group', label: 'Specific Team Group', sub: 'Export passwords assigned to a specific group.' },
-                      { id: 'selected', label: 'Specific Folder / Selected Items', sub: 'Export passwords from a chosen workplace folder.' },
-                    ].map((opt) => {
+                      { id: 'all', label: 'All Main Vault Passwords', sub: 'Export all personal passwords in main vault.' },
+                      !isPersonalMode && { id: 'group', label: 'Specific Team Group', sub: 'Export passwords assigned to a specific group.' },
+                      { id: 'selected', label: 'Specific Folder / Selected Items', sub: 'Export passwords from a chosen folder.' },
+                    ].filter(Boolean).map((opt: any) => {
                       const isSel = exportOption === opt.id;
                       return (
                         <div key={opt.id} className="space-y-2">

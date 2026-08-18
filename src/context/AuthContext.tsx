@@ -19,6 +19,8 @@ interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
   masterPassword: string | null;
+  appMode: 'personal' | 'organization';
+  setAppMode: (mode: 'personal' | 'organization') => void;
   login: (email: string, masterPassword: string) => Promise<boolean>;
   register: (name: string, email: string, masterPassword: string, role?: 'Owner' | 'Admin' | 'User' | 'External') => Promise<boolean>;
   updateMasterPassword: (newMasterPass: string) => Promise<void>;
@@ -32,31 +34,68 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [masterPassword, setMasterPassword] = useState<string | null>('password'); // default for quick demo access
+  const [appModeState, setAppModeState] = useState<'personal' | 'organization'>('organization');
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const mode = (localStorage.getItem('clickrypt_app_mode') as 'personal' | 'organization') || 'organization';
+      setAppModeState(mode);
+    }
     fetchSession();
   }, []);
 
+  const setAppMode = (mode: 'personal' | 'organization') => {
+    setAppModeState(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('clickrypt_app_mode', mode);
+    }
+    fetchSession();
+  };
+
   const fetchSession = async () => {
+    const currentMode = typeof window !== 'undefined' ? localStorage.getItem('clickrypt_app_mode') || 'organization' : 'organization';
+    let cachedUser: UserProfile | null = null;
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem(`clickrypt_user_profile_${currentMode}`);
+      if (savedUser) {
+        try {
+          cachedUser = JSON.parse(savedUser);
+          setUser(cachedUser);
+        } catch (e) {}
+      }
+    }
     try {
-      const res = await api.get('/auth/me');
+      const res = await api.get(`/auth/me?mode=${currentMode}`);
       if (res.data?.user) {
-        setUser(res.data.user);
-      } else {
-        setUser(null);
+        const mergedUser = cachedUser
+          ? {
+              ...res.data.user,
+              name: cachedUser.name || res.data.user.name,
+              email: cachedUser.email || res.data.user.email,
+              avatarUrl: cachedUser.avatarUrl !== undefined ? cachedUser.avatarUrl : res.data.user.avatarUrl,
+            }
+          : res.data.user;
+        setUser(mergedUser);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`clickrypt_user_profile_${currentMode}`, JSON.stringify(mergedUser));
+        }
       }
     } catch (error) {
-      setUser(null);
+      // Keep cached profile if offline
     }
   };
 
   const login = async (email: string, masterPass: string): Promise<boolean> => {
+    const currentMode = typeof window !== 'undefined' ? localStorage.getItem('clickrypt_app_mode') || 'organization' : 'organization';
     try {
       const res = await api.post('/auth/login', { email, password: masterPass });
       if (res.data?.user) {
-        if (typeof window !== 'undefined' && res.data.token) {
-          sessionStorage.setItem('access_token', res.data.token);
-          localStorage.setItem('access_token', res.data.token);
+        if (typeof window !== 'undefined') {
+          if (res.data.token) {
+            sessionStorage.setItem('access_token', res.data.token);
+            localStorage.setItem('access_token', res.data.token);
+          }
+          localStorage.setItem(`clickrypt_user_profile_${currentMode}`, JSON.stringify(res.data.user));
         }
         setUser(res.data.user);
         setMasterPassword(masterPass);
@@ -73,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (name: string, email: string, masterPass: string, role?: 'Owner' | 'Admin' | 'User' | 'External'): Promise<boolean> => {
+    const currentMode = typeof window !== 'undefined' ? localStorage.getItem('clickrypt_app_mode') || 'organization' : 'organization';
     try {
       // 1. Generate client-side PGP keys
       const { privateKey, publicKey } = await generateKeyPair(email, masterPass);
@@ -88,9 +128,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (res.data?.user) {
-        if (typeof window !== 'undefined' && res.data.token) {
-          sessionStorage.setItem('access_token', res.data.token);
-          localStorage.setItem('access_token', res.data.token);
+        if (typeof window !== 'undefined') {
+          if (res.data.token) {
+            sessionStorage.setItem('access_token', res.data.token);
+            localStorage.setItem('access_token', res.data.token);
+          }
+          localStorage.setItem(`clickrypt_user_profile_${currentMode}`, JSON.stringify(res.data.user));
         }
         setUser(res.data.user);
         setMasterPassword(masterPass);
@@ -117,16 +160,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const updateProfile = async (name: string, email: string, avatarUrl?: string): Promise<boolean> => {
+    const currentMode = typeof window !== 'undefined' ? localStorage.getItem('clickrypt_app_mode') || 'organization' : 'organization';
     try {
-      const res = await api.put('/auth/me', { name, email, avatarUrl });
-      if (res.data?.user) {
-        setUser(res.data.user);
+      const res = await api.put('/auth/me', { name, email, avatarUrl, mode: currentMode });
+      const updatedUser = res.data?.user || (user ? { ...user, name, email, avatarUrl } : null);
+      if (updatedUser) {
+        setUser(updatedUser);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`clickrypt_user_profile_${currentMode}`, JSON.stringify(updatedUser));
+        }
         return true;
       }
-      setUser((prev) => (prev ? { ...prev, name, email, avatarUrl } : null));
-      return true;
+      return false;
     } catch (error) {
-      setUser((prev) => (prev ? { ...prev, name, email, avatarUrl } : null));
+      if (user) {
+        const updatedUser = { ...user, name, email, avatarUrl };
+        setUser(updatedUser);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(`clickrypt_user_profile_${currentMode}`, JSON.stringify(updatedUser));
+        }
+      }
       return true;
     }
   };
@@ -135,6 +188,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('access_token');
       localStorage.removeItem('access_token');
+      localStorage.removeItem('clickrypt_user_profile');
+      localStorage.removeItem('clickrypt_user_profile_personal');
+      localStorage.removeItem('clickrypt_user_profile_organization');
     }
     try {
       await api.post('/auth/logout');
@@ -160,6 +216,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isAuthenticated: !!user,
         masterPassword,
+        appMode: appModeState,
+        setAppMode,
         login,
         register,
         updateMasterPassword,

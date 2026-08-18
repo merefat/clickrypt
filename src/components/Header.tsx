@@ -390,13 +390,13 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
                 ) : user?.email ? (
                   user.email.slice(0, 2).toUpperCase()
                 ) : (
-                  'US'
+                  'RE'
                 )}
               </div>
             )}
             <div className="text-left hidden sm:block">
               <p className="text-xs font-extrabold text-[#0f172a] leading-tight group-hover:text-[#0284c7] transition-colors">
-                {user?.name || user?.email?.split('@')[0] || 'User'}
+                {user?.name || user?.email?.split('@')[0] || 'Refat'}
               </p>
               <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight">{user?.role || 'Owner'}</p>
             </div>

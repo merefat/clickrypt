@@ -8,6 +8,12 @@ export interface DbSubscription {
   daysRemaining: number;
 }
 
+export interface ModeProfile {
+  name?: string;
+  email?: string;
+  avatarUrl?: string;
+}
+
 export interface DbUser {
   id: string;
   email: string;
@@ -18,6 +24,8 @@ export interface DbUser {
   encryptedPrivateKey: string;
   lastActive: string;
   avatarUrl?: string;
+  personalProfile?: ModeProfile;
+  organizationProfile?: ModeProfile;
 }
 
 export interface DbResourceSecret {
@@ -87,24 +95,20 @@ export interface DbInvitation {
   status: 'Pending' | 'Accepted';
 }
 
-class BackendDatabase {
-  public isSupabaseConnected = true;
+const globalForDbData = globalThis as unknown as {
+  dbUsersStore?: DbUser[];
+  dbFoldersStore?: DbFolder[];
+  dbResourcesStore?: DbResource[];
+  dbGroupsStore?: DbGroup[];
+  dbAuditLogsStore?: DbAuditLog[];
+};
 
-  public subscription: DbSubscription = {
-    plan: 'Organization',
-    status: 'Active',
-    seats: 25,
-    renewalDate: 'May 18, 2026',
-    daysRemaining: 365,
-  };
-
-  public invitations: DbInvitation[] = [];
-
-  public users: DbUser[] = [
+if (!globalForDbData.dbUsersStore) {
+  globalForDbData.dbUsersStore = [
     {
       id: 'u-1',
       email: 'refat61899200@gmail.com',
-      name: 'Refat Ahmed',
+      name: 'Refat',
       role: 'Owner',
       status: 'Active',
       publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2RefatAhmedPublicKeyBase64PayloadData2026==\n-----END PGP PUBLIC KEY BLOCK-----',
@@ -132,11 +136,59 @@ class BackendDatabase {
       lastActive: 'Just now',
     },
   ];
+}
+if (!globalForDbData.dbFoldersStore) globalForDbData.dbFoldersStore = [];
+if (!globalForDbData.dbResourcesStore) globalForDbData.dbResourcesStore = [];
+if (!globalForDbData.dbGroupsStore) globalForDbData.dbGroupsStore = [];
+if (!globalForDbData.dbAuditLogsStore) globalForDbData.dbAuditLogsStore = [];
 
-  public folders: DbFolder[] = [];
-  public resources: DbResource[] = [];
-  public groups: DbGroup[] = [];
-  public auditLogs: DbAuditLog[] = [];
+class BackendDatabase {
+  public isSupabaseConnected = true;
+
+  public subscription: DbSubscription = {
+    plan: 'Organization',
+    status: 'Active',
+    seats: 25,
+    renewalDate: 'May 18, 2026',
+    daysRemaining: 365,
+  };
+
+  public invitations: DbInvitation[] = [];
+
+  get users(): DbUser[] {
+    return globalForDbData.dbUsersStore!;
+  }
+  set users(val: DbUser[]) {
+    globalForDbData.dbUsersStore = val;
+  }
+
+  get folders(): DbFolder[] {
+    return globalForDbData.dbFoldersStore!;
+  }
+  set folders(val: DbFolder[]) {
+    globalForDbData.dbFoldersStore = val;
+  }
+
+  get resources(): DbResource[] {
+    return globalForDbData.dbResourcesStore!;
+  }
+  set resources(val: DbResource[]) {
+    globalForDbData.dbResourcesStore = val;
+  }
+
+  get groups(): DbGroup[] {
+    return globalForDbData.dbGroupsStore!;
+  }
+  set groups(val: DbGroup[]) {
+    globalForDbData.dbGroupsStore = val;
+  }
+
+  get auditLogs(): DbAuditLog[] {
+    return globalForDbData.dbAuditLogsStore!;
+  }
+  set auditLogs(val: DbAuditLog[]) {
+    globalForDbData.dbAuditLogsStore = val;
+  }
 
   // Account Recovery & SSO Tables
   public accountRecoveryPolicies: DbAccountRecoveryOrgPolicy[] = [

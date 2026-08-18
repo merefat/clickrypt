@@ -49,10 +49,10 @@ export default function Sidebar() {
   const menuItems = [
     { name: 'Passwords', path: '/vault', icon: KeyRound },
     { name: 'Secret Vault', path: '/secret-vault', icon: Lock, badge: 'Private', role: 'Owner' },
-    { name: 'Groups', path: '/groups', icon: Users },
+    { name: 'Groups', path: '/groups', icon: Users, role: 'OrganizationOnly' },
     { name: 'Folders', path: '/folders', icon: Folder },
     { name: appMode === 'organization' ? 'Shared with me' : 'Shared by me', path: '/shared', icon: Share2 },
-    { name: 'Team Members', path: '/admin', icon: UserCheck, role: 'AdminOrOwner' },
+    { name: 'Team Members', path: '/admin', icon: UserCheck, role: 'OrganizationOnly' },
     { name: 'Import / Export', path: '/import-export', icon: FileSpreadsheet },
     { name: 'Settings', path: '/settings', icon: Settings },
   ];
@@ -92,6 +92,9 @@ export default function Sidebar() {
         {/* Navigation Items */}
         <nav className="space-y-1.5">
           {menuItems.map((item) => {
+            if (item.role === 'OrganizationOnly' && appMode === 'personal') {
+              return null;
+            }
             if (user?.role === 'External' && item.path !== '/shared' && item.path !== '/settings') {
               return null;
             }
@@ -163,7 +166,7 @@ export default function Sidebar() {
             ) : user?.email ? (
               user.email.slice(0, 2).toUpperCase()
             ) : (
-              'US'
+              'RE'
             )}
           </div>
 
@@ -173,7 +176,7 @@ export default function Sidebar() {
             }`}
           >
             <p className="text-xs font-extrabold text-[#0f172a] group-hover:text-[#0284c7] leading-tight transition-colors truncate">
-              {user?.name || user?.email?.split('@')[0] || 'User'}
+              {user?.name || user?.email?.split('@')[0] || 'Refat'}
             </p>
             <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight truncate">
               {user?.role || 'Owner'}

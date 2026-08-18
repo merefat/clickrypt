@@ -28,8 +28,21 @@ import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { reEncryptPgpMessage } from '@/lib/crypto';
 
+import { useRouter } from 'next/navigation';
+
 export default function AdminPage() {
   const { user } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedMode = localStorage.getItem('clickrypt_app_mode');
+      if (storedMode === 'personal') {
+        router.push('/vault');
+      }
+    }
+  }, [router]);
+
   const [users, setUsers] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [recoveryRequests, setRecoveryRequests] = useState<any[]>([]);
