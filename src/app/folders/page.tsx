@@ -66,6 +66,27 @@ export default function FoldersPage() {
     }
   };
 
+  const handleDeleteFolder = async (folderId?: string) => {
+    const targetId = folderId || selectedFolderId;
+    if (!targetId) return;
+
+    const folderObj = folders.find((f) => f.id === targetId);
+    if (!confirm(`Are you sure you want to delete the folder "${folderObj?.name || 'this folder'}"?`)) {
+      return;
+    }
+
+    try {
+      await api.delete(`/folders/${targetId}`);
+      setFolders((prev) => prev.filter((f) => f.id !== targetId));
+      if (selectedFolderId === targetId) {
+        setSelectedFolderId('');
+      }
+      fetchFolders();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to delete folder');
+    }
+  };
+
   const selectedFolder = folders.find((f) => f.id === selectedFolderId) || folders[0];
 
   return (
@@ -79,37 +100,38 @@ export default function FoldersPage() {
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#ffffff] border border-[#f39c12]/50 flex items-center justify-center text-[#d97706] shadow-sm">
-                <Folder className="w-5 h-5 text-[#d97706]" />
+              <div className="w-10 h-10 rounded-2xl bg-white border border-[#cbd5e1] flex items-center justify-center text-[#f39c12] shadow-sm">
+                <Folder className="w-5 h-5" />
               </div>
               <div>
-                <h1 className="text-3xl font-extrabold text-[#0f172a]">Folders Management</h1>
-                <p className="text-xs text-[#64748b] mt-0.5">
-                  Organize password items into structured categories and teams.
-                </p>
+                <h1 className="text-2xl font-extrabold text-[#0f172a] tracking-tight">Folders Management</h1>
+                <p className="text-xs text-[#64748b]">Organize password items into structured categories and teams.</p>
               </div>
             </div>
 
             <button
               onClick={() => setIsFolderModalOpen(true)}
-              className="gold-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow-md cursor-pointer"
+              className="gold-gradient-btn px-5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-lg cursor-pointer text-white"
             >
               <FolderPlus className="w-4 h-4" />
               <span>Create Folder</span>
             </button>
           </div>
 
-          {/* Main Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left: Folders List */}
-            <div className="glass-panel rounded-2xl p-5 border border-[#d0dbe5] bg-[#ffffff] space-y-3 shadow-xl">
-              <div className="flex items-center justify-between text-xs font-extrabold text-[#334155] pb-2 border-b border-[#cbd5e1]">
-                <span>WORKPLACE FOLDERS ({folders.length})</span>
+            {/* Left: Folder List Panel */}
+            <div className="lg:col-span-1 glass-panel rounded-2xl p-4 border border-[#d0dbe5] bg-[#ffffff] space-y-4 shadow-xl">
+              <div className="flex items-center justify-between pb-3 border-b border-[#cbd5e1]">
+                <span className="text-xs font-extrabold text-[#0f172a] uppercase tracking-wider">
+                  Workplace Folders ({folders.length})
+                </span>
               </div>
 
               <div className="space-y-2">
-                {folders.length === 0 ? (
-                  <p className="text-xs text-[#64748b] py-6 text-center">No workplace folders found.</p>
+                {loading ? (
+                  <p className="text-xs text-[#64748b] text-center py-4">Loading folders...</p>
+                ) : folders.length === 0 ? (
+                  <p className="text-xs text-[#64748b] text-center py-4">No folders created yet.</p>
                 ) : (
                   folders.map((f) => {
                     const isSelected = f.id === selectedFolderId;
@@ -124,17 +146,30 @@ export default function FoldersPage() {
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Folder className={`w-5 h-5 ${isSelected ? 'text-[#1fbbd2]' : 'text-[#64748b]'}`} />
-                            <div>
-                              <h3 className="text-sm font-extrabold text-[#0f172a]">{f.name}</h3>
+                          <div className="flex items-center gap-3 truncate pr-2">
+                            <Folder className={`w-5 h-5 shrink-0 ${isSelected ? 'text-[#1fbbd2]' : 'text-[#64748b]'}`} />
+                            <div className="truncate">
+                              <h3 className="text-sm font-extrabold text-[#0f172a] truncate">{f.name}</h3>
                               <p className="text-[11px] text-[#64748b] line-clamp-1">{f.description}</p>
                             </div>
                           </div>
 
-                          <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                            {f.itemCount} items
-                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                              {f.itemCount} items
+                            </span>
+
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteFolder(f.id);
+                              }}
+                              className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Folder"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -153,13 +188,24 @@ export default function FoldersPage() {
                       <p className="text-xs text-[#64748b] mt-0.5">{selectedFolder.description}</p>
                     </div>
 
-                    <button
-                      onClick={() => setIsDrawerOpen(true)}
-                      className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Add Item to Folder</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setIsDrawerOpen(true)}
+                        className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Add Item to Folder</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteFolder(selectedFolder.id)}
+                        className="px-3 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 rounded-xl text-xs font-extrabold text-rose-700 flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                        title="Delete Folder"
+                      >
+                        <Trash2 className="w-4 h-4 text-rose-600" />
+                        <span>Delete Folder</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Folder Items Table */}
