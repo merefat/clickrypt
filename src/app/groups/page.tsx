@@ -777,46 +777,46 @@ export default function GroupsPage() {
 
       {/* CREATE GROUP MODAL */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
-          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 font-sora">
+          <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold shadow-xs">
                   <Users className="w-5 h-5" />
                 </div>
-                <h3 className="text-base font-extrabold text-white">Create Team Group</h3>
+                <h3 className="text-base font-extrabold text-[#0f172a]">Create Team Group</h3>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setShowCreateModal(false)} className="text-gray-400 hover:text-[#0f172a] transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreateGroupSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-gray-300 mb-1">Group Name</label>
+                <label className="block font-extrabold text-[#334155] mb-1">Group Name</label>
                 <input
                   type="text"
                   placeholder="e.g. DevOps Infrastructure"
                   value={newGroupName}
                   onChange={(e) => setNewGroupName(e.target.value)}
-                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none"
+                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] outline-none shadow-xs"
                   required
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-300 mb-1">Description</label>
+                <label className="block font-extrabold text-[#334155] mb-1">Description</label>
                 <input
                   type="text"
                   placeholder="Cloud deployment and server access"
                   value={newGroupDesc}
                   onChange={(e) => setNewGroupDesc(e.target.value)}
-                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none"
+                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] outline-none shadow-xs"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-300 mb-1.5">Select Initial Members</label>
+                <label className="block font-extrabold text-[#334155] mb-1.5">Select Initial Members</label>
                 <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                   {users.map((u) => {
                     const isChecked = newGroupMemberIds.includes(u.id);
@@ -826,39 +826,39 @@ export default function GroupsPage() {
                         onClick={() => handleToggleNewGroupMember(u.id)}
                         className={`p-2.5 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${
                           isChecked
-                            ? 'border-[#f39c12] bg-[#0d1724]'
-                            : 'border-gray-700/60 bg-[#0d1724]/40 hover:border-gray-600'
+                            ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-xs'
+                            : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] text-[#0f172a]'
                         }`}
                       >
                         <div className="flex items-center gap-2.5">
                           <div className={`w-4 h-4 rounded border flex items-center justify-center ${
-                            isChecked ? 'border-[#f39c12] bg-[#f39c12]' : 'border-gray-600'
+                            isChecked ? 'border-[#1fbbd2] bg-[#1fbbd2]' : 'border-gray-400 bg-white'
                           }`}>
-                            {isChecked && <Check className="w-3 h-3 text-[#0d1724] stroke-[3]" />}
+                            {isChecked && <Check className="w-3 h-3 text-white stroke-[3]" />}
                           </div>
                           <div>
-                            <p className="font-bold text-white">{u.name}</p>
-                            <p className="text-[10px] text-gray-400">{u.email}</p>
+                            <p className="font-extrabold text-[#0f172a]">{u.name}</p>
+                            <p className="text-[10px] text-[#64748b]">{u.email}</p>
                           </div>
                         </div>
-                        <span className="text-[10px] text-gray-400 font-semibold">{u.role}</span>
+                        <span className="text-[10px] text-[#0284c7] font-extrabold">{u.role}</span>
                       </div>
                     );
                   })}
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-gray-700">
+              <div className="flex justify-end gap-3 pt-3 border-t border-[#cbd5e1]">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                  className="px-4 py-2 bg-white text-[#334155] border border-[#cbd5e1] hover:bg-gray-100 rounded-xl font-extrabold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="gold-gradient-btn px-5 py-2 text-white rounded-xl font-extrabold shadow-lg cursor-pointer"
+                  className="gold-cyan-gradient-btn px-5 py-2 text-white rounded-xl font-extrabold shadow-md cursor-pointer"
                 >
                   Create Group
                 </button>
@@ -870,38 +870,38 @@ export default function GroupsPage() {
 
       {/* ADD MEMBER MODAL */}
       {showAddMemberModal && selectedGroup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
-          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 font-sora">
+          <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold shadow-xs">
                   <UserPlus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-white">Add Member to Group</h3>
-                  <p className="text-[10px] text-[#1fbbd2] font-semibold">{selectedGroup.name}</p>
+                  <h3 className="text-base font-extrabold text-[#0f172a]">Add Member to Group</h3>
+                  <p className="text-[10px] text-[#0284c7] font-extrabold">{selectedGroup.name}</p>
                 </div>
               </div>
-              <button onClick={() => setShowAddMemberModal(false)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setShowAddMemberModal(false)} className="text-gray-400 hover:text-[#0f172a] transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleAddMemberSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-gray-300 mb-1">Select Member</label>
+                <label className="block font-extrabold text-[#334155] mb-1">Select Member</label>
                 {availableUsersForGroup.length === 0 ? (
-                  <p className="text-gray-400 text-xs py-3">All organization members are already in this group.</p>
+                  <p className="text-[#64748b] text-xs py-3">All organization members are already in this group.</p>
                 ) : (
                   <select
                     value={addMemberUserId}
                     onChange={(e) => setAddMemberUserId(e.target.value)}
-                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none cursor-pointer font-sora"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] focus:border-[#1fbbd2] outline-none cursor-pointer font-sora shadow-xs"
                     required
                   >
-                    <option value="" className="bg-[#17283b] text-white">Select a member...</option>
+                    <option value="" className="bg-white text-[#0f172a]">Select a member...</option>
                     {availableUsersForGroup.map((u) => (
-                      <option key={u.id} value={u.id} className="bg-[#17283b] text-white">
+                      <option key={u.id} value={u.id} className="bg-white text-[#0f172a]">
                         {u.name} ({u.email})
                       </option>
                     ))}
@@ -910,29 +910,29 @@ export default function GroupsPage() {
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-300 mb-1">Group Role</label>
+                <label className="block font-extrabold text-[#334155] mb-1">Group Role</label>
                 <select
                   value={addMemberRole}
                   onChange={(e: any) => setAddMemberRole(e.target.value)}
-                  className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none cursor-pointer font-sora"
+                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] focus:border-[#1fbbd2] outline-none cursor-pointer font-sora shadow-xs"
                 >
-                  <option value="User" className="bg-[#17283b] text-white">User</option>
-                  <option value="Admin" className="bg-[#17283b] text-white">Admin</option>
+                  <option value="User" className="bg-white text-[#0f172a]">User</option>
+                  <option value="Admin" className="bg-white text-[#0f172a]">Admin</option>
                 </select>
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-gray-700">
+              <div className="flex justify-end gap-3 pt-3 border-t border-[#cbd5e1]">
                 <button
                   type="button"
                   onClick={() => setShowAddMemberModal(false)}
-                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                  className="px-4 py-2 bg-white text-[#334155] border border-[#cbd5e1] hover:bg-gray-100 rounded-xl font-extrabold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!addMemberUserId}
-                  className="gold-cyan-gradient-btn px-5 py-2 text-[#0d1724] rounded-xl font-extrabold shadow-lg disabled:opacity-50 cursor-pointer"
+                  className="gold-cyan-gradient-btn px-5 py-2 text-white rounded-xl font-extrabold shadow-md disabled:opacity-50 cursor-pointer"
                 >
                   Add to Group
                 </button>
@@ -944,38 +944,38 @@ export default function GroupsPage() {
 
       {/* ASSIGN FOLDER MODAL */}
       {showAssignFolderModal && selectedGroup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
-          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 font-sora">
+          <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold shadow-xs">
                   <FolderPlus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-white">Assign Folder to Group</h3>
-                  <p className="text-[10px] text-[#1fbbd2] font-semibold">{selectedGroup.name}</p>
+                  <h3 className="text-base font-extrabold text-[#0f172a]">Assign Folder to Group</h3>
+                  <p className="text-[10px] text-[#0284c7] font-extrabold">{selectedGroup.name}</p>
                 </div>
               </div>
-              <button onClick={() => setShowAssignFolderModal(false)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setShowAssignFolderModal(false)} className="text-gray-400 hover:text-[#0f172a] transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleAssignFolderSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-gray-300 mb-1">Select Workplace Folder</label>
+                <label className="block font-extrabold text-[#334155] mb-1">Select Workplace Folder</label>
                 {unassignedFoldersForGroup.length === 0 ? (
-                  <p className="text-gray-400 text-xs py-3">All workplace folders are already assigned to this group.</p>
+                  <p className="text-[#64748b] text-xs py-3">All workplace folders are already assigned to this group.</p>
                 ) : (
                   <select
                     value={selectedFolderToAssign}
                     onChange={(e) => setSelectedFolderToAssign(e.target.value)}
-                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none cursor-pointer font-sora"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] focus:border-[#1fbbd2] outline-none cursor-pointer font-sora shadow-xs"
                     required
                   >
-                    <option value="" className="bg-[#17283b] text-white">Select a folder...</option>
+                    <option value="" className="bg-white text-[#0f172a]">Select a folder...</option>
                     {unassignedFoldersForGroup.map((f) => (
-                      <option key={f.id} value={f.id} className="bg-[#17283b] text-white">
+                      <option key={f.id} value={f.id} className="bg-white text-[#0f172a]">
                         / {f.name} ({f.itemCount} items)
                       </option>
                     ))}
@@ -983,18 +983,18 @@ export default function GroupsPage() {
                 )}
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-gray-700">
+              <div className="flex justify-end gap-3 pt-3 border-t border-[#cbd5e1]">
                 <button
                   type="button"
                   onClick={() => setShowAssignFolderModal(false)}
-                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                  className="px-4 py-2 bg-white text-[#334155] border border-[#cbd5e1] hover:bg-gray-100 rounded-xl font-extrabold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!selectedFolderToAssign}
-                  className="gold-cyan-gradient-btn px-5 py-2 text-[#0d1724] rounded-xl font-extrabold shadow-lg disabled:opacity-50 cursor-pointer"
+                  className="gold-cyan-gradient-btn px-5 py-2 text-white rounded-xl font-extrabold shadow-md disabled:opacity-50 cursor-pointer"
                 >
                   Assign Folder
                 </button>
@@ -1006,38 +1006,38 @@ export default function GroupsPage() {
 
       {/* SHARE PASSWORD WITH GROUP MODAL */}
       {showSharePasswordModal && selectedGroup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
-          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.35)] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-gray-700 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 font-sora">
+          <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0d1724] font-extrabold">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold shadow-xs">
                   <Share2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-white">Share Password with Group</h3>
-                  <p className="text-[10px] text-[#1fbbd2] font-semibold">{selectedGroup.name}</p>
+                  <h3 className="text-base font-extrabold text-[#0f172a]">Share Password with Group</h3>
+                  <p className="text-[10px] text-[#0284c7] font-extrabold">{selectedGroup.name}</p>
                 </div>
               </div>
-              <button onClick={() => setShowSharePasswordModal(false)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setShowSharePasswordModal(false)} className="text-gray-400 hover:text-[#0f172a] transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSharePasswordSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-gray-300 mb-1">Select Password Secret</label>
+                <label className="block font-extrabold text-[#334155] mb-1">Select Password Secret</label>
                 {unassignedResourcesForGroup.length === 0 ? (
-                  <p className="text-gray-400 text-xs py-3">All password items are already shared with this group.</p>
+                  <p className="text-[#64748b] text-xs py-3">All password items are already shared with this group.</p>
                 ) : (
                   <select
                     value={selectedResourceToShare}
                     onChange={(e) => setSelectedResourceToShare(e.target.value)}
-                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl p-2.5 text-white focus:border-[#1fbbd2] outline-none cursor-pointer font-sora"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] focus:border-[#1fbbd2] outline-none cursor-pointer font-sora shadow-xs"
                     required
                   >
-                    <option value="" className="bg-[#17283b] text-white">Select a password item...</option>
+                    <option value="" className="bg-white text-[#0f172a]">Select a password item...</option>
                     {unassignedResourcesForGroup.map((r) => (
-                      <option key={r.id} value={r.id} className="bg-[#17283b] text-white">
+                      <option key={r.id} value={r.id} className="bg-white text-[#0f172a]">
                         🔑 {r.name} ({r.username})
                       </option>
                     ))}
@@ -1045,23 +1045,23 @@ export default function GroupsPage() {
                 )}
               </div>
 
-              <div className="p-3 bg-[#0d1724] rounded-xl border border-gray-700 text-[11px] text-[#1fbbd2] flex items-center gap-2">
+              <div className="p-3 bg-[#f8fafc] rounded-xl border border-[#cbd5e1] text-[11px] text-[#0284c7] font-extrabold flex items-center gap-2">
                 <Lock className="w-4 h-4 text-[#f39c12] shrink-0" />
                 <span>Re-encrypts OpenPGP keys client-side for all {selectedGroup.members.length} group members.</span>
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-gray-700">
+              <div className="flex justify-end gap-3 pt-3 border-t border-[#cbd5e1]">
                 <button
                   type="button"
                   onClick={() => setShowSharePasswordModal(false)}
-                  className="px-4 py-2 bg-[#0d1724] text-gray-300 border border-gray-700 rounded-xl font-bold"
+                  className="px-4 py-2 bg-white text-[#334155] border border-[#cbd5e1] hover:bg-gray-100 rounded-xl font-extrabold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!selectedResourceToShare}
-                  className="gold-gradient-btn px-5 py-2 text-white rounded-xl font-extrabold shadow-lg disabled:opacity-50 cursor-pointer"
+                  className="gold-gradient-btn px-5 py-2 text-white rounded-xl font-extrabold shadow-md disabled:opacity-50 cursor-pointer"
                 >
                   Share Secret
                 </button>
