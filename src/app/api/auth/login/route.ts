@@ -29,26 +29,15 @@ export async function POST(request: Request) {
 
     let user = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
 
-    if (email.toLowerCase() === 'alex.morgan@acme.com' || email.toLowerCase() === 'refat61899200@gmail.com') {
-      if (user) {
-        user.role = 'Owner';
-      }
+    if (!user) {
+      return NextResponse.json(
+        { error: 'No account found with this email. Please register first.' },
+        { status: 404 }
+      );
     }
 
-    if (!user) {
-      const newUserId = `u-${Date.now()}`;
-      const isOwner = email.toLowerCase() === 'alex.morgan@acme.com' || email.toLowerCase() === 'refat61899200@gmail.com';
-      user = {
-        id: newUserId,
-        email,
-        name: email.split('@')[0],
-        role: isOwner ? 'Owner' : 'User',
-        status: 'Active',
-        publicKey: `-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2UserPublicKeyBase64Data2026==\n-----END PGP PUBLIC KEY BLOCK-----`,
-        encryptedPrivateKey: `-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2UserPrivateKeyBase64Data2026==\n-----END PGP PRIVATE KEY BLOCK-----`,
-        lastActive: 'Just now',
-      };
-      db.users.push(user);
+    if (email.toLowerCase() === 'alex.morgan@acme.com' || email.toLowerCase() === 'refat61899200@gmail.com') {
+      user.role = 'Owner';
     }
 
     // 2. Individual Account Suspension Check

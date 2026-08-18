@@ -22,19 +22,27 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
   const [copiedExternalLink, setCopiedExternalLink] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sharingSuccess, setSharingSuccess] = useState(false);
+  const [appMode, setAppMode] = useState<'personal' | 'organization'>('personal');
+
+  useEffect(() => {
+    const stored = (typeof window !== 'undefined' && localStorage.getItem('clickrypt_app_mode')) || 'personal';
+    setAppMode(stored as 'personal' | 'organization');
+  }, []);
 
   useEffect(() => {
     if (resourceId) {
-      fetchUsers();
-      fetchGroups();
+      if (appMode === 'organization') {
+        fetchUsers();
+        fetchGroups();
+      }
       setSharingSuccess(false);
       setSelectedUserIds([]);
       setActiveGroupFilter('all');
-      setShareMode('members');
+      setShareMode(appMode === 'personal' ? 'external' : 'members');
       setExternalShareLink('');
       setCopiedExternalLink(false);
     }
-  }, [resourceId]);
+  }, [resourceId, appMode]);
 
   const fetchUsers = async () => {
     try {
@@ -88,16 +96,6 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
   const handleGenerateExternalShareLink = async () => {
     setLoading(true);
     try {
-      // Mark resource as externally shared on backend so it appears in recipient's "Shared with Me"
-      try {
-        await api.post(`/resources/${resourceId}/share`, {
-          isExternalShared: true,
-          externalRecipientEmail: 'external.partner@vendor.com',
-        });
-      } catch (err) {
-        console.warn('Backend mark external share error:', err);
-      }
-
       const generatedUrl = `${window.location.origin}/register?externalShareId=${resourceId}&role=External`;
       setExternalShareLink(generatedUrl);
     } catch (err) {
@@ -108,11 +106,26 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
     }
   };
 
-  const handleCopyExternalLink = () => {
-    if (externalShareLink) {
-      navigator.clipboard.writeText(externalShareLink);
+  const handleCopyExternalLink = async () => {
+    if (!externalShareLink) return;
+    setLoading(true);
+    try {
+      await api.post(`/resources/${resourceId}/share`, {
+        isExternalShared: true,
+        externalRecipientEmail: 'external.partner@vendor.com',
+      });
+      await navigator.clipboard.writeText(externalShareLink);
       setCopiedExternalLink(true);
-      setTimeout(() => setCopiedExternalLink(false), 2000);
+      setSharingSuccess(true);
+      setTimeout(() => {
+        setCopiedExternalLink(false);
+        onClose();
+      }, 1800);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to copy sharing link.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -189,34 +202,36 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
           </button>
         </div>
 
-        {/* Share Mode Switcher Tabs */}
-        <div className="flex bg-[#f8fafc] p-1 rounded-xl border border-[#cbd5e1] text-xs font-extrabold">
-          <button
-            onClick={() => setShareMode('members')}
-            className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              shareMode === 'members'
-                ? 'bg-[#ffffff] text-[#0284c7] shadow-sm border border-[#1fbbd2]'
-                : 'text-[#64748b] hover:text-[#0f172a]'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Team Members & Groups</span>
-          </button>
-          <button
-            onClick={() => {
-              setShareMode('external');
-              if (!externalShareLink) handleGenerateExternalShareLink();
-            }}
-            className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
-              shareMode === 'external'
-                ? 'bg-[#ffffff] text-[#d97706] shadow-sm border border-[#f39c12]'
-                : 'text-[#64748b] hover:text-[#0f172a]'
-            }`}
-          >
-            <Globe className="w-3.5 h-3.5" />
-            <span>External Users (Link)</span>
-          </button>
-        </div>
+        {/* Share Mode Switcher Tabs - hidden in personal mode */}
+        {appMode !== 'personal' && (
+          <div className="flex bg-[#f8fafc] p-1 rounded-xl border border-[#cbd5e1] text-xs font-extrabold">
+            <button
+              onClick={() => setShareMode('members')}
+              className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                shareMode === 'members'
+                  ? 'bg-[#ffffff] text-[#0284c7] shadow-sm border border-[#1fbbd2]'
+                  : 'text-[#64748b] hover:text-[#0f172a]'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Team Members & Groups</span>
+            </button>
+            <button
+              onClick={() => {
+                setShareMode('external');
+                if (!externalShareLink) handleGenerateExternalShareLink();
+              }}
+              className={`flex-1 py-2 rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                shareMode === 'external'
+                  ? 'bg-[#ffffff] text-[#d97706] shadow-sm border border-[#f39c12]'
+                  : 'text-[#64748b] hover:text-[#0f172a]'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>External Users (Link)</span>
+            </button>
+          </div>
+        )}
 
         {shareMode === 'members' ? (
           <>
@@ -334,10 +349,11 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
 
                 <button
                   onClick={handleCopyExternalLink}
-                  className="w-full gold-cyan-gradient-btn py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 text-white shadow-md cursor-pointer"
+                  disabled={loading}
+                  className="w-full gold-cyan-gradient-btn py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 text-white shadow-md cursor-pointer disabled:opacity-50"
                 >
-                  {copiedExternalLink ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4 text-white" />}
-                  <span>{copiedExternalLink ? 'Encrypted Link Copied!' : 'Copy Encrypted Sharing Link'}</span>
+                  {copiedExternalLink ? <Check className="w-4 h-4 text-white" /> : loading ? <Globe className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4 text-white" />}
+                  <span>{copiedExternalLink ? 'Encrypted Link Copied!' : loading ? 'Sharing...' : 'Copy & Share Encrypted Link'}</span>
                 </button>
               </div>
             ) : (

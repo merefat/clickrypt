@@ -155,6 +155,10 @@ export default function ImportExportPage() {
   };
 
   const processFile = async (file: File) => {
+    if (user?.role !== 'Owner' && user?.role !== 'Admin' && localStorage.getItem('clickrypt_app_mode') !== 'personal') {
+      alert('🔒 Import Restricted: Import is available for Organization Owners/Admins or in Personal mode.');
+      return;
+    }
     setLoadingImport(true);
     setImportedCount(null);
     setImportedFileName(file.name);
@@ -216,10 +220,8 @@ export default function ImportExportPage() {
   };
 
   const handleExportVault = async () => {
-    const isPersonalMode = typeof window !== 'undefined' && localStorage.getItem('clickrypt_app_mode') === 'personal';
-
-    if (!isPersonalMode && (user?.role === 'User' || user?.role === 'External')) {
-      alert('🔒 Export Restricted: Password export is allowed only for Organization Owners and Admins.');
+    if (user?.role === 'External') {
+      alert('🔒 Export Restricted: Password export is not available for External users.');
       return;
     }
 
@@ -403,7 +405,8 @@ export default function ImportExportPage() {
     }
   }, []);
 
-  const canExport = isPersonalMode || user?.role === 'Owner' || user?.role === 'Admin';
+  const canImport = isPersonalMode || user?.role === 'Owner' || user?.role === 'Admin';
+  const canExport = user?.role !== 'External';
 
   return (
     <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
@@ -436,9 +439,10 @@ export default function ImportExportPage() {
           </div>
 
           {/* Dynamic Grid Layout */}
-          <div className={canExport ? "grid grid-cols-1 lg:grid-cols-2 gap-8" : "w-full space-y-8"}>
+          <div className={canImport ? "grid grid-cols-1 lg:grid-cols-2 gap-8" : "w-full space-y-8"}>
             {/* Import Section */}
-            <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-6 shadow-xl">
+            {canImport && (
+              <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-6 shadow-xl">
               <div className="flex items-center gap-3 border-b border-[#cbd5e1] pb-4">
                 <div className="w-9 h-9 rounded-xl bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7]">
                   <Upload className="w-5 h-5 text-[#0284c7]" />
@@ -535,8 +539,9 @@ export default function ImportExportPage() {
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Export Section with PDF Support - Only visible for Owners & Admins */}
+            {/* Export Section with PDF Support */}
             {canExport && (
               <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-6 flex flex-col justify-between shadow-xl">
                 <div className="space-y-6">

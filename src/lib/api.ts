@@ -11,6 +11,8 @@ api.interceptors.request.use((config) => {
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    const mode = localStorage.getItem('clickrypt_app_mode') || 'personal';
+    config.headers['X-App-Mode'] = mode;
   }
   return config;
 });

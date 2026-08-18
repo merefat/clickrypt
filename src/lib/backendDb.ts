@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { loadDbSync, schedulePersist, persistDb } from './dbPersistence';
 
 export interface DbSubscription {
   plan: 'Organization' | 'Self-hosted';
@@ -51,6 +52,7 @@ export interface DbResource {
   secrets: DbResourceSecret[];
   tags?: string[];
   sharedWith?: string[];
+  mode?: 'personal' | 'organization';
 }
 
 export interface DbFolder {
@@ -60,6 +62,7 @@ export interface DbFolder {
   itemCount: number;
   lastModified: string;
   isPrivateOnly?: boolean;
+  mode?: 'personal' | 'organization';
 }
 
 export interface DbGroupMember {
@@ -324,8 +327,77 @@ export interface DbSsoToken {
   expiresAt: string;
 }
 
+function createPersistedArray(target: any[], dbRef: any) {
+  return new Proxy(target, {
+    set(t, prop, value) {
+      const res = Reflect.set(t, prop, value);
+      if (prop === 'length' || typeof prop === 'symbol' || !isNaN(Number(prop as any))) {
+        schedulePersist(dbRef);
+      }
+      return res;
+    },
+    deleteProperty(t, prop) {
+      const res = Reflect.deleteProperty(t, prop);
+      schedulePersist(dbRef);
+      return res;
+    },
+  });
+}
+
+function createPersistedObject(target: any, dbRef: any) {
+  return new Proxy(target, {
+    set(t, prop, value) {
+      const res = Reflect.set(t, prop, value);
+      if (prop !== 'constructor') {
+        schedulePersist(dbRef);
+      }
+      return res;
+    },
+    deleteProperty(t, prop) {
+      const res = Reflect.deleteProperty(t, prop);
+      schedulePersist(dbRef);
+      return res;
+    },
+  });
+}
+
 const globalForDb = globalThis as unknown as { backendDb: BackendDatabase };
 export const db = globalForDb.backendDb || new BackendDatabase();
 if (process.env.NODE_ENV !== 'production') {
   globalForDb.backendDb = db;
 }
+
+// Hydrate from db.json / Supabase first, then wrap in persistence proxies
+loadDbSync(db);
+
+const persistableKeys = [
+  'users',
+  'folders',
+  'resources',
+  'groups',
+  'auditLogs',
+  'invitations',
+  'ssoSettings',
+  'ssoKeys',
+  'ssoStates',
+  'ssoTokens',
+  'authChallenges',
+  'accountRecoveryPolicies',
+  'accountRecoveryOrgPublicKeys',
+  'accountRecoveryUserSettings',
+  'accountRecoveryPrivateKeys',
+  'accountRecoveryPrivateKeyPasswords',
+  'accountRecoveryRequests',
+  'accountRecoveryResponses',
+];
+
+for (const key of persistableKeys) {
+  if (Array.isArray((db as any)[key])) {
+    (db as any)[key] = createPersistedArray((db as any)[key], db);
+  }
+}
+
+(db as any).subscription = createPersistedObject(db.subscription, db);
+
+// Initial snapshot so the file exists and contains default seed data
+persistDb(db);

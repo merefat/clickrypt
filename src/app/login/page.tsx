@@ -39,6 +39,9 @@ export default function LoginPage() {
       setIsExternalFlow(true);
     }
 
+    const emailParam = searchParams.get('email');
+    if (emailParam) setEmail(emailParam);
+
     const ssoSuccess = searchParams.get('ssoSuccess');
     const token = searchParams.get('token');
     const userIdParam = searchParams.get('userId');

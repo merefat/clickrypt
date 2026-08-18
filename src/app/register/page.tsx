@@ -44,27 +44,27 @@ function RegisterForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isInvited, setIsInvited] = useState(false);
+  const [formId] = useState(() => Math.random().toString(36).slice(2, 9));
+  const [errorMsg, setErrorMsg] = useState('');
+  const [isConflict, setIsConflict] = useState(false);
 
-  // Stripe Inline Credit Card Payment State for Organization Mode
-  const [seats, setSeats] = useState(25);
-  const [cardHolder, setCardHolder] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [expiry, setExpiry] = useState('');
-  const [cvc, setCvc] = useState('');
   const [paymentDone, setPaymentDone] = useState(false);
-
-  const annualTotal = seats * 6 * 12;
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const selectedMode = mode === 'organization' ? 'organization' : 'personal';
       localStorage.setItem('clickrypt_app_mode', selectedMode);
+      const paidFlag = sessionStorage.getItem('clickrypt_org_paid');
+      if (searchParams.get('paid') === '1' || paidFlag === '1') {
+        setPaymentDone(true);
+        sessionStorage.removeItem('clickrypt_org_paid');
+      }
     }
     if (invitedEmail) {
       setEmail(invitedEmail);
       setIsInvited(true);
     }
-  }, [invitedEmail, mode]);
+  }, [invitedEmail, mode, searchParams]);
 
   const strength = evaluatePasswordStrength(password);
 
@@ -74,68 +74,42 @@ function RegisterForm() {
     setShowPassword(true);
   };
 
-  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value.replace(/\D/g, '');
-    if (val.length > 16) val = val.slice(0, 16);
-    const formatted = val.match(/.{1,4}/g)?.join(' ') || val;
-    setCardNumber(formatted);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Enforce Stripe Pay-to-Enroll Gate for Organization Mode
     if (isOrgMode && !paymentDone) {
-      if (!cardNumber || !expiry || !cvc) {
-        alert('Payment required to enroll Organization account. Please enter valid card details.');
-        return;
-      }
-
-      setLoading(true);
-      try {
-        const checkoutRes = await api.post('/checkout', {
-          seats,
-          planName: 'Organization Plan',
-          cardHolder: cardHolder || fullName,
-          amount: annualTotal,
-        });
-
-        if (!checkoutRes.data?.success) {
-          alert('Stripe payment verification failed');
-          setLoading(false);
-          return;
-        }
-
-        // Mark subscription active
-        await api.post('/subscription', { action: 'PAY', seats });
-        setPaymentDone(true);
-      } catch (err) {
-        alert('Stripe payment failed. Payment is required to enroll.');
-        setLoading(false);
-        return;
-      }
+      return;
     }
 
+    setErrorMsg('');
+    setIsConflict(false);
     setLoading(true);
 
     try {
       const assignedRole = isExternalShare ? 'External' : (invitedRole as any) || 'User';
-      const ok = await register(fullName || 'Guest User', email, password, assignedRole);
-      if (ok) {
-        if (assignedRole === 'External') {
-          router.push('/shared');
-        } else {
-          router.push('/vault');
-        }
+      await register(fullName || 'Guest User', email, password, assignedRole);
+      if (assignedRole === 'External') {
+        router.push('/shared');
       } else {
-        alert('Registration failed');
+        router.push('/vault');
       }
-    } catch (err) {
-      console.error(err);
-      alert('An error occurred during registration');
+    } catch (err: any) {
+      const msg = err?.message || err?.response?.data?.error || 'Registration failed';
+      const status = err?.status || err?.response?.status;
+      setErrorMsg(msg);
+      setIsConflict(status === 409 || msg.toLowerCase().includes('already exists'));
+      if (status !== 409) {
+        console.error(err);
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePayBill = () => {
+    const search = new URLSearchParams();
+    search.set('flow', 'enroll');
+    router.push(`/checkout?${search.toString()}`);
   };
 
   return (
@@ -181,154 +155,151 @@ function RegisterForm() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs font-sora">
-          <div>
-            <label className="block text-[11px] font-extrabold text-[#334155] uppercase tracking-wider mb-1">
-              Full Name
-            </label>
-            <div className="relative">
-              <User className="w-4 h-4 text-[#64748b] absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder=""
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck={false}
-                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl pl-10 pr-4 py-2.5 text-xs text-[#0f172a] font-bold outline-none shadow-xs transition-all focus:border-[#1fbbd2]"
-                required
-              />
-            </div>
-          </div>
+        <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4 text-xs font-sora">
+          {/* Hidden decoy inputs to trick browser autofill */}
+          <input type="text" className="hidden" name={`decoy-user-${formId}`} tabIndex={-1} readOnly autoComplete="off" />
+          <input type="password" className="hidden" name={`decoy-pass-${formId}`} tabIndex={-1} readOnly autoComplete="off" />
 
-          <div>
-            <label className="block text-[11px] font-extrabold text-[#334155] uppercase tracking-wider mb-1">
-              Email Address {isInvited && '(Invited & Locked)'}
-            </label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-[#64748b] absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="email"
-                placeholder=""
-                value={email}
-                readOnly={isInvited}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck={false}
-                className={`w-full border rounded-xl pl-10 pr-10 py-2.5 text-xs font-bold outline-none shadow-xs ${
-                  isInvited
-                    ? 'bg-[#f8fafc] border-[#cbd5e1] text-[#0284c7]'
-                    : 'bg-[#ffffff] border-[#cbd5e1] text-[#0f172a] focus:border-[#1fbbd2]'
-                }`}
-                required
-              />
-              {email.trim().length > 0 && email.includes('@') && (
-                <CheckCircle className="w-4 h-4 text-emerald-600 absolute right-3.5 top-1/2 -translate-y-1/2" />
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-[11px] font-extrabold text-[#334155] uppercase tracking-wider">
-              Master Password
-            </label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-[#64748b] absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Enter a strong master password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl pl-10 pr-10 py-2.5 text-xs font-mono font-bold text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none shadow-xs transition-all"
-                required
-              />
+          {isOrgMode && !paymentDone ? (
+            <div className="glass-panel p-6 rounded-2xl border border-[#cbd5e1] bg-[#f8fafc] space-y-4 shadow-xs text-center">
+              <div className="inline-flex items-center gap-2 text-[#d97706]">
+                <CreditCard className="w-5 h-5" />
+                <span className="text-xs font-extrabold uppercase tracking-wider">Stripe Payment Gate</span>
+              </div>
+              <p className="text-[#64748b] text-xs leading-relaxed">
+                Organization accounts require a paid subscription. Pay the bill on the secure checkout page, then return here to create your profile.
+              </p>
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748b] hover:text-[#0f172a] cursor-pointer"
+                onClick={handlePayBill}
+                className="w-full py-3.5 gold-cyan-gradient-btn text-xs font-extrabold text-white rounded-xl flex items-center justify-center gap-2 shadow-md hover:opacity-95 transition-all cursor-pointer"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <span>Pay Bill</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleAutoGenerate}
-            className="w-full py-2.5 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] text-[#0284c7] text-xs font-extrabold rounded-xl flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Auto-generate strong password
-          </button>
-
-          {/* Embedded Stripe Credit Card Section for Organization Mode */}
-          {isOrgMode && (
-            <div className="glass-panel p-5 rounded-2xl border border-[#cbd5e1] bg-[#f8fafc] space-y-3 mt-4 shadow-xs">
-              <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-2">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-[#d97706]" />
-                  <span className="text-xs font-extrabold text-[#0f172a]">Stripe Payment Gate ($6/user/mo)</span>
+          ) : (
+            <>
+              {errorMsg && (
+                <div className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-rose-900 text-xs leading-relaxed space-y-2">
+                  <p className="font-bold">{errorMsg}</p>
+                  {isConflict && (
+                    <Link
+                      href={`/login?email=${encodeURIComponent(email)}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0f172a] text-white rounded-lg font-extrabold hover:bg-[#1fbbd2] transition-colors"
+                    >
+                      <span>Sign In instead</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  )}
                 </div>
-                <span className="text-xs font-extrabold text-[#0284c7]">${annualTotal.toLocaleString()}.00 / yr</span>
+              )}
+              <div>
+                <label className="block text-[11px] font-extrabold text-[#334155] uppercase tracking-wider mb-1">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-[#64748b] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    name={`fullname-${formId}`}
+                    placeholder=""
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    autoComplete="one-time-code"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    data-lpignore="true"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl pl-10 pr-4 py-2.5 text-xs text-[#0f172a] font-bold outline-none shadow-xs transition-all focus:border-[#1fbbd2]"
+                    required
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-extrabold text-[#334155] mb-1">Cardholder Name</label>
-                <input
-                  type="text"
-                  placeholder="Alex Morgan"
-                  value={cardHolder}
-                  onChange={(e) => setCardHolder(e.target.value)}
-                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2 text-xs font-bold text-[#0f172a] shadow-xs"
-                  required={isOrgMode}
-                />
+                <label className="block text-[11px] font-extrabold text-[#334155] uppercase tracking-wider mb-1">
+                  Email Address {isInvited && '(Invited & Locked)'}
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-[#64748b] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    name={`email-${formId}`}
+                    placeholder=""
+                    value={email}
+                    readOnly={isInvited}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="one-time-code"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    data-lpignore="true"
+                    className={`w-full border rounded-xl pl-10 pr-10 py-2.5 text-xs font-bold outline-none shadow-xs ${
+                      isInvited
+                        ? 'bg-[#f8fafc] border-[#cbd5e1] text-[#0284c7]'
+                        : 'bg-[#ffffff] border-[#cbd5e1] text-[#0f172a] focus:border-[#1fbbd2]'
+                    }`}
+                    required
+                  />
+                  {email.trim().length > 0 && email.includes('@') && (
+                    <CheckCircle className="w-4 h-4 text-emerald-600 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                  )}
+                </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2">
-                  <label className="block text-[10px] font-extrabold text-[#334155] mb-1">Card Number</label>
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-extrabold text-[#334155] uppercase tracking-wider">
+                  Master Password
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-[#64748b] absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
-                    type="text"
-                    placeholder="4242 4242 4242 4242"
-                    value={cardNumber}
-                    onChange={handleCardNumberChange}
-                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2 text-xs font-mono font-bold text-[#0f172a] shadow-xs"
-                    required={isOrgMode}
+                    type={showPassword ? 'text' : 'password'}
+                    name={`password-${formId}`}
+                    placeholder="Enter a strong master password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="new-password"
+                    data-lpignore="true"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl pl-10 pr-10 py-2.5 text-xs font-mono font-bold text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none shadow-xs transition-all"
+                    required
                   />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-extrabold text-[#334155] mb-1">Expiry & CVC</label>
-                  <input
-                    type="text"
-                    placeholder="12/28"
-                    value={expiry}
-                    onChange={(e) => setExpiry(e.target.value)}
-                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2 text-xs font-mono font-bold text-[#0f172a] shadow-xs"
-                    required={isOrgMode}
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748b] hover:text-[#0f172a] cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
-            </div>
+
+              <button
+                type="button"
+                onClick={handleAutoGenerate}
+                className="w-full py-2.5 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] text-[#0284c7] text-xs font-extrabold rounded-xl flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Auto-generate strong password
+              </button>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 gold-cyan-gradient-btn text-xs font-extrabold text-white rounded-xl flex items-center justify-center gap-2 mt-4 shadow-md hover:opacity-95 transition-all cursor-pointer"
+              >
+                <span>
+                  {loading
+                    ? 'Generating PGP Keys...'
+                    : isOrgMode
+                    ? 'Create Organization Account'
+                    : 'Save & Complete Setup'}
+                </span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </>
           )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 gold-cyan-gradient-btn text-xs font-extrabold text-white rounded-xl flex items-center justify-center gap-2 mt-4 shadow-md hover:opacity-95 transition-all cursor-pointer"
-          >
-            <span>
-              {loading
-                ? 'Processing Stripe & Generating PGP Keys...'
-                : isOrgMode
-                ? `Pay $${annualTotal.toLocaleString()}.00 & Enroll Organization`
-                : 'Save & Complete Setup'}
-            </span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
         </form>
       </div>
     </div>

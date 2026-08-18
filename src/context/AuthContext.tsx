@@ -140,10 +140,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await savePrivateKey(privateKey);
         return true;
       }
-      return false;
-    } catch (error) {
-      console.error('Register error:', error);
-      return false;
+      throw new Error(res.data?.error || 'Registration failed');
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const message = error?.response?.data?.error || error?.message || 'Registration failed';
+      const err = new Error(message) as any;
+      err.status = status || 0;
+      if (!status || status >= 500) {
+        console.error('Register error:', error);
+      }
+      throw err;
     }
   };
 

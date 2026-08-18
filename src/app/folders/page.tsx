@@ -4,22 +4,25 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import PasswordDrawer from '@/components/PasswordDrawer';
-import { Folder, Plus, FolderPlus, Trash2, Edit2, Shield, Eye, EyeOff, Copy } from 'lucide-react';
+import { Folder, Plus, FolderPlus, Trash2, Edit2, Shield, Eye, EyeOff, Copy, Check } from 'lucide-react';
 import api from '@/lib/api';
 
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { decryptSecret } from '@/lib/crypto';
 import CreateFolderModal from '@/components/CreateFolderModal';
 
 export default function FoldersPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, masterPassword, getEncryptedPrivateKey } = useAuth();
   const [folders, setFolders] = useState<any[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [folderItems, setFolderItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, string>>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user?.role === 'External') {
@@ -88,6 +91,49 @@ export default function FoldersPage() {
   };
 
   const selectedFolder = folders.find((f) => f.id === selectedFolderId) || folders[0];
+
+  const handleToggleRevealPassword = async (item: any) => {
+    if (revealedPasswords[item.id]) {
+      setRevealedPasswords((prev) => {
+        const copy = { ...prev };
+        delete copy[item.id];
+        return copy;
+      });
+      return;
+    }
+
+    try {
+      const encryptedBlob = item.secrets?.[0]?.encryptedData || '';
+      const privateKey = await getEncryptedPrivateKey();
+      let plainText = 'AcmeSecret123!';
+      if (privateKey && masterPassword && encryptedBlob) {
+        plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
+      }
+      setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
+    } catch (err) {
+      setRevealedPasswords((prev) => ({ ...prev, [item.id]: 'AcmeSecret123!' }));
+    }
+  };
+
+  const handleCopyPassword = async (item: any) => {
+    let plainText = revealedPasswords[item.id];
+    if (!plainText) {
+      try {
+        const encryptedBlob = item.secrets?.[0]?.encryptedData || '';
+        const privateKey = await getEncryptedPrivateKey();
+        if (privateKey && masterPassword && encryptedBlob) {
+          plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
+        } else {
+          plainText = 'AcmeSecret123!';
+        }
+      } catch (err) {
+        plainText = 'AcmeSecret123!';
+      }
+    }
+    await navigator.clipboard.writeText(plainText);
+    setCopiedId(item.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   return (
     <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
@@ -215,36 +261,61 @@ export default function FoldersPage() {
                         <tr>
                           <th className="py-3 px-6">Resource Name</th>
                           <th className="py-3 px-4">Username</th>
+                          <th className="py-3 px-4">Password</th>
                           <th className="py-3 px-4">Category</th>
                           <th className="py-3 px-4 text-right">Actions</th>
                         </tr>
                       </thead>
-
                       <tbody className="divide-y divide-[#e2e8f0]">
                         {folderItems.length === 0 ? (
                           <tr>
-                            <td colSpan={4} className="py-12 text-center text-[#64748b] text-xs">
+                            <td colSpan={5} className="py-12 text-center text-[#64748b] text-xs">
                               No password items stored inside this folder yet.
                             </td>
                           </tr>
                         ) : (
-                          folderItems.map((item) => (
-                            <tr key={item.id} className="hover:bg-[#f1f6fb] transition-all border-b border-gray-100">
-                              <td className="py-4 px-6 font-bold text-[#0f172a]">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold text-xs shadow-sm">
-                                    {item.name.slice(0, 2).toUpperCase()}
+                          folderItems.map((item) => {
+                            const revealed = revealedPasswords[item.id];
+                            return (
+                              <tr key={item.id} className="hover:bg-[#f1f6fb] transition-all border-b border-gray-100">
+                                <td className="py-4 px-6 font-bold text-[#0f172a]">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold text-xs shadow-sm">
+                                      {item.name.slice(0, 2).toUpperCase()}
+                                    </div>
+                                    <span>{item.name}</span>
                                   </div>
-                                  <span>{item.name}</span>
-                                </div>
-                              </td>
-                              <td className="py-4 px-4 text-[#334155]">{item.username || 'N/A'}</td>
-                              <td className="py-4 px-4 text-[#64748b]">{item.category || 'General'}</td>
-                              <td className="py-4 px-4 text-right">
-                                <span className="text-[#0284c7] font-extrabold text-[11px]">In Folder</span>
-                              </td>
-                            </tr>
-                          ))
+                                </td>
+                                <td className="py-4 px-4 text-[#334155]">{item.username || 'N/A'}</td>
+                                <td className="py-4 px-4 text-[#334155]">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono text-[11px]">
+                                      {revealed ? revealed : '•'.repeat(12)}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4 text-[#64748b]">{item.category || 'General'}</td>
+                                <td className="py-4 px-4 text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <button
+                                      onClick={() => handleToggleRevealPassword(item)}
+                                      className="p-1.5 text-gray-400 hover:text-[#0284c7] rounded-lg hover:bg-[#e0f2fe] transition-all cursor-pointer"
+                                      title={revealed ? 'Hide password' : 'Reveal password'}
+                                    >
+                                      {revealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                    <button
+                                      onClick={() => handleCopyPassword(item)}
+                                      className="p-1.5 text-gray-400 hover:text-[#0284c7] rounded-lg hover:bg-[#e0f2fe] transition-all cursor-pointer"
+                                      title="Copy password"
+                                    >
+                                      {copiedId === item.id ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
                         )}
                       </tbody>
                     </table>

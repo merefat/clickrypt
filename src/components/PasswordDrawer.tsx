@@ -41,6 +41,7 @@ export default function PasswordDrawer({
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [url, setUrl] = useState('');
+  const [urlError, setUrlError] = useState(false);
   const [password, setPassword] = useState('');
   const [category, setCategory] = useState('Developer');
   const [folderId, setFolderId] = useState('');
@@ -80,14 +81,14 @@ export default function PasswordDrawer({
       setUrl(editItem.url || '');
       setPassword('');
       setCategory(editItem.category || 'Developer');
-      setFolderId(editItem.folderId || defaultFolderId || '');
+      setFolderId(editItem.folderId || defaultFolderId || initialFolderId || '');
     } else {
       setName('');
       setUsername('');
       setUrl('');
       setPassword('');
       setCategory('Developer');
-      setFolderId(defaultFolderId || '');
+      setFolderId(defaultFolderId || initialFolderId || '');
     }
   }, [editItem, isOpen]);
 
@@ -122,10 +123,22 @@ export default function PasswordDrawer({
     }
   };
 
+  const isValidUrl = (value: string) => {
+    if (!value.trim()) return true;
+    const pattern = /^(https?:\/\/)?([\w-]+\.)+[\w-]{2,}(:\d+)?(\/[\w\-\.]*)*$/i;
+    return pattern.test(value.trim());
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || (!password && !editItem)) {
       alert('Please fill in required fields.');
+      return;
+    }
+
+    if (url && !isValidUrl(url)) {
+      setUrlError(true);
+      alert('Please enter a valid website URL or leave it empty.');
       return;
     }
 
@@ -302,9 +315,20 @@ export default function PasswordDrawer({
               type="text"
               placeholder="github.com"
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none font-bold shadow-xs transition-all"
+              onChange={(e) => {
+                setUrl(e.target.value);
+                if (urlError) setUrlError(false);
+              }}
+              onBlur={(e) => setUrlError(!!e.target.value && !isValidUrl(e.target.value))}
+              className={`w-full bg-[#ffffff] border rounded-xl p-2.5 text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none font-bold shadow-xs transition-all ${
+                urlError ? 'border-rose-500' : 'border-[#cbd5e1]'
+              }`}
             />
+            {urlError && (
+              <p className="text-[11px] text-rose-600 mt-1.5 font-bold">
+                Enter a valid website URL (e.g. github.com, wardenos.com.au) or leave it blank.
+              </p>
+            )}
           </div>
 
           {/* Password Input & Reveal */}

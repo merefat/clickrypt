@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Shield,
   CreditCard,
@@ -21,6 +22,10 @@ const stripePromise = loadStripe(
 );
 
 export default function StandaloneCheckoutPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const isEnrollFlow = searchParams?.get('flow') === 'enroll';
+
   const [seats, setSeats] = useState(25);
   const [cardHolder, setCardHolder] = useState('Alex Morgan');
   const [cardNumber, setCardNumber] = useState('4242 4242 4242 4242');
@@ -98,7 +103,14 @@ export default function StandaloneCheckoutPage() {
 
       if (res.data?.success) {
         await api.post('/subscription', { action: 'PAY', seats });
-        setPaymentSuccess(res.data);
+        if (isEnrollFlow) {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('clickrypt_org_paid', '1');
+          }
+          router.push('/register?mode=organization&paid=1');
+        } else {
+          setPaymentSuccess(res.data);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -122,11 +134,11 @@ export default function StandaloneCheckoutPage() {
         </div>
 
         <Link
-          href="/login"
+          href={isEnrollFlow ? '/register?mode=organization' : '/login'}
           className="px-4 py-2 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#0284c7] text-[#0f172a] hover:text-[#0284c7] text-xs font-bold rounded-xl flex items-center gap-2 transition-all shadow-sm"
         >
           <ArrowLeft className="w-4 h-4 text-[#d97706]" />
-          <span>Back to Sign In</span>
+          <span>{isEnrollFlow ? 'Back to Registration' : 'Back to Sign In'}</span>
         </Link>
       </header>
 

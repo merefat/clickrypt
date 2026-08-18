@@ -44,6 +44,7 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
   const [subscription, setSubscription] = useState<any | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [appMode, setAppMode] = useState<'personal' | 'organization'>('personal');
 
   // Notifications state strictly constrained to the 3 user-requested categories:
   // 1. Leaked / Compromised Passwords
@@ -52,6 +53,11 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
   const [notifications, setNotifications] = useState<VaultNotification[]>([]);
 
   const unreadCount = notifications.filter((n) => n.unread).length;
+
+  useEffect(() => {
+    const stored = (typeof window !== 'undefined' && localStorage.getItem('clickrypt_app_mode')) || 'personal';
+    setAppMode(stored as 'personal' | 'organization');
+  }, []);
 
   useEffect(() => {
     fetchSubscription();
@@ -355,52 +361,23 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
                   )}
                 </div>
 
-                {/* Popover Footer */}
-                <div className="p-3 bg-[#f8fafc] border-t border-[#cbd5e1] text-center">
-                  <Link
-                    href="/admin"
-                    onClick={() => setShowNotifications(false)}
-                    className="text-xs text-[#0284c7] font-extrabold hover:underline inline-flex items-center gap-1.5"
-                  >
-                    <span>View Audit Logs & System Health</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </Link>
-                </div>
+                {/* Popover Footer - hide audit log in personal mode */}
+                {appMode !== 'personal' && (
+                  <div className="p-3 bg-[#f8fafc] border-t border-[#cbd5e1] text-center">
+                    <Link
+                      href="/admin"
+                      onClick={() => setShowNotifications(false)}
+                      className="text-xs text-[#0284c7] font-extrabold hover:underline inline-flex items-center gap-1.5"
+                    >
+                      <span>View Audit Logs & System Health</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          <div className="h-6 w-px bg-[#cbd5e1]" />
-
-          <Link
-            href="/settings"
-            className="flex items-center gap-3 hover:opacity-90 transition-all cursor-pointer p-1.5 rounded-xl hover:bg-[#ffffff] border border-transparent hover:border-[#cbd5e1] shadow-xs group"
-            title="Account & Security Settings"
-          >
-            {user?.avatarUrl ? (
-              <img
-                src={user.avatarUrl}
-                alt={user.name || 'Avatar'}
-                className="w-8 h-8 rounded-full object-cover shadow-sm border border-[#1fbbd2] group-hover:scale-105 transition-transform"
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-xs font-extrabold text-[#0f172a] shadow-xs overflow-hidden group-hover:scale-105 transition-transform shrink-0">
-                {user?.name ? (
-                  user.name.slice(0, 2).toUpperCase()
-                ) : user?.email ? (
-                  user.email.slice(0, 2).toUpperCase()
-                ) : (
-                  'RE'
-                )}
-              </div>
-            )}
-            <div className="text-left hidden sm:block">
-              <p className="text-xs font-extrabold text-[#0f172a] leading-tight group-hover:text-[#0284c7] transition-colors">
-                {user?.name || user?.email?.split('@')[0] || 'Refat'}
-              </p>
-              <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight">{user?.role || 'Owner'}</p>
-            </div>
-          </Link>
         </div>
       </div>
     </header>

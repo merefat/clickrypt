@@ -14,10 +14,17 @@ export async function POST(request: Request) {
 
     const existingUser = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
 
+    if (existingUser && existingUser.status !== 'Invited') {
+      return NextResponse.json(
+        { error: 'An account with this email already exists. Please sign in instead.' },
+        { status: 409 }
+      );
+    }
+
     let targetUser: any;
 
     if (existingUser) {
-      // User exists as 'Invited', 'Active' or 'Suspended' -> Update & Activate profile!
+      // Invited member completing registration
       existingUser.name = name || existingUser.name || email.split('@')[0];
       existingUser.status = 'Active';
       if (role) existingUser.role = role;

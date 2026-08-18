@@ -21,6 +21,7 @@ export async function GET(request: Request) {
   const folderId = searchParams.get('folderId');
   const secretVaultStr = searchParams.get('secretVault');
   const sharedWithUserId = searchParams.get('sharedWithUserId');
+  const mode = (request.headers.get('x-app-mode') || 'personal') as 'personal' | 'organization';
 
   const currentUserId = authUser.id;
   const currentUserEmail = authUser.email.toLowerCase();
@@ -74,6 +75,9 @@ export async function GET(request: Request) {
     );
   }
 
+  // Scope to the current app mode (untagged legacy items are treated as personal)
+  result = result.filter((r) => (r.mode || 'personal') === mode);
+
   return NextResponse.json(result);
 }
 
@@ -90,6 +94,7 @@ export async function POST(request: Request) {
     if (!authUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const mode = (request.headers.get('x-app-mode') || 'personal') as 'personal' | 'organization';
     const body = await request.json();
     const newResource = {
       id: `r-${Date.now()}`,
@@ -100,6 +105,7 @@ export async function POST(request: Request) {
       ownerId: authUser.id,
       folderId: body.folderId || null,
       isPrivateOnly: !!body.isPrivateOnly,
+      mode,
       strength: body.strength || 'Strong',
       lastModified: 'Just now',
       secrets: [
