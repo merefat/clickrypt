@@ -216,7 +216,9 @@ export default function ImportExportPage() {
   };
 
   const handleExportVault = async () => {
-    if (user?.role === 'User' || user?.role === 'External') {
+    const isPersonalMode = typeof window !== 'undefined' && localStorage.getItem('clickrypt_app_mode') === 'personal';
+
+    if (!isPersonalMode && (user?.role === 'User' || user?.role === 'External')) {
       alert('🔒 Export Restricted: Password export is allowed only for Organization Owners and Admins.');
       return;
     }
