@@ -5,6 +5,7 @@ import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import {
   UserCheck,
+  Users,
   UserPlus,
   Search,
   Filter,
@@ -212,9 +213,9 @@ export default function AdminPage() {
 
         <main className="p-8 flex-1 overflow-y-auto space-y-8">
           {/* Header & Tabs */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#ffffff] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7] shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-[#ffffff] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7] shadow-sm shrink-0">
                 <UserCheck className="w-5 h-5 text-[#0284c7]" />
               </div>
               <div>
@@ -225,45 +226,61 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 bg-[#ffffff] p-1.5 rounded-xl border border-[#cbd5e1] shadow-sm">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 w-full lg:w-auto">
+              <div className="flex items-center gap-1.5 bg-[#ffffff] p-1.5 rounded-2xl border border-[#cbd5e1] shadow-sm whitespace-nowrap overflow-x-auto max-w-full">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('members')}
+                  className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+                    activeTab === 'members'
+                      ? 'bg-[#1fbbd2] text-white shadow-sm'
+                      : 'text-[#475569] hover:bg-[#f1f5f9] hover:text-[#0f172a]'
+                  }`}
+                >
+                  <Users className="w-4 h-4 shrink-0" />
+                  <span>Members ({users.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('recovery')}
+                  className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+                    activeTab === 'recovery'
+                      ? 'bg-[#f39c12] text-white shadow-sm'
+                      : 'text-[#475569] hover:bg-[#f1f5f9] hover:text-[#0f172a]'
+                  }`}
+                >
+                  <KeyRound className="w-4 h-4 shrink-0" />
+                  <span>Recovery Requests ({recoveryRequests.filter((r) => r.status === 'pending').length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('audit')}
+                  className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+                    activeTab === 'audit'
+                      ? 'bg-[#0284c7] text-white shadow-sm'
+                      : 'text-[#475569] hover:bg-[#f1f5f9] hover:text-[#0f172a]'
+                  }`}
+                >
+                  <Shield className="w-4 h-4 shrink-0" />
+                  <span>Audit Logs ({auditLogs.length})</span>
+                </button>
+              </div>
+
               <button
-                onClick={() => setActiveTab('members')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
-                  activeTab === 'members' ? 'bg-[#1fbbd2] text-white shadow-sm' : 'text-[#475569] hover:bg-[#f1f5f9]'
-                }`}
+                type="button"
+                onClick={() => {
+                  setInviteLink('');
+                  setInviteEmail('');
+                  setShowInviteModal(true);
+                }}
+                className="gold-cyan-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow-md cursor-pointer whitespace-nowrap shrink-0"
               >
-                Members ({users.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('recovery')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === 'recovery' ? 'bg-[#f39c12] text-white shadow-sm' : 'text-[#475569] hover:bg-[#f1f5f9]'
-                }`}
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>Recovery Requests ({recoveryRequests.filter((r) => r.status === 'pending').length})</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('audit')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer ${
-                  activeTab === 'audit' ? 'bg-[#0284c7] text-white shadow-sm' : 'text-[#475569] hover:bg-[#f1f5f9]'
-                }`}
-              >
-                <Shield className="w-3.5 h-3.5" />
-                <span>Audit Logs ({auditLogs.length})</span>
+                <UserPlus className="w-4 h-4" />
+                <span>Invite Member</span>
               </button>
             </div>
-            <button
-              onClick={() => {
-                setInviteLink('');
-                setInviteEmail('');
-                setShowInviteModal(true);
-              }}
-              className="gold-cyan-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow-md cursor-pointer"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>Invite Member</span>
-            </button>
           </div>
 
           {activeTab === 'members' && (
