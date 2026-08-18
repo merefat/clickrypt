@@ -139,7 +139,11 @@ export default function GroupsPage() {
     }
   };
 
-  const selectedGroup = groups.find((g) => g.id === selectedGroupId) || groups[0];
+  const visibleGroups = user?.role === 'Owner' || user?.role === 'Admin'
+    ? groups
+    : groups.filter((g) => g.members.some((m: any) => m.userId === user?.id));
+
+  const selectedGroup = visibleGroups.find((g) => g.id === selectedGroupId) || visibleGroups[0];
 
   const handleToggleNewGroupMember = (userId: string) => {
     setNewGroupMemberIds((prev) =>
@@ -415,9 +419,15 @@ export default function GroupsPage() {
               </div>
 
               <div className="space-y-2">
-                {groups
-                  .filter((g) => g.name.toLowerCase().includes(searchTerm.toLowerCase()))
-                  .map((g) => {
+                {visibleGroups.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-[#64748b] bg-[#f8fafc] rounded-xl border border-[#cbd5e1]">
+                    <Users className="w-6 h-6 text-[#94a3b8] mx-auto mb-2 opacity-80" />
+                    <p>You are not a member of any team groups yet.</p>
+                  </div>
+                ) : (
+                  visibleGroups
+                    .filter((g) => g.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                    .map((g) => {
                     const isSelected = g.id === selectedGroupId;
                     return (
                       <div
@@ -449,7 +459,8 @@ export default function GroupsPage() {
                         </div>
                       </div>
                     );
-                  })}
+                  })
+                )}
               </div>
             </div>
 
