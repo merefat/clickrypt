@@ -491,7 +491,7 @@ export default function GroupsPage() {
                         <span>Group Members ({selectedGroup.members.length})</span>
                       </div>
 
-                      {selectedGroup.members.map((m: any) => {
+                      {selectedGroup.members.map((m: any, idx: number) => {
                         const userObj = users.find((u) => u.id === m.userId) || {
                           name: m.userId === 'u-1' ? 'Alex Morgan' : m.userId === 'u-2' ? 'Sarah Johnson' : 'Mark Wilson',
                           email: m.userId === 'u-1' ? 'alex.morgan@acme.com' : m.userId === 'u-2' ? 'sarah.johnson@acme.com' : 'mark.wilson@acme.com',
@@ -499,7 +499,7 @@ export default function GroupsPage() {
 
                         return (
                           <div
-                            key={m.userId}
+                            key={`${m.userId}-${idx}`}
                             className="p-3.5 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl flex items-center justify-between shadow-sm transition-all"
                           >
                             <div className="flex items-center gap-3">
