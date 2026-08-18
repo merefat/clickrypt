@@ -450,6 +450,8 @@ export default function VaultPage() {
                     {resources.map((res) => {
                       const isRevealed = !!revealedPasswords[res.id];
                       const displayedPass = isRevealed ? revealedPasswords[res.id] : '••••••••';
+                      const isTeamShared = (res.secrets && res.secrets.length > 1) || (res.sharedWith && res.sharedWith.length > 0);
+                      const isSharedAny = isTeamShared || res.isExternalShared;
 
                       return (
                         <tr
@@ -475,12 +477,22 @@ export default function VaultPage() {
                                       <span>Needs Attention</span>
                                     </span>
                                   )}
+                                  {isTeamShared && (
+                                    <span
+                                      className="px-2.5 py-0.5 rounded-full bg-[#e0f2fe] border border-[#1fbbd2]/50 text-[#0284c7] text-[10px] font-extrabold flex items-center gap-1 shadow-xs"
+                                      title="This password is shared with team members"
+                                    >
+                                      <Share2 className="w-3 h-3 text-[#0284c7]" />
+                                      <span>Shared</span>
+                                    </span>
+                                  )}
                                   {res.isExternalShared && (
                                     <span
-                                      className="p-1 rounded-lg bg-amber-50 border border-amber-300 text-[#d97706] inline-flex items-center justify-center shadow-sm"
+                                      className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-[#d97706] text-[10px] font-extrabold flex items-center gap-1 shadow-xs"
                                       title="Shared externally with a non-application member"
                                     >
-                                      <Globe className="w-3.5 h-3.5 text-[#d97706]" />
+                                      <Globe className="w-3 h-3 text-[#d97706]" />
+                                      <span>External Share</span>
                                     </span>
                                   )}
                                 </div>

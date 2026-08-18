@@ -52,6 +52,16 @@ export async function POST(
     }
 
     // Handle batch targetUserIds and secrets
+    if (targetUserIds && Array.isArray(targetUserIds)) {
+      if (!resource.sharedWith) resource.sharedWith = [];
+      const sharedWithArr = resource.sharedWith;
+      targetUserIds.forEach((uid: string) => {
+        if (!sharedWithArr.includes(uid)) {
+          sharedWithArr.push(uid);
+        }
+      });
+    }
+
     if (secrets && Array.isArray(secrets)) {
       secrets.forEach((s: any) => {
         const existingIdx = resource.secrets.findIndex((sec) => sec.userId === s.userId);
