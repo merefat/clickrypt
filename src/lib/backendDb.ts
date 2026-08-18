@@ -64,6 +64,7 @@ export interface DbGroup {
   name: string;
   description: string;
   members: DbGroupMember[];
+  assignedFolderIds?: string[];
   lastActive: string;
 }
 

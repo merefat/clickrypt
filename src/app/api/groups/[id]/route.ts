@@ -37,6 +37,18 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     group.members = group.members.filter((m) => m.userId !== body.removeUserId);
   }
 
+  if (!group.assignedFolderIds) group.assignedFolderIds = [];
+
+  // Assign folder to group
+  if (body.addFolderId && !group.assignedFolderIds.includes(body.addFolderId)) {
+    group.assignedFolderIds.push(body.addFolderId);
+  }
+
+  // Remove assigned folder from group
+  if (body.removeFolderId) {
+    group.assignedFolderIds = group.assignedFolderIds.filter((fid) => fid !== body.removeFolderId);
+  }
+
   group.lastActive = 'Just now';
 
   db.auditLogs.unshift({

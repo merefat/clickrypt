@@ -187,26 +187,46 @@ export default function GroupsPage() {
     }
   };
 
-  const handleAssignFolderSubmit = (e: React.FormEvent) => {
+  const handleAssignFolderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFolderToAssign || !selectedGroup) return;
 
-    setGroupFolderIds((prev) => {
-      const current = prev[selectedGroup.id] || [];
-      if (current.includes(selectedFolderToAssign)) return prev;
-      return { ...prev, [selectedGroup.id]: [...current, selectedFolderToAssign] };
-    });
+    try {
+      await api.put(`/groups/${selectedGroup.id}`, {
+        addFolderId: selectedFolderToAssign,
+      });
 
-    setSelectedFolderToAssign('');
-    setShowAssignFolderModal(false);
+      setGroupFolderIds((prev) => {
+        const current = prev[selectedGroup.id] || [];
+        if (current.includes(selectedFolderToAssign)) return prev;
+        return { ...prev, [selectedGroup.id]: [...current, selectedFolderToAssign] };
+      });
+
+      setSelectedFolderToAssign('');
+      setShowAssignFolderModal(false);
+      await fetchGroups();
+    } catch (err) {
+      alert('Failed to assign folder to group');
+    }
   };
 
-  const handleUnassignFolder = (folderId: string) => {
+  const handleUnassignFolder = async (folderId: string) => {
     if (!selectedGroup) return;
-    setGroupFolderIds((prev) => ({
-      ...prev,
-      [selectedGroup.id]: (prev[selectedGroup.id] || []).filter((id) => id !== folderId),
-    }));
+
+    try {
+      await api.put(`/groups/${selectedGroup.id}`, {
+        removeFolderId: folderId,
+      });
+
+      setGroupFolderIds((prev) => ({
+        ...prev,
+        [selectedGroup.id]: (prev[selectedGroup.id] || []).filter((id) => id !== folderId),
+      }));
+
+      await fetchGroups();
+    } catch (err) {
+      alert('Failed to unassign folder');
+    }
   };
 
   const handleSharePasswordSubmit = async (e: React.FormEvent) => {
@@ -323,7 +343,7 @@ export default function GroupsPage() {
   };
 
   const assignedFoldersForGroup = selectedGroup
-    ? folders.filter((f) => (groupFolderIds[selectedGroup.id] || []).includes(f.id))
+    ? folders.filter((f) => (selectedGroup.assignedFolderIds || groupFolderIds[selectedGroup.id] || []).includes(f.id))
     : [];
 
   const assignedFolderIds = assignedFoldersForGroup.map((f) => f.id);
@@ -337,7 +357,7 @@ export default function GroupsPage() {
     : [];
 
   const unassignedFoldersForGroup = selectedGroup
-    ? folders.filter((f) => !(groupFolderIds[selectedGroup.id] || []).includes(f.id))
+    ? folders.filter((f) => !(selectedGroup.assignedFolderIds || groupFolderIds[selectedGroup.id] || []).includes(f.id))
     : folders;
 
   const unassignedResourcesForGroup = selectedGroup

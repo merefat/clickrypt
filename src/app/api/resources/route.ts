@@ -25,6 +25,15 @@ export async function GET(request: Request) {
   const currentUserId = authUser.id;
   const currentUserEmail = authUser.email.toLowerCase();
 
+  // Find all groups the current user is a member of
+  const userGroups = db.groups.filter((g) => g.members.some((m) => m.userId === currentUserId));
+  const userGroupFolderIds = new Set<string>();
+  userGroups.forEach((g) => {
+    if (g.assignedFolderIds) {
+      g.assignedFolderIds.forEach((fid) => userGroupFolderIds.add(fid));
+    }
+  });
+
   let result: typeof db.resources = [];
 
   if (sharedWithUserId) {
@@ -35,16 +44,20 @@ export async function GET(request: Request) {
       const isRecipient = r.secrets && r.secrets.some((s) => s.userId === currentUserId && s.userId !== r.ownerId);
       const isExplicitlyShared = r.sharedWith && (r.sharedWith.includes(currentUserId) || r.sharedWith.includes(currentUserEmail));
       const isExternalRecipient = r.isExternalShared && r.externalShareEmail?.toLowerCase() === currentUserEmail;
+      const isViaGroupFolder = !isOwner && !!(r.folderId && userGroupFolderIds.has(r.folderId));
 
-      return isSharedOut || (!isOwner && (isRecipient || isExplicitlyShared || isExternalRecipient));
+      return isSharedOut || (!isOwner && (isRecipient || isExplicitlyShared || isExternalRecipient || isViaGroupFolder));
     });
   } else if (secretVaultStr === 'true') {
     // Secret Vault (/secret-vault page): Only show private items owned by the current user
     result = db.resources.filter((r) => r.ownerId === currentUserId && r.isPrivateOnly === true);
   } else {
-    // Standard Main Vault (/vault page): ONLY show passwords OWNED by the current user
-    // Passwords created by owner stay strictly in owner's vault. They only appear for other members in /shared when explicitly shared.
-    result = db.resources.filter((r) => r.ownerId === currentUserId && !r.isPrivateOnly);
+    // Standard Main Vault (/vault page): Show passwords OWNED by the current user + group folder assigned items
+    result = db.resources.filter((r) => {
+      const isOwner = r.ownerId === currentUserId && !r.isPrivateOnly;
+      const isViaGroupFolder = !!(r.folderId && userGroupFolderIds.has(r.folderId));
+      return isOwner || isViaGroupFolder;
+    });
   }
 
   if (folderId) {
