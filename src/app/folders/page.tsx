@@ -7,9 +7,13 @@ import PasswordDrawer from '@/components/PasswordDrawer';
 import { Folder, Plus, FolderPlus, Trash2, Edit2, Shield, Eye, EyeOff, Copy } from 'lucide-react';
 import api from '@/lib/api';
 
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import CreateFolderModal from '@/components/CreateFolderModal';
 
 export default function FoldersPage() {
+  const router = useRouter();
+  const { user } = useAuth();
   const [folders, setFolders] = useState<any[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [folderItems, setFolderItems] = useState<any[]>([]);
@@ -18,8 +22,12 @@ export default function FoldersPage() {
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
 
   useEffect(() => {
+    if (user?.role === 'External') {
+      router.push('/shared');
+      return;
+    }
     fetchFolders();
-  }, []);
+  }, [user, router]);
 
   useEffect(() => {
     if (selectedFolderId) {

@@ -29,12 +29,14 @@ import {
   Globe,
   ShieldCheck
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { decryptSecret } from '@/lib/crypto';
 import { useAuth } from '@/context/AuthContext';
 
 export default function VaultPage() {
-  const { masterPassword, getEncryptedPrivateKey } = useAuth();
+  const router = useRouter();
+  const { user, masterPassword, getEncryptedPrivateKey } = useAuth();
   const [resources, setResources] = useState<any[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
   const [subscription, setSubscription] = useState<any | null>(null);
@@ -69,31 +71,20 @@ export default function VaultPage() {
   }, []);
 
   useEffect(() => {
+    if (user?.role === 'External') {
+      router.push('/shared');
+      return;
+    }
     fetchFolders();
     fetchSubscription();
 
     const searchParams = new URLSearchParams(window.location.search);
-    const st = searchParams.get('st');
-    const shareToken = searchParams.get('shareToken');
+    const externalShareId = searchParams.get('externalShareId') || searchParams.get('st') || searchParams.get('shareToken');
 
-    if (st) {
-      const stored = localStorage.getItem(`clickrypt_share_${st}`);
-      if (stored) {
-        try {
-          setExternalSharedSecret(JSON.parse(stored));
-        } catch (e) {}
-      } else {
-        setExternalSharedSecret({ title: 'Shared Secret Item', secret: 'AcmeSecret123!' });
-      }
-    } else if (shareToken) {
-      try {
-        const raw = Buffer.from(shareToken, 'base64').toString('utf-8');
-        setExternalSharedSecret(JSON.parse(raw));
-      } catch (e) {
-        setExternalSharedSecret({ title: 'Shared Secret Item', secret: 'AcmeSecret123!' });
-      }
+    if (externalShareId && !user) {
+      router.push(`/register?externalShareId=${externalShareId}&role=External`);
     }
-  }, []);
+  }, [user, router]);
 
   useEffect(() => {
     fetchResources();

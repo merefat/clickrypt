@@ -21,12 +21,20 @@ import {
 import api from '@/lib/api';
 import { encryptSecret, decryptSecret } from '@/lib/crypto';
 import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/navigation';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function ImportExportPage() {
+  const router = useRouter();
   const { user, masterPassword, getEncryptedPrivateKey } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (user?.role === 'External') {
+      router.push('/shared');
+    }
+  }, [user, router]);
 
   const [selectedFormat, setSelectedFormat] = useState<'csv' | 'json' | '1password' | 'lastpass' | 'bitwarden'>('csv');
   const [exportOption, setExportOption] = useState<'all' | 'group' | 'selected'>('all');

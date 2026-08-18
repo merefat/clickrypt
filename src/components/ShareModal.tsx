@@ -88,43 +88,17 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
   const handleGenerateExternalShareLink = async () => {
     setLoading(true);
     try {
-      let title = 'Secret Item';
-      let plainText = 'AcmeSecret123!';
-
+      // Mark resource as externally shared on backend so it appears in recipient's "Shared with Me"
       try {
-        const resResource = await api.get(`/resources/${resourceId}`);
-        const resourceData = resResource.data;
-        if (resourceData) {
-          title = resourceData.name || title;
-          const encryptedBlob = resourceData.secrets?.[0]?.encryptedData || '';
-          const privateKey = await getEncryptedPrivateKey();
-          if (privateKey && masterPassword && encryptedBlob) {
-            try {
-              plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
-            } catch (e) {
-              plainText = 'AcmeSecret123!';
-            }
-          }
-        }
+        await api.post(`/resources/${resourceId}/share`, {
+          isExternalShared: true,
+          externalRecipientEmail: 'external.partner@vendor.com',
+        });
       } catch (err) {
-        console.warn('Resource fetch fallback for external share:', err);
+        console.warn('Backend mark external share error:', err);
       }
 
-      const shortId = Math.random().toString(36).substring(2, 8);
-      const rawPayload = JSON.stringify({
-        resourceId,
-        title,
-        secret: plainText,
-        exp: Date.now() + 86400000,
-      });
-
-      try {
-        localStorage.setItem(`clickrypt_share_${shortId}`, rawPayload);
-      } catch (e) {
-        console.warn('LocalStorage share item write warning:', e);
-      }
-
-      const generatedUrl = `${window.location.origin}/vault?st=${shortId}`;
+      const generatedUrl = `${window.location.origin}/register?externalShareId=${resourceId}&role=External`;
       setExternalShareLink(generatedUrl);
     } catch (err) {
       console.error(err);
@@ -349,7 +323,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
 
             <h4 className="text-sm font-extrabold text-[#0f172a]">Share with External Users (Non-Members)</h4>
             <p className="text-xs text-[#64748b]">
-              Generate a secure 24-hour encrypted one-time link to share this secret with external partners or clients:
+              Generate a secure account registration link. Opening this link requires external recipients to register/log in to view their restricted <strong>Shared with Me</strong> panel:
             </p>
 
             {externalShareLink ? (

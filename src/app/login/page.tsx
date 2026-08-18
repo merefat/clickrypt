@@ -112,6 +112,13 @@ export default function LoginPage() {
     try {
       const ok = await login(email, password);
       if (ok) {
+        try {
+          const meRes = await api.get('/auth/me');
+          if (meRes.data?.user?.role === 'External') {
+            router.push('/shared');
+            return;
+          }
+        } catch (e) {}
         router.push('/vault');
       } else {
         setErrorMsg('Authentication failed. Account may be suspended or credentials invalid.');

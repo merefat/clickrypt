@@ -6,7 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'SuperSecretClickryptJwtKey_2026!';
 
 export async function POST(request: Request) {
   try {
-    const { name, email, password, publicKey, encryptedPrivateKey } = await request.json();
+    const { name, email, password, role, publicKey, encryptedPrivateKey } = await request.json();
 
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
@@ -20,6 +20,7 @@ export async function POST(request: Request) {
       // User exists as 'Invited', 'Active' or 'Suspended' -> Update & Activate profile!
       existingUser.name = name || existingUser.name || email.split('@')[0];
       existingUser.status = 'Active';
+      if (role) existingUser.role = role;
       if (publicKey) existingUser.publicKey = publicKey;
       if (encryptedPrivateKey) existingUser.encryptedPrivateKey = encryptedPrivateKey;
       existingUser.lastActive = 'Just now';
@@ -27,11 +28,12 @@ export async function POST(request: Request) {
       targetUser = existingUser;
     } else {
       // Create brand new user
+      const userRole = (role === 'External' ? 'External' : role || 'User') as any;
       const newUser = {
         id: `u-${Date.now()}`,
         email,
         name: name || email.split('@')[0],
-        role: 'User' as const,
+        role: userRole,
         status: 'Active' as const,
         publicKey: publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n...',
         encryptedPrivateKey: encryptedPrivateKey || '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n...',

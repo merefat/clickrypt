@@ -20,7 +20,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   masterPassword: string | null;
   login: (email: string, masterPassword: string) => Promise<boolean>;
-  register: (name: string, email: string, masterPassword: string) => Promise<boolean>;
+  register: (name: string, email: string, masterPassword: string, role?: 'Owner' | 'Admin' | 'User' | 'External') => Promise<boolean>;
   updateMasterPassword: (newMasterPass: string) => Promise<void>;
   updateProfile: (name: string, email: string, avatarUrl?: string) => Promise<boolean>;
   logout: () => void;
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (name: string, email: string, masterPass: string): Promise<boolean> => {
+  const register = async (name: string, email: string, masterPass: string, role?: 'Owner' | 'Admin' | 'User' | 'External'): Promise<boolean> => {
     try {
       // 1. Generate client-side PGP keys
       const { privateKey, publicKey } = await generateKeyPair(email, masterPass);
@@ -76,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         name,
         email,
         password: masterPass,
+        role: role || 'User',
         publicKey,
         encryptedPrivateKey: privateKey,
       });

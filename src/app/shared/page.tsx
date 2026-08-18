@@ -226,19 +226,21 @@ export default function SharedPage() {
               </span>
             </button>
 
-            <button
-              onClick={() => setActiveTab('outbound')}
-              className={`px-5 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
-                activeTab === 'outbound'
-                  ? 'bg-[#0284c7] text-white shadow-md'
-                  : 'bg-[#ffffff] text-[#475569] hover:bg-[#e0f2fe] hover:text-[#0284c7] border border-[#cbd5e1]'
-              }`}
-            >
-              <span>Shared by Me</span>
-              <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px]">
-                {outboundResources.length}
-              </span>
-            </button>
+            {user?.role !== 'External' && (
+              <button
+                onClick={() => setActiveTab('outbound')}
+                className={`px-5 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
+                  activeTab === 'outbound'
+                    ? 'bg-[#0284c7] text-white shadow-md'
+                    : 'bg-[#ffffff] text-[#475569] hover:bg-[#e0f2fe] hover:text-[#0284c7] border border-[#cbd5e1]'
+                }`}
+              >
+                <span>Shared by Me</span>
+                <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px]">
+                  {outboundResources.length}
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Table Container */}

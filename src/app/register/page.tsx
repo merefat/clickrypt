@@ -17,7 +17,8 @@ import {
   RefreshCw,
   Fingerprint,
   MailCheck,
-  ShieldCheck
+  ShieldCheck,
+  Globe
 } from 'lucide-react';
 import { evaluatePasswordStrength } from '@/lib/crypto';
 import { generatePassword } from '@/lib/generator';
@@ -34,9 +35,11 @@ function RegisterForm() {
   const inviteToken = searchParams.get('inviteToken');
   const invitedEmail = searchParams.get('email');
   const invitedRole = searchParams.get('role');
+  const externalShareId = searchParams.get('externalShareId');
+  const isExternalShare = !!externalShareId || invitedRole === 'External';
 
   const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('alex.morgan@acme.com');
+  const [email, setEmail] = useState('external.guest@vendor.com');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -112,9 +115,14 @@ function RegisterForm() {
     setLoading(true);
 
     try {
-      const ok = await register(fullName || 'Alex Morgan', email, password);
+      const assignedRole = isExternalShare ? 'External' : (invitedRole as any) || 'User';
+      const ok = await register(fullName || 'Guest User', email, password, assignedRole);
       if (ok) {
-        router.push('/vault');
+        if (assignedRole === 'External') {
+          router.push('/shared');
+        } else {
+          router.push('/vault');
+        }
       } else {
         alert('Registration failed');
       }
@@ -138,6 +146,13 @@ function RegisterForm() {
       {/* Profile Setup & Pay-to-Enroll Box */}
       <div className="w-full max-w-xl glass-panel p-8 rounded-3xl border border-[#d0dbe5] shadow-2xl bg-[#ffffff] z-10">
         <div className="text-center mb-6">
+          {isExternalShare && (
+            <div className="inline-flex items-center gap-1.5 bg-amber-50 text-[#d97706] border border-amber-300 px-3 py-1 rounded-full text-xs font-extrabold mb-3 shadow-xs">
+              <Globe className="w-3.5 h-3.5 text-[#d97706]" />
+              <span>External Password Share Access (Register to Access Shared Secret)</span>
+            </div>
+          )}
+
           {isOrgMode && (
             <div className="inline-flex items-center gap-1.5 bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/40 px-3 py-1 rounded-full text-xs font-extrabold mb-3 shadow-xs">
               <Building2 className="w-3.5 h-3.5 text-[#d97706]" />

@@ -23,12 +23,14 @@ import {
   Clock,
   Share2
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { decryptSecret, encryptSecret } from '@/lib/crypto';
 import { useAuth } from '@/context/AuthContext';
 
 export default function GroupsPage() {
-  const { masterPassword, getEncryptedPrivateKey } = useAuth();
+  const router = useRouter();
+  const { user, masterPassword, getEncryptedPrivateKey } = useAuth();
   const [groups, setGroups] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
@@ -38,6 +40,12 @@ export default function GroupsPage() {
   const [activeTab, setActiveTab] = useState<'members' | 'folders' | 'passwords' | 'activity'>('members');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user?.role === 'External') {
+      router.push('/shared');
+    }
+  }, [user, router]);
 
   // Activity Tab Pagination State
   const [activityPage, setActivityPage] = useState(1);
