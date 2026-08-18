@@ -11,21 +11,19 @@ export async function GET() {
     const token = cookieStore.get('access_token')?.value;
 
     if (!token) {
-      // Default fallback to demo owner user Alex Morgan if unauthenticated for quick testing
-      const defaultUser = db.users[0];
-      return NextResponse.json({ user: defaultUser });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
     const user = db.users.find((u) => u.id === decoded.userId);
 
     if (!user) {
-      return NextResponse.json({ user: db.users[0] });
+      return NextResponse.json({ error: 'User not found' }, { status: 401 });
     }
 
     return NextResponse.json({ user });
   } catch (error) {
-    return NextResponse.json({ user: db.users[0] });
+    return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
   }
 }
 
@@ -35,15 +33,15 @@ export async function PUT(req: Request) {
     const cookieStore = await cookies();
     const token = cookieStore.get('access_token')?.value;
 
-    let targetUser = db.users[0];
-    if (token) {
-      try {
-        const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-        const found = db.users.find((u) => u.id === decoded.userId);
-        if (found) targetUser = found;
-      } catch (e) {
-        // use default
-      }
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const targetUser = db.users.find((u) => u.id === decoded.userId);
+
+    if (!targetUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 401 });
     }
 
     if (name) targetUser.name = name;

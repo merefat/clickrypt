@@ -9,12 +9,12 @@ async function getAuthUser() {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get('access_token')?.value;
-    if (!token) return db.users[0];
+    if (!token) return null;
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
     const user = db.users.find((u) => u.id === decoded.userId);
-    return user || db.users[0];
+    return user || null;
   } catch {
-    return db.users[0];
+    return null;
   }
 }
 
@@ -27,27 +27,31 @@ export async function GET(request: Request) {
     );
   }
 
+  const authUser = await getAuthUser();
+  if (!authUser) {
+    return NextResponse.json({ error: 'Unauthorized session' }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const search = searchParams.get('search')?.toLowerCase() || '';
   const folderId = searchParams.get('folderId');
   const secretVaultStr = searchParams.get('secretVault');
   const sharedWithUserId = searchParams.get('sharedWithUserId');
 
-  const authUser = await getAuthUser();
   const currentUserId = authUser.id;
   const currentUserEmail = authUser.email.toLowerCase();
   const currentUserRole = authUser.role;
 
-  // Phase 1 Server-Side Authorization:
-  // A user ONLY receives passwords where they are the owner, a secret recipient, or explicitly shared
+  // Strict Ownership & Permission Isolation:
+  // A password created by one account is PRIVATE by default to that account.
+  // It ONLY appears in another account's view if explicitly shared with their user ID/email.
   let result = db.resources.filter((r) => {
     const isOwner = r.ownerId === currentUserId;
     const hasSecretAccess = r.secrets && r.secrets.some((s) => s.userId === currentUserId);
     const isExplicitlyShared =
       r.sharedWith &&
       (r.sharedWith.includes(currentUserId) ||
-        r.sharedWith.includes(currentUserEmail) ||
-        r.sharedWith.includes(currentUserRole));
+        r.sharedWith.includes(currentUserEmail));
     const isExternalRecipient = r.isExternalShared && r.externalShareEmail?.toLowerCase() === currentUserEmail;
 
     return isOwner || hasSecretAccess || isExplicitlyShared || isExternalRecipient;
@@ -96,6 +100,9 @@ export async function POST(request: Request) {
 
   try {
     const authUser = await getAuthUser();
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const body = await request.json();
     const newResource = {
       id: `r-${Date.now()}`,

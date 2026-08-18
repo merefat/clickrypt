@@ -181,8 +181,7 @@ class BackendDatabase {
       lastModified: 'May 24, 2025 10:32 AM',
       tags: ['DevOps', 'Git'],
       secrets: [
-        { userId: 'u-1', encryptedData: '[PGP-ENCRYPTED-BLOB::R2l0SHViR3B0S2V5MTIzIQ==]' },
-        { userId: 'u-2', encryptedData: '[PGP-ENCRYPTED-BLOB::R2l0SHViR3B0S2V5MTIzIQ==]' }
+        { userId: 'u-1', encryptedData: '[PGP-ENCRYPTED-BLOB::R2l0SHViR3B0S2V5MTIzIQ==]' }
       ]
     },
     {
@@ -241,6 +240,20 @@ class BackendDatabase {
       tags: ['Admin', 'Finance'],
       secrets: [
         { userId: 'u-2', encryptedData: '[PGP-ENCRYPTED-BLOB::U3RyaXBlQWRtaW5QYXNzNzg5IQ==]' }
+      ]
+    },
+    {
+      id: 'r-arif-1',
+      name: 'Arif Admin Portal',
+      username: '20103227@iubat.edu',
+      url: 'admin.iubat.edu',
+      category: 'Database',
+      ownerId: 'u-5',
+      strength: 'Strong',
+      lastModified: 'Just now',
+      tags: ['Admin', 'IUBAT'],
+      secrets: [
+        { userId: 'u-5', encryptedData: '[PGP-ENCRYPTED-BLOB::QXJpZkFkbWluUGFzczEyMyE=]' }
       ]
     },
     {
