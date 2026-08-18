@@ -20,7 +20,8 @@ import {
   Copy,
   Check,
   Trash2,
-  KeyRound
+  KeyRound,
+  X
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -630,28 +631,33 @@ export default function AdminPage() {
         </main>
       </div>
 
-      {/* Invite Member Modal */}
+      {/* Invite Member Modal - Light Theme */}
       {showInviteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sora">
-          <div className="bg-[#17283b] border border-[rgba(31,187,210,0.3)] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-6">
-            <div className="flex items-center justify-between border-b border-gray-700 pb-4">
-              <div className="flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-[#1fbbd2]" />
-                <h3 className="text-lg font-bold text-white">Invite Team Member</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sora animate-in fade-in duration-200">
+          <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7] font-extrabold shadow-xs">
+                  <UserPlus className="w-5 h-5 text-[#0284c7]" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-[#0f172a]">Invite Team Member</h3>
+                  <p className="text-[10px] text-[#0284c7] font-bold">Onboard new team member to vault</p>
+                </div>
               </div>
               <button
                 onClick={() => setShowInviteModal(false)}
-                className="text-gray-400 hover:text-white"
+                className="p-1 text-[#64748b] hover:text-[#0f172a] rounded-lg transition-colors cursor-pointer"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             {!inviteLink ? (
-              <form onSubmit={handleInviteSubmit} className="space-y-4">
+              <form onSubmit={handleInviteSubmit} className="space-y-4 text-xs">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">
-                    EMAIL ADDRESS
+                  <label className="block text-[11px] font-extrabold text-[#334155] uppercase tracking-wider mb-1">
+                    Email Address
                   </label>
                   <input
                     type="email"
@@ -659,21 +665,21 @@ export default function AdminPage() {
                     placeholder="colleague@company.com"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
-                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#1fbbd2]"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-3.5 py-2.5 text-xs text-[#0f172a] font-bold placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none shadow-xs transition-all"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">
-                    ROLE PERMISSION
+                  <label className="block text-[11px] font-extrabold text-[#334155] uppercase tracking-wider mb-1">
+                    Role Permission
                   </label>
                   <select
                     value={inviteRole}
                     onChange={(e) => setInviteRole(e.target.value as any)}
-                    className="w-full bg-[#0d1724] border border-gray-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#1fbbd2]"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-3.5 py-2.5 text-xs text-[#0f172a] font-extrabold focus:border-[#1fbbd2] focus:outline-none shadow-xs cursor-pointer transition-all"
                   >
-                    <option value="User" className="bg-[#17283b] text-white">User (Can view & share allowed items)</option>
-                    <option value="Admin" className="bg-[#17283b] text-white">Admin (Can manage members & groups)</option>
+                    <option value="User" className="bg-white text-[#0f172a]">User (Can view & share allowed items)</option>
+                    <option value="Admin" className="bg-white text-[#0f172a]">Admin (Can manage members & groups)</option>
                   </select>
                 </div>
 
@@ -681,13 +687,13 @@ export default function AdminPage() {
                   <button
                     type="button"
                     onClick={() => setShowInviteModal(false)}
-                    className="px-4 py-2 bg-[#0d1724] hover:bg-gray-800 border border-gray-700 text-gray-300 rounded-xl text-xs font-bold"
+                    className="px-4 py-2.5 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] text-[#334155] rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-xs"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="gold-cyan-gradient-btn px-5 py-2 rounded-xl text-xs font-extrabold text-[#0d1724] shadow"
+                    className="gold-cyan-gradient-btn px-5 py-2.5 rounded-xl text-xs font-extrabold text-white shadow-md cursor-pointer"
                   >
                     Generate Invite Link
                   </button>
@@ -695,23 +701,23 @@ export default function AdminPage() {
               </form>
             ) : (
               <div className="space-y-4 text-center">
-                <div className="w-12 h-12 rounded-full bg-emerald-950 border border-emerald-700 text-emerald-400 flex items-center justify-center mx-auto glow-green">
-                  <CheckCircle2 className="w-6 h-6" />
+                <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-300 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-600" />
                 </div>
-                <h4 className="text-base font-bold text-white">Invitation Link Created!</h4>
-                <p className="text-xs text-gray-300">
+                <h4 className="text-base font-extrabold text-[#0f172a]">Invitation Link Created!</h4>
+                <p className="text-xs text-[#64748b] font-medium">
                   Share this invitation link with <strong>{inviteEmail}</strong> to complete onboarding:
                 </p>
 
-                <div className="bg-[#0d1724] p-3 rounded-xl border border-gray-700 font-mono text-[11px] text-[#1fbbd2] break-all">
+                <div className="bg-[#f8fafc] p-3 rounded-xl border border-[#cbd5e1] font-mono text-[11px] text-[#0284c7] break-all font-bold shadow-inner">
                   {inviteLink}
                 </div>
 
                 <button
                   onClick={handleCopyLink}
-                  className="w-full gold-gradient-btn py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 text-white shadow"
+                  className="w-full gold-gradient-btn py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 text-white shadow-md cursor-pointer"
                 >
-                  {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copiedLink ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4 text-white" />}
                   <span>{copiedLink ? 'Copied to Clipboard!' : 'Copy Invite Link'}</span>
                 </button>
               </div>
