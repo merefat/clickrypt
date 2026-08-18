@@ -103,16 +103,6 @@ class BackendDatabase {
   public users: DbUser[] = [
     {
       id: 'u-1',
-      email: 'alex.morgan@acme.com',
-      name: 'Alex Morgan',
-      role: 'Owner',
-      status: 'Active',
-      publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2AcmeAlexMorganPublicKeyBase64PayloadData2026==\n-----END PGP PUBLIC KEY BLOCK-----',
-      encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2AcmeAlexMorganPrivateKeyBase64PayloadData2026==\n-----END PGP PRIVATE KEY BLOCK-----',
-      lastActive: 'May 24, 2025 10:32 AM',
-    },
-    {
-      id: 'u-refat',
       email: 'refat61899200@gmail.com',
       name: 'Refat Ahmed',
       role: 'Owner',
@@ -120,6 +110,16 @@ class BackendDatabase {
       publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2RefatAhmedPublicKeyBase64PayloadData2026==\n-----END PGP PUBLIC KEY BLOCK-----',
       encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2RefatAhmedPrivateKeyBase64PayloadData2026==\n-----END PGP PRIVATE KEY BLOCK-----',
       lastActive: 'Just now',
+    },
+    {
+      id: 'u-2',
+      email: 'alex.morgan@acme.com',
+      name: 'Alex Morgan',
+      role: 'Owner',
+      status: 'Active',
+      publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2AcmeAlexMorganPublicKeyBase64PayloadData2026==\n-----END PGP PUBLIC KEY BLOCK-----',
+      encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2AcmeAlexMorganPrivateKeyBase64PayloadData2026==\n-----END PGP PRIVATE KEY BLOCK-----',
+      lastActive: 'May 24, 2025 10:32 AM',
     },
     {
       id: 'u-5',

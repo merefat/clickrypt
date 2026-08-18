@@ -144,15 +144,17 @@ export default function Sidebar() {
         <Link
           href="/settings"
           className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2.5'} p-2 rounded-xl hover:bg-[#d8e2ec] transition-all cursor-pointer group overflow-hidden`}
-          title={user?.name || 'Alex Morgan'}
+          title={user?.name || user?.email?.split('@')[0] || 'User'}
         >
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-xs font-extrabold text-[#0f172a] group-hover:scale-105 transition-transform shadow-xs overflow-hidden shrink-0">
             {user?.avatarUrl ? (
               <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
             ) : user?.name ? (
               user.name.slice(0, 2).toUpperCase()
+            ) : user?.email ? (
+              user.email.slice(0, 2).toUpperCase()
             ) : (
-              'AM'
+              'US'
             )}
           </div>
 
@@ -162,7 +164,7 @@ export default function Sidebar() {
             }`}
           >
             <p className="text-xs font-extrabold text-[#0f172a] group-hover:text-[#0284c7] leading-tight transition-colors truncate">
-              {user?.name || 'Alex Morgan'}
+              {user?.name || user?.email?.split('@')[0] || 'User'}
             </p>
             <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight truncate">
               {user?.role || 'Owner'}
