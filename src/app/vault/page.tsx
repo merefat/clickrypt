@@ -463,45 +463,42 @@ export default function VaultPage() {
                               <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold text-xs shadow">
                                 {res.name.slice(0, 2).toUpperCase()}
                               </div>
-                              <div>
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <p className="font-bold text-[#0f172a] text-sm group-hover:text-[#1fbbd2] transition-colors">
-                                    {res.name}
-                                  </p>
-                                  {(res.strength === 'Weak' || res.isOld || isOldFilter || res.name.toLowerCase().includes('old')) && (
-                                    <span
-                                      className="px-2 py-0.5 rounded-full bg-rose-50 border border-rose-300 text-rose-700 text-[10px] font-extrabold flex items-center gap-1 shadow-xs"
-                                      title="This password is old and needs attention (Action Required)"
-                                    >
-                                      <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse shrink-0" />
-                                      <span>Needs Attention</span>
-                                    </span>
-                                  )}
-                                  {isTeamShared && (
-                                    <span
-                                      className="px-2.5 py-0.5 rounded-full bg-[#e0f2fe] border border-[#1fbbd2]/50 text-[#0284c7] text-[10px] font-extrabold flex items-center gap-1 shadow-xs"
-                                      title="This password is shared with team members"
-                                    >
-                                      <Share2 className="w-3 h-3 text-[#0284c7]" />
-                                      <span>Shared</span>
-                                    </span>
-                                  )}
-                                  {res.isExternalShared && (
-                                    <span
-                                      className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-[#d97706] text-[10px] font-extrabold flex items-center gap-1 shadow-xs"
-                                      title="Shared externally with a non-application member"
-                                    >
-                                      <Globe className="w-3 h-3 text-[#d97706]" />
-                                      <span>External Share</span>
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-[11px] text-[#64748b]">{res.username || 'alex.doe'}</p>
+                              <div className="flex items-center gap-2.5 flex-wrap">
+                                <p className="font-bold text-[#0f172a] text-sm group-hover:text-[#1fbbd2] transition-colors whitespace-nowrap">
+                                  {res.name}
+                                </p>
+                                {(res.strength === 'Weak' || res.isOld || isOldFilter || res.name.toLowerCase().includes('old')) && (
+                                  <span
+                                    className="px-2 py-0.5 rounded-full bg-rose-50 border border-rose-300 text-rose-700 text-[10px] font-extrabold inline-flex items-center gap-1 shadow-xs shrink-0"
+                                    title="This password is old and needs attention (Action Required)"
+                                  >
+                                    <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse shrink-0" />
+                                    <span>Needs Attention</span>
+                                  </span>
+                                )}
+                                {isTeamShared && (
+                                  <span
+                                    className="px-2.5 py-0.5 rounded-full bg-[#e0f2fe] border border-[#1fbbd2]/50 text-[#0284c7] text-[10px] font-extrabold inline-flex items-center gap-1 shadow-xs shrink-0"
+                                    title="This password is shared with team members"
+                                  >
+                                    <Share2 className="w-3 h-3 text-[#0284c7]" />
+                                    <span>Shared</span>
+                                  </span>
+                                )}
+                                {res.isExternalShared && (
+                                  <span
+                                    className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-[#d97706] text-[10px] font-extrabold inline-flex items-center gap-1 shadow-xs shrink-0"
+                                    title="Shared externally with a non-application member"
+                                  >
+                                    <Globe className="w-3 h-3 text-[#d97706]" />
+                                    <span>External Share</span>
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </td>
 
-                          <td className="py-4 px-4 text-[#334155] font-medium">{res.username || 'alex.doe'}</td>
+                          <td className="py-4 px-4 text-[#334155] font-medium">{res.username || '—'}</td>
 
                           <td className="py-4 px-4">
                             <a
