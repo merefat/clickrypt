@@ -24,6 +24,7 @@ import {
   RefreshCw,
   SlidersHorizontal,
   KeyRound,
+  ChevronDown,
   Globe
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -1150,17 +1151,20 @@ ${privKey}
 
             <form onSubmit={handleSaveRecPolicy} className="space-y-4 text-xs">
               <div>
-                <label className="block font-extrabold text-[#334155] mb-1">Organization Policy Mode</label>
-                <select
-                  value={recPolicy}
-                  onChange={(e) => setRecPolicy(e.target.value as any)}
-                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-3 text-[#0f172a] font-extrabold focus:border-[#1fbbd2] focus:outline-none shadow-sm cursor-pointer"
-                >
-                  <option value="disabled">Disabled (No recovery allowed)</option>
-                  <option value="opt-in">Opt-In (Users choose during setup)</option>
-                  <option value="opt-out">Opt-Out (Enrolled by default, opt-out allowed)</option>
-                  <option value="mandatory">Mandatory (All users must escrow key during setup)</option>
-                </select>
+                <label className="block font-extrabold text-[#334155] mb-1.5">Organization Policy Mode</label>
+                <div className="relative">
+                  <select
+                    value={recPolicy}
+                    onChange={(e) => setRecPolicy(e.target.value as any)}
+                    className="w-full appearance-none bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] focus:border-[#1fbbd2] rounded-xl px-3.5 py-2.5 text-[#0f172a] font-bold focus:outline-none transition-all cursor-pointer font-sora shadow-xs pr-10"
+                  >
+                    <option value="disabled" className="bg-white text-[#0f172a]">Disabled (No recovery allowed)</option>
+                    <option value="opt-in" className="bg-white text-[#0f172a]">Opt-In (Users choose during setup)</option>
+                    <option value="opt-out" className="bg-white text-[#0f172a]">Opt-Out (Enrolled by default, opt-out allowed)</option>
+                    <option value="mandatory" className="bg-white text-[#0f172a]">Mandatory (All users must escrow key during setup)</option>
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-[#0284c7] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
               </div>
 
               {recPolicy !== 'disabled' && (
@@ -1266,16 +1270,19 @@ ${privKey}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-extrabold text-[#334155] mb-1">Provider Type</label>
-                  <select
-                    value={ssoProvider}
-                    onChange={(e) => setSsoProvider(e.target.value as any)}
-                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] font-extrabold focus:border-[#1fbbd2] focus:outline-none shadow-sm cursor-pointer"
-                  >
-                    <option value="google">Google Workspace</option>
-                    <option value="azure">Microsoft Azure AD</option>
-                    <option value="oauth2">Corporate OAuth2 / OIDC</option>
-                  </select>
+                  <label className="block font-extrabold text-[#334155] mb-1.5">Provider Type</label>
+                  <div className="relative">
+                    <select
+                      value={ssoProvider}
+                      onChange={(e) => setSsoProvider(e.target.value as any)}
+                      className="w-full appearance-none bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] focus:border-[#1fbbd2] rounded-xl px-3.5 py-2.5 text-[#0f172a] font-bold focus:outline-none transition-all cursor-pointer font-sora shadow-xs pr-10"
+                    >
+                      <option value="google" className="bg-white text-[#0f172a]">Google Workspace</option>
+                      <option value="azure" className="bg-white text-[#0f172a]">Microsoft Azure AD</option>
+                      <option value="oauth2" className="bg-white text-[#0f172a]">Corporate OAuth2 / OIDC</option>
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-[#0284c7] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 </div>
 
                 <div>
