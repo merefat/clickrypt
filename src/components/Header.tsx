@@ -49,38 +49,7 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
   // 1. Leaked / Compromised Passwords
   // 2. Passwords older than 6 months
   // 3. Shared passwords or folders with other people
-  const [notifications, setNotifications] = useState<VaultNotification[]>([
-    {
-      id: 'notif-leak-1',
-      title: '🚨 Leaked Password Detected!',
-      desc: 'Master credential for "AWS Production API Key" was found in a recent public data breach database. Change this password immediately.',
-      time: 'Just now',
-      type: 'leak',
-      unread: true,
-      actionUrl: '/vault',
-      actionText: 'Change Leaked Password',
-    },
-    {
-      id: 'notif-old-1',
-      title: '⏳ Outdated Password Alert (>6 Months)',
-      desc: 'Your master password for "Corporate Email Portal" was last updated 7 months ago (Jan 12, 2025). Please rotate it for optimal security.',
-      time: '2h ago',
-      type: 'outdated',
-      unread: true,
-      actionUrl: '/vault',
-      actionText: 'Rotate Outdated Password',
-    },
-    {
-      id: 'notif-share-1',
-      title: '🔗 Secret & Folder Shared Alert',
-      desc: 'Folder "Engineering Credentials" and secret "Production DB Secret" were shared with Sarah Johnson & Mark Wilson via OpenPGP.',
-      time: '1d ago',
-      type: 'shared',
-      unread: true,
-      actionUrl: '/shared',
-      actionText: 'Manage Shared Access',
-    },
-  ]);
+  const [notifications, setNotifications] = useState<VaultNotification[]>([]);
 
   const unreadCount = notifications.filter((n) => n.unread).length;
 
