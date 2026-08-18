@@ -189,6 +189,10 @@ function RegisterForm() {
                 placeholder="Enter your full name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl pl-10 pr-4 py-2.5 text-xs text-[#0f172a] font-bold placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none shadow-xs transition-all"
                 required
               />
@@ -207,6 +211,10 @@ function RegisterForm() {
                 value={email}
                 readOnly={isInvited}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 className={`w-full border rounded-xl pl-10 pr-10 py-2.5 text-xs font-bold outline-none shadow-xs ${
                   isInvited
                     ? 'bg-[#f8fafc] border-[#cbd5e1] text-[#0284c7]'
