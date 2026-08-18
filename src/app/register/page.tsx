@@ -39,7 +39,7 @@ function RegisterForm() {
   const isExternalShare = !!externalShareId || invitedRole === 'External';
 
   const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('external.guest@vendor.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -47,10 +47,10 @@ function RegisterForm() {
 
   // Stripe Inline Credit Card Payment State for Organization Mode
   const [seats, setSeats] = useState(25);
-  const [cardHolder, setCardHolder] = useState('Alex Morgan');
-  const [cardNumber, setCardNumber] = useState('4242 4242 4242 4242');
-  const [expiry, setExpiry] = useState('12 / 28');
-  const [cvc, setCvc] = useState('123');
+  const [cardHolder, setCardHolder] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [expiry, setExpiry] = useState('');
+  const [cvc, setCvc] = useState('');
   const [paymentDone, setPaymentDone] = useState(false);
 
   const annualTotal = seats * 6 * 12;
@@ -186,7 +186,7 @@ function RegisterForm() {
               <User className="w-4 h-4 text-[#64748b] absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Alex Morgan"
+                placeholder="Enter your full name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl pl-10 pr-4 py-2.5 text-xs text-[#0f172a] font-bold placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none shadow-xs transition-all"
@@ -203,7 +203,7 @@ function RegisterForm() {
               <Mail className="w-4 h-4 text-[#64748b] absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="email"
-                placeholder="alex.morgan@acme.com"
+                placeholder="Enter your email address"
                 value={email}
                 readOnly={isInvited}
                 onChange={(e) => setEmail(e.target.value)}
