@@ -7,8 +7,12 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const { userId, role, status } = await request.json();
-    const user = db.users.find((u) => u.id === userId);
+    const body = await request.json();
+    const targetId = body.id || body.userId;
+    const role = body.role;
+    const status = body.status;
+
+    const user = db.users.find((u) => u.id === targetId);
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });

@@ -42,9 +42,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await api.get('/auth/me');
       if (res.data?.user) {
         setUser(res.data.user);
+      } else {
+        setUser(null);
       }
     } catch (error) {
-      console.error('Session fetch failed:', error);
+      setUser(null);
     }
   };
 
