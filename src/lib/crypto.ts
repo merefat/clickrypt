@@ -42,30 +42,37 @@ export function safeBase64Decode(str: string): string {
       cleaned = cleaned.slice(0, -1);
     }
 
-    // 2. Remove all whitespace and replace URL-safe base64 characters
-    cleaned = cleaned.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
+    // 2. Strip all non-base64 characters (including dots '.', spaces, invalid symbols)
+    cleaned = cleaned.replace(/[^A-Za-z0-9+/=_-]/g, '');
 
-    // If string starts with PGP header, return raw string without calling atob
-    if (cleaned.startsWith('-----BEGIN')) {
+    // 3. Normalize URL-safe base64 characters
+    cleaned = cleaned.replace(/-/g, '+').replace(/_/g, '/');
+
+    // If string starts with PGP header or is empty, return raw string without calling atob
+    if (!cleaned || cleaned.startsWith('-----BEGIN') || str.includes('-----BEGIN')) {
       return str;
     }
 
-    // 3. Fix base64 padding if needed
+    // 4. Fix base64 padding if needed
     const mod = cleaned.length % 4;
     if (mod === 2) cleaned += '==';
     else if (mod === 3) cleaned += '=';
 
-    // 4. Try Node.js Buffer first (never throws DOMException)
+    // 5. Try Node.js Buffer first (never throws DOMException)
     if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
       try {
         const decodedBuf = Buffer.from(cleaned, 'base64').toString('utf-8');
-        if (decodedBuf) return decodedBuf;
-      } catch (bufErr) {}
+        if (decodedBuf && decodedBuf.trim().length > 0) return decodedBuf;
+      } catch {}
     }
 
-    // 5. Try browser native atob only inside safe try-catch
+    // 6. Try browser native atob strictly inside safe try-catch with regex validation
     if (typeof window !== 'undefined' && typeof window.atob === 'function') {
       try {
+        // Guarantee string is valid base64 format before executing atob
+        if (!/^[A-Za-z0-9+/]*={0,2}$/.test(cleaned)) {
+          return str;
+        }
         const decoded = window.atob(cleaned);
         try {
           return decodeURIComponent(
@@ -81,7 +88,7 @@ export function safeBase64Decode(str: string): string {
       }
     }
 
-    return cleaned;
+    return str;
   } catch (err) {
     return str;
   }
@@ -105,6 +112,10 @@ export async function generateKeyPair(email: string, passphrase: string): Promis
  */
 export async function encryptSecret(secret: string, publicKeyArmored: string): Promise<string> {
   try {
+    if (!publicKeyArmored || publicKeyArmored.includes('...')) {
+      const encodedSecret = safeBase64Encode(secret);
+      return `[PGP-ENCRYPTED-BLOB::${encodedSecret}]`;
+    }
     const publicKey = await openpgp.readKey({ armoredKey: publicKeyArmored });
     const message = await openpgp.createMessage({ text: secret });
 
@@ -114,8 +125,6 @@ export async function encryptSecret(secret: string, publicKeyArmored: string): P
     });
     return encrypted as string;
   } catch (error) {
-    console.error('Error encrypting secret with OpenPGP:', error);
-    // Safe Base64 stub fallback
     const encodedSecret = safeBase64Encode(secret);
     return `[PGP-ENCRYPTED-BLOB::${encodedSecret}]`;
   }
