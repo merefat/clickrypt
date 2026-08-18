@@ -50,6 +50,7 @@ export default function Sidebar() {
 
   return (
     <aside
+      suppressHydrationWarning
       className={`bg-[#e4ecf3] border-r border-[#cbd5e1] flex flex-col justify-between p-3.5 select-none font-sora min-h-screen transition-[width] duration-300 ease-in-out shrink-0 overflow-hidden ${
         isCollapsed ? 'w-20' : 'w-64'
       }`}
