@@ -15,4 +15,20 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      return Promise.resolve({
+        data: [],
+        status: 200,
+        statusText: 'OK',
+        headers: error.response?.headers || {},
+        config: error.config,
+      });
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

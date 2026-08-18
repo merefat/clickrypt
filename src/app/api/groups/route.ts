@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   try {
     const authUser = await getAuthUserFromRequest(request);
     if (!authUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json([]);
     }
 
     // Owner and Admin roles see all groups to manage them

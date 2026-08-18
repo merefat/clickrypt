@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
   const authUser = await getAuthUserFromRequest(request);
   if (!authUser) {
-    return NextResponse.json({ error: 'Unauthorized session' }, { status: 401 });
+    return NextResponse.json([]);
   }
 
   const { searchParams } = new URL(request.url);
