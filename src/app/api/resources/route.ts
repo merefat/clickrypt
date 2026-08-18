@@ -1,22 +1,6 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { db } from '@/lib/backendDb';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'SuperSecretClickryptJwtKey_2026!';
-
-async function getAuthUser() {
-  try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('access_token')?.value;
-    if (!token) return null;
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-    const user = db.users.find((u) => u.id === decoded.userId);
-    return user || null;
-  } catch {
-    return null;
-  }
-}
+import { getAuthUserFromRequest } from '@/lib/authHelper';
 
 export async function GET(request: Request) {
   // Subscription check
@@ -27,7 +11,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const authUser = await getAuthUser();
+  const authUser = await getAuthUserFromRequest(request);
   if (!authUser) {
     return NextResponse.json({ error: 'Unauthorized session' }, { status: 401 });
   }
@@ -89,7 +73,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const authUser = await getAuthUser();
+    const authUser = await getAuthUserFromRequest(request);
     if (!authUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

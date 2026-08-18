@@ -54,6 +54,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await api.post('/auth/login', { email, password: masterPass });
       if (res.data?.user) {
+        if (typeof window !== 'undefined' && res.data.token) {
+          sessionStorage.setItem('access_token', res.data.token);
+          localStorage.setItem('access_token', res.data.token);
+        }
         setUser(res.data.user);
         setMasterPassword(masterPass);
         if (res.data.user.encryptedPrivateKey) {
@@ -84,6 +88,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (res.data?.user) {
+        if (typeof window !== 'undefined' && res.data.token) {
+          sessionStorage.setItem('access_token', res.data.token);
+          localStorage.setItem('access_token', res.data.token);
+        }
         setUser(res.data.user);
         setMasterPassword(masterPass);
         await savePrivateKey(privateKey);
@@ -124,6 +132,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('access_token');
+      localStorage.removeItem('access_token');
+    }
     try {
       await api.post('/auth/logout');
     } catch (e) {
