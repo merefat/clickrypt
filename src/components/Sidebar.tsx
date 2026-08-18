@@ -42,7 +42,7 @@ export default function Sidebar() {
     { name: 'Secret Vault', path: '/secret-vault', icon: Lock, badge: 'Private', role: 'Owner' },
     { name: 'Groups', path: '/groups', icon: Users },
     { name: 'Folders', path: '/folders', icon: Folder },
-    { name: 'Shared with me', path: '/shared', icon: Share2 },
+    { name: 'Shared by me', path: '/shared', icon: Share2 },
     { name: 'Team Members', path: '/admin', icon: UserCheck, role: 'AdminOrOwner' },
     { name: 'Import / Export', path: '/import-export', icon: FileSpreadsheet },
     { name: 'Settings', path: '/settings', icon: Settings },
