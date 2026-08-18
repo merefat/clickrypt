@@ -15,6 +15,7 @@ import {
   Lock,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   Check,
   X,
   Eye,
@@ -889,36 +890,42 @@ export default function GroupsPage() {
 
             <form onSubmit={handleAddMemberSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block font-extrabold text-[#334155] mb-1">Select Member</label>
+                <label className="block font-extrabold text-[#334155] mb-1.5">Select Member</label>
                 {availableUsersForGroup.length === 0 ? (
                   <p className="text-[#64748b] text-xs py-3">All organization members are already in this group.</p>
                 ) : (
-                  <select
-                    value={addMemberUserId}
-                    onChange={(e) => setAddMemberUserId(e.target.value)}
-                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] focus:border-[#1fbbd2] outline-none cursor-pointer font-sora shadow-xs"
-                    required
-                  >
-                    <option value="" className="bg-white text-[#0f172a]">Select a member...</option>
-                    {availableUsersForGroup.map((u) => (
-                      <option key={u.id} value={u.id} className="bg-white text-[#0f172a]">
-                        {u.name} ({u.email})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={addMemberUserId}
+                      onChange={(e) => setAddMemberUserId(e.target.value)}
+                      className="w-full appearance-none bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] focus:border-[#1fbbd2] rounded-xl px-3.5 py-2.5 text-[#0f172a] font-bold focus:outline-none transition-all cursor-pointer font-sora shadow-xs pr-10"
+                      required
+                    >
+                      <option value="" className="bg-white text-[#64748b]">Select a member...</option>
+                      {availableUsersForGroup.map((u) => (
+                        <option key={u.id} value={u.id} className="bg-white text-[#0f172a]">
+                          👤 {u.name} ({u.email})
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-[#0284c7] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 )}
               </div>
 
               <div>
-                <label className="block font-extrabold text-[#334155] mb-1">Group Role</label>
-                <select
-                  value={addMemberRole}
-                  onChange={(e: any) => setAddMemberRole(e.target.value)}
-                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] focus:border-[#1fbbd2] outline-none cursor-pointer font-sora shadow-xs"
-                >
-                  <option value="User" className="bg-white text-[#0f172a]">User</option>
-                  <option value="Admin" className="bg-white text-[#0f172a]">Admin</option>
-                </select>
+                <label className="block font-extrabold text-[#334155] mb-1.5">Group Role</label>
+                <div className="relative">
+                  <select
+                    value={addMemberRole}
+                    onChange={(e: any) => setAddMemberRole(e.target.value)}
+                    className="w-full appearance-none bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] focus:border-[#1fbbd2] rounded-xl px-3.5 py-2.5 text-[#0f172a] font-bold focus:outline-none transition-all cursor-pointer font-sora shadow-xs pr-10"
+                  >
+                    <option value="User" className="bg-white text-[#0f172a]">User (Standard Group Permissions)</option>
+                    <option value="Admin" className="bg-white text-[#0f172a]">Admin (Full Group Management)</option>
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-[#0284c7] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-[#cbd5e1]">
@@ -963,23 +970,26 @@ export default function GroupsPage() {
 
             <form onSubmit={handleAssignFolderSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block font-extrabold text-[#334155] mb-1">Select Workplace Folder</label>
+                <label className="block font-extrabold text-[#334155] mb-1.5">Select Workplace Folder</label>
                 {unassignedFoldersForGroup.length === 0 ? (
                   <p className="text-[#64748b] text-xs py-3">All workplace folders are already assigned to this group.</p>
                 ) : (
-                  <select
-                    value={selectedFolderToAssign}
-                    onChange={(e) => setSelectedFolderToAssign(e.target.value)}
-                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] focus:border-[#1fbbd2] outline-none cursor-pointer font-sora shadow-xs"
-                    required
-                  >
-                    <option value="" className="bg-white text-[#0f172a]">Select a folder...</option>
-                    {unassignedFoldersForGroup.map((f) => (
-                      <option key={f.id} value={f.id} className="bg-white text-[#0f172a]">
-                        / {f.name} ({f.itemCount} items)
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={selectedFolderToAssign}
+                      onChange={(e) => setSelectedFolderToAssign(e.target.value)}
+                      className="w-full appearance-none bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] focus:border-[#1fbbd2] rounded-xl px-3.5 py-2.5 text-[#0f172a] font-bold focus:outline-none transition-all cursor-pointer font-sora shadow-xs pr-10"
+                      required
+                    >
+                      <option value="" className="bg-white text-[#64748b]">Select a folder...</option>
+                      {unassignedFoldersForGroup.map((f) => (
+                        <option key={f.id} value={f.id} className="bg-white text-[#0f172a]">
+                          📁 / {f.name} ({f.itemCount} items)
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-[#0284c7] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 )}
               </div>
 
@@ -1025,23 +1035,26 @@ export default function GroupsPage() {
 
             <form onSubmit={handleSharePasswordSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block font-extrabold text-[#334155] mb-1">Select Password Secret</label>
+                <label className="block font-extrabold text-[#334155] mb-1.5">Select Password Secret</label>
                 {unassignedResourcesForGroup.length === 0 ? (
                   <p className="text-[#64748b] text-xs py-3">All password items are already shared with this group.</p>
                 ) : (
-                  <select
-                    value={selectedResourceToShare}
-                    onChange={(e) => setSelectedResourceToShare(e.target.value)}
-                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] focus:border-[#1fbbd2] outline-none cursor-pointer font-sora shadow-xs"
-                    required
-                  >
-                    <option value="" className="bg-white text-[#0f172a]">Select a password item...</option>
-                    {unassignedResourcesForGroup.map((r) => (
-                      <option key={r.id} value={r.id} className="bg-white text-[#0f172a]">
-                        🔑 {r.name} ({r.username})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={selectedResourceToShare}
+                      onChange={(e) => setSelectedResourceToShare(e.target.value)}
+                      className="w-full appearance-none bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] focus:border-[#1fbbd2] rounded-xl px-3.5 py-2.5 text-[#0f172a] font-bold focus:outline-none transition-all cursor-pointer font-sora shadow-xs pr-10"
+                      required
+                    >
+                      <option value="" className="bg-white text-[#64748b]">Select a password item...</option>
+                      {unassignedResourcesForGroup.map((r) => (
+                        <option key={r.id} value={r.id} className="bg-white text-[#0f172a]">
+                          🔑 {r.name} ({r.username})
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-4 h-4 text-[#0284c7] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
                 )}
               </div>
 
