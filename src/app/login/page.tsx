@@ -29,11 +29,16 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [unpaidBill, setUnpaidBill] = useState(false);
   const [subscription, setSubscription] = useState<any | null>(null);
+  const [isExternalFlow, setIsExternalFlow] = useState(false);
 
   useEffect(() => {
     fetchSubscription();
 
     const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get('externalShareId') || searchParams.get('role') === 'External') {
+      setIsExternalFlow(true);
+    }
+
     const ssoSuccess = searchParams.get('ssoSuccess');
     const token = searchParams.get('token');
     const userIdParam = searchParams.get('userId');
@@ -270,32 +275,34 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        {/* Single Sign-On (SSO) Buttons Section */}
-        <div className="mt-6 pt-5 border-t border-gray-300/60 space-y-3">
-          <div className="text-center text-[10px] text-gray-500 font-bold uppercase tracking-wider">
-            Or Sign In via Corporate SSO
-          </div>
+        {/* Single Sign-On (SSO) Buttons Section - Hidden for External Users */}
+        {!isExternalFlow && (
+          <div className="mt-6 pt-5 border-t border-gray-300/60 space-y-3">
+            <div className="text-center text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+              Or Sign In via Corporate SSO
+            </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleInitiateSso('google')}
-              className="py-2.5 px-3 bg-white hover:bg-gray-100 border border-gray-300 rounded-xl text-xs font-bold text-[#091528] flex items-center justify-center gap-2 transition-all"
-            >
-              <Globe className="w-3.5 h-3.5 text-[#f39c12]" />
-              <span>Google</span>
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleInitiateSso('google')}
+                className="py-2.5 px-3 bg-white hover:bg-gray-100 border border-gray-300 rounded-xl text-xs font-bold text-[#091528] flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <Globe className="w-3.5 h-3.5 text-[#f39c12]" />
+                <span>Google</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => handleInitiateSso('azure')}
-              className="py-2.5 px-3 bg-white hover:bg-gray-100 border border-gray-300 rounded-xl text-xs font-bold text-[#091528] flex items-center justify-center gap-2 transition-all"
-            >
-              <Globe className="w-3.5 h-3.5 text-[#1fbbd2]" />
-              <span>Azure AD</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => handleInitiateSso('azure')}
+                className="py-2.5 px-3 bg-white hover:bg-gray-100 border border-gray-300 rounded-xl text-xs font-bold text-[#091528] flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <Globe className="w-3.5 h-3.5 text-[#1fbbd2]" />
+                <span>Azure AD</span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="mt-6 pt-4 border-t border-gray-300/60 flex items-center justify-between text-[11px]">
           <span className="text-gray-500">Need to pay subscription bill?</span>

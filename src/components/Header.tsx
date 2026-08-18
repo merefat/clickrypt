@@ -134,6 +134,38 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
       const folders: any[] = resFolders.data || [];
       const dynamicNotifs: VaultNotification[] = [];
 
+      // SPECIAL FILTER FOR EXTERNAL ROLE: Only display notifications for passwords shared with them
+      if (user?.role === 'External') {
+        const externalNotifs: VaultNotification[] = resources.map((r: any, idx: number) => ({
+          id: `ext-share-${idx}`,
+          title: `🔗 Password Shared With You: ${r.name}`,
+          desc: `The secret "${r.name}" has been shared with your external account. View credentials in your Shared with Me panel.`,
+          time: 'Active Shared Secret',
+          type: 'shared',
+          unread: true,
+          actionUrl: '/shared',
+          actionText: 'View Shared Secret 🔑',
+        }));
+
+        if (externalNotifs.length > 0) {
+          setNotifications(externalNotifs);
+        } else {
+          setNotifications([
+            {
+              id: 'ext-empty',
+              title: '🔒 No Passwords Shared Yet',
+              desc: 'No passwords are currently shared with your external account.',
+              time: 'Status OK',
+              type: 'shared',
+              unread: false,
+              actionUrl: '/shared',
+              actionText: 'View Shared with Me Panel',
+            },
+          ]);
+        }
+        return;
+      }
+
       // 1. Check for Leaked / Compromised Passwords
       const leakedItems = resources.filter((r) => r.isPwned || r.isCompromised);
       if (leakedItems.length > 0) {

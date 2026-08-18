@@ -697,26 +697,28 @@ ${privKey}
                 </button>
               </div>
 
-              {/* Single Sign-On (SSO) Integration Section */}
-              <div className="flex items-center justify-between p-4 bg-[#f8fafc] hover:bg-[#f1f5f9] rounded-xl border border-[#cbd5e1] shadow-sm transition-all">
-                <div>
-                  <h4 className="text-xs font-extrabold text-[#0f172a] flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-[#0284c7]" />
-                    <span>Single Sign-On (SSO) Providers</span>
-                  </h4>
-                  <p className="text-[11px] text-[#64748b] mt-0.5">
-                    Configure Google, Azure AD, or OAuth2. Mandatory Dry-Run test required prior to activation. ({ssoSettingsList.length} configs)
-                  </p>
-                </div>
+              {/* Single Sign-On (SSO) Integration Section - Hidden for External Role */}
+              {user?.role !== 'External' && (
+                <div className="flex items-center justify-between p-4 bg-[#f8fafc] hover:bg-[#f1f5f9] rounded-xl border border-[#cbd5e1] shadow-sm transition-all">
+                  <div>
+                    <h4 className="text-xs font-extrabold text-[#0f172a] flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-[#0284c7]" />
+                      <span>Single Sign-On (SSO) Providers</span>
+                    </h4>
+                    <p className="text-[11px] text-[#64748b] mt-0.5">
+                      Configure Google, Azure AD, or OAuth2. Mandatory Dry-Run test required prior to activation. ({ssoSettingsList.length} configs)
+                    </p>
+                  </div>
 
-                <button
-                  onClick={() => setShowSsoConfigModal(true)}
-                  className="px-4 py-2 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-xs font-extrabold text-[#0284c7] flex items-center gap-2 transition-all shadow-sm cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Manage SSO</span>
-                </button>
-              </div>
+                  <button
+                    onClick={() => setShowSsoConfigModal(true)}
+                    className="px-4 py-2 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-xs font-extrabold text-[#0284c7] flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Manage SSO</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </main>
