@@ -326,8 +326,14 @@ export default function GroupsPage() {
     ? folders.filter((f) => (groupFolderIds[selectedGroup.id] || []).includes(f.id))
     : [];
 
+  const assignedFolderIds = assignedFoldersForGroup.map((f) => f.id);
+
   const assignedResourcesForGroup = selectedGroup
-    ? resources.filter((r) => (groupResourceIds[selectedGroup.id] || []).includes(r.id))
+    ? resources.filter((r) => {
+        const isDirectlyAssigned = (groupResourceIds[selectedGroup.id] || []).includes(r.id);
+        const isFromAssignedFolder = !!(r.folderId && assignedFolderIds.includes(r.folderId));
+        return isDirectlyAssigned || isFromAssignedFolder;
+      })
     : [];
 
   const unassignedFoldersForGroup = selectedGroup
