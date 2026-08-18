@@ -850,17 +850,6 @@ ${privKey}
             </div>
 
             <div className="space-y-3">
-              {/* Localhost Windows Security Note Banner */}
-              <div className="p-3 bg-[#f8fafc] border border-[#cbd5e1] rounded-xl text-[11px] text-[#334155] space-y-1 shadow-xs">
-                <div className="flex items-center gap-1.5 text-[#0284c7] font-extrabold">
-                  <ShieldAlert className="w-4 h-4 shrink-0 text-[#0284c7]" />
-                  <span>Windows Security Localhost Note</span>
-                </div>
-                <p className="text-[#64748b] leading-tight font-medium">
-                  Windows Security QR scanning over Bluetooth requires HTTPS. On <code className="text-[#d97706] font-bold">http://localhost:3000</code>, use PC biometrics or click <strong className="text-[#0f172a] font-bold">Simulate Passkey Approval</strong> below!
-                </p>
-              </div>
-
               {passkeyTestMsg && (
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2 shadow-xs">
                   <Check className="w-4 h-4 shrink-0 text-emerald-600" />
@@ -871,26 +860,15 @@ ${privKey}
               <div className="flex items-center justify-between">
                 <span className="text-xs text-[#64748b] font-extrabold">Registered Passkeys ({passkeys.length})</span>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleTestPasskey}
-                    disabled={isTestingPasskey}
-                    className="px-3 py-1.5 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-xs font-extrabold text-[#0284c7] flex items-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>{isTestingPasskey ? 'Verifying...' : 'Test Passkey'}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleSimulatePasskey}
-                    className="gold-cyan-gradient-btn px-3 py-1.5 rounded-xl text-xs font-extrabold text-white flex items-center gap-1.5 shadow cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Simulate Passkey Approval</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleRegisterPasskey}
+                  disabled={isRegisteringPasskey}
+                  className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold text-white flex items-center gap-1.5 shadow cursor-pointer disabled:opacity-50"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isRegisteringPasskey ? 'Registering...' : 'Register New Passkey'}</span>
+                </button>
               </div>
 
               {passkeys.length === 0 ? (
