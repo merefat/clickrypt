@@ -394,7 +394,16 @@ export default function ImportExportPage() {
     }
   };
 
-  const canExport = user?.role === 'Owner' || user?.role === 'Admin';
+  const [isPersonalMode, setIsPersonalMode] = useState(true);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const mode = localStorage.getItem('clickrypt_app_mode') || 'personal';
+      setIsPersonalMode(mode === 'personal');
+    }
+  }, []);
+
+  const canExport = isPersonalMode || user?.role === 'Owner' || user?.role === 'Admin';
 
   return (
     <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
