@@ -40,41 +40,31 @@ export async function GET(request: Request) {
 
   const currentUserId = authUser.id;
   const currentUserEmail = authUser.email.toLowerCase();
-  const currentUserRole = authUser.role;
 
-  // Strict Ownership & Permission Isolation:
-  // A password created by one account is PRIVATE by default to that account.
-  // It ONLY appears in another account's view if explicitly shared with their user ID/email.
-  let result = db.resources.filter((r) => {
-    const isOwner = r.ownerId === currentUserId;
-    const hasSecretAccess = r.secrets && r.secrets.some((s) => s.userId === currentUserId);
-    const isExplicitlyShared =
-      r.sharedWith &&
-      (r.sharedWith.includes(currentUserId) ||
-        r.sharedWith.includes(currentUserEmail));
-    const isExternalRecipient = r.isExternalShared && r.externalShareEmail?.toLowerCase() === currentUserEmail;
+  let result: typeof db.resources = [];
 
-    return isOwner || hasSecretAccess || isExplicitlyShared || isExternalRecipient;
-  });
+  if (sharedWithUserId) {
+    // Shared With Me / Shared Out Panel (/shared page)
+    result = db.resources.filter((r) => {
+      const isOwner = r.ownerId === currentUserId;
+      const isSharedOut = isOwner && ((r.secrets && r.secrets.length > 1) || r.isExternalShared);
+      const isRecipient = r.secrets && r.secrets.some((s) => s.userId === currentUserId && s.userId !== r.ownerId);
+      const isExplicitlyShared = r.sharedWith && (r.sharedWith.includes(currentUserId) || r.sharedWith.includes(currentUserEmail));
+      const isExternalRecipient = r.isExternalShared && r.externalShareEmail?.toLowerCase() === currentUserEmail;
 
-  if (secretVaultStr === 'true') {
-    result = result.filter((r) => r.isPrivateOnly === true);
-  } else if (secretVaultStr === 'false') {
-    result = result.filter((r) => !r.isPrivateOnly);
+      return isSharedOut || (!isOwner && (isRecipient || isExplicitlyShared || isExternalRecipient));
+    });
+  } else if (secretVaultStr === 'true') {
+    // Secret Vault (/secret-vault page): Only show private items owned by the current user
+    result = db.resources.filter((r) => r.ownerId === currentUserId && r.isPrivateOnly === true);
+  } else {
+    // Standard Main Vault (/vault page): ONLY show passwords OWNED by the current user
+    // Passwords created by owner stay strictly in owner's vault. They only appear for other members in /shared when explicitly shared.
+    result = db.resources.filter((r) => r.ownerId === currentUserId && !r.isPrivateOnly);
   }
 
   if (folderId) {
     result = result.filter((r) => r.folderId === folderId);
-  }
-
-  if (sharedWithUserId) {
-    result = result.filter((r) => {
-      const isOwner = r.ownerId === sharedWithUserId;
-      const isSharedOut = isOwner && ((r.secrets && r.secrets.length > 1) || r.isExternalShared);
-      const isRecipient = r.secrets && r.secrets.some((s) => s.userId === sharedWithUserId);
-      const isExplicitlyShared = r.sharedWith && r.sharedWith.includes(sharedWithUserId);
-      return isSharedOut || isRecipient || isExplicitlyShared;
-    });
   }
 
   if (search) {
