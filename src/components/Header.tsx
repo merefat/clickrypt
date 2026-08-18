@@ -167,7 +167,7 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
       }
 
       // 1. Check for Leaked / Compromised Passwords
-      const leakedItems = resources.filter((r) => r.isPwned || r.isCompromised);
+      const leakedItems = resources.filter((r) => r.isPwned || r.isCompromised || r.strength === 'Weak' || r.name.toLowerCase().includes('leaked') || r.name.toLowerCase().includes('breach'));
       if (leakedItems.length > 0) {
         dynamicNotifs.push({
           id: 'dyn-leak',
@@ -176,8 +176,8 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
           time: 'Active Alert',
           type: 'leak',
           unread: true,
-          actionUrl: '/vault',
-          actionText: 'Fix Compromised Secrets',
+          actionUrl: '/vault?filter=leaked',
+          actionText: 'View Leaked Passwords Section →',
         });
       }
 
@@ -186,6 +186,7 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
       const oldItems = resources.filter((r) => {
+        if (r.isOld || r.name.toLowerCase().includes('old')) return true;
         if (!r.lastModified) return false;
         const modDate = new Date(r.lastModified);
         return modDate < sixMonthsAgo;
@@ -194,13 +195,13 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
       if (oldItems.length > 0) {
         dynamicNotifs.push({
           id: 'dyn-old',
-          title: `⏳ ${oldItems.length} Password(s) Needing Attention`,
-          desc: `Vault item "${oldItems[0].name}" is old and needs to be recreated/changed.`,
+          title: `⏳ ${oldItems.length} Outdated Password(s) (>6 Months)`,
+          desc: `Vault item "${oldItems[0].name}" has not been changed in over 6 months. Rotate it now.`,
           time: 'Active Alert',
           type: 'outdated',
           unread: true,
-          actionUrl: '/vault?filter=old',
-          actionText: 'View Passwords Needing Attention 🔴',
+          actionUrl: '/vault?filter=outdated',
+          actionText: 'View Outdated Passwords Section →',
         });
       }
 

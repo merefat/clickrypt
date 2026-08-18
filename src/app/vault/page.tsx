@@ -27,7 +27,9 @@ import {
   CreditCard,
   ArrowRight,
   Globe,
-  ShieldCheck
+  ShieldCheck,
+  ShieldAlert,
+  Clock
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
@@ -51,11 +53,17 @@ export default function VaultPage() {
   const [externalSharedSecret, setExternalSharedSecret] = useState<any | null>(null);
   const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
   const [isOldFilter, setIsOldFilter] = useState(false);
+  const [activeFilterMode, setActiveFilterMode] = useState<'all' | 'leaked' | 'outdated'>('all');
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
-    if (searchParams.get('filter') === 'old') {
+    const filterParam = searchParams.get('filter');
+    if (filterParam === 'leaked') {
+      setActiveFilterMode('leaked');
+      setIsOldFilter(true);
+    } else if (filterParam === 'outdated' || filterParam === 'old') {
+      setActiveFilterMode('outdated');
       setIsOldFilter(true);
     }
   }, []);
@@ -189,6 +197,33 @@ export default function VaultPage() {
   };
 
   const isExpired = subscription && (subscription.status === 'Expired' || subscription.daysRemaining <= 0);
+
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+  const leakedCount = resources.filter(
+    (r) => r.isPwned || r.isCompromised || r.strength === 'Weak' || r.name.toLowerCase().includes('leaked') || r.name.toLowerCase().includes('breach')
+  ).length;
+
+  const outdatedCount = resources.filter((r) => {
+    if (r.isOld || r.name.toLowerCase().includes('old')) return true;
+    if (!r.lastModified) return false;
+    const modDate = new Date(r.lastModified);
+    return modDate < sixMonthsAgo;
+  }).length;
+
+  const displayedResources = resources.filter((r) => {
+    if (activeFilterMode === 'leaked') {
+      return r.isPwned || r.isCompromised || r.strength === 'Weak' || r.name.toLowerCase().includes('leaked') || r.name.toLowerCase().includes('breach');
+    }
+    if (activeFilterMode === 'outdated') {
+      if (r.isOld || r.name.toLowerCase().includes('old')) return true;
+      if (!r.lastModified) return false;
+      const modDate = new Date(r.lastModified);
+      return modDate < sixMonthsAgo;
+    }
+    return true;
+  });
 
   return (
     <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
@@ -431,7 +466,103 @@ export default function VaultPage() {
               </div>
 
               {/* RIGHT COLUMN: Passwords Data Table */}
-              <div className="lg:col-span-3">
+              <div className="lg:col-span-3 space-y-4">
+                {/* Security Audit Filter Tabs */}
+                <div className="flex items-center gap-2 flex-wrap bg-[#ffffff] p-2 rounded-2xl border border-[#d0dbe5] shadow-sm text-xs font-extrabold">
+                  <button
+                    onClick={() => setActiveFilterMode('all')}
+                    className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeFilterMode === 'all'
+                        ? 'bg-[#0f172a] text-white shadow-sm'
+                        : 'text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#0f172a]'
+                    }`}
+                  >
+                    <span>All Vault Passwords</span>
+                    <span className="px-2 py-0.5 rounded-full bg-slate-700/40 text-[10px]">
+                      {resources.length}
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveFilterMode('leaked')}
+                    className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeFilterMode === 'leaked'
+                        ? 'bg-rose-600 text-white shadow-sm'
+                        : 'text-rose-700 hover:bg-rose-50 border border-rose-200'
+                    }`}
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                    <span>Leaked Passwords</span>
+                    {leakedCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-rose-800 text-white text-[10px]">
+                        {leakedCount}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => setActiveFilterMode('outdated')}
+                    className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activeFilterMode === 'outdated'
+                        ? 'bg-[#d97706] text-white shadow-sm'
+                        : 'text-[#d97706] hover:bg-amber-50 border border-amber-200'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Outdated (&gt;6 Months)</span>
+                    {outdatedCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-800 text-white text-[10px]">
+                        {outdatedCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {/* Audit Context Banner */}
+                {activeFilterMode === 'leaked' && (
+                  <div className="p-4 bg-rose-50 border border-rose-300 rounded-2xl flex items-center justify-between text-xs text-rose-900 font-extrabold shadow-sm animate-in fade-in duration-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0">
+                        <ShieldAlert className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-rose-900 text-xs">Leaked Password Audit Section</h4>
+                        <p className="text-[11px] text-rose-700 font-medium">
+                          Showing {displayedResources.length} password credential(s) detected in public breach databases or flagged as weak. Change these immediately.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setActiveFilterMode('all')}
+                      className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0"
+                    >
+                      Show All Passwords
+                    </button>
+                  </div>
+                )}
+
+                {activeFilterMode === 'outdated' && (
+                  <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl flex items-center justify-between text-xs text-amber-900 font-extrabold shadow-sm animate-in fade-in duration-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-[#d97706] text-white flex items-center justify-center shrink-0">
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-amber-900 text-xs">Outdated Password Audit Section (&gt;6 Months)</h4>
+                        <p className="text-[11px] text-amber-800 font-medium">
+                          Showing {displayedResources.length} password credential(s) last modified over 6 months ago. Rotate these passwords for security compliance.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setActiveFilterMode('all')}
+                      className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0"
+                    >
+                      Show All Passwords
+                    </button>
+                  </div>
+                )}
+
                 <div className="glass-panel rounded-2xl border border-[#d0dbe5] overflow-hidden shadow-xl bg-[#ffffff]">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -447,7 +578,7 @@ export default function VaultPage() {
                   </thead>
 
                   <tbody className="divide-y divide-[#e2e8f0]">
-                    {resources.map((res) => {
+                    {displayedResources.map((res) => {
                       const isRevealed = !!revealedPasswords[res.id];
                       const displayedPass = isRevealed ? revealedPasswords[res.id] : '••••••••';
                       const isTeamShared = (res.secrets && res.secrets.length > 1) || (res.sharedWith && res.sharedWith.length > 0);
