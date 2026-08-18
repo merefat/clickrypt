@@ -56,11 +56,15 @@ function RegisterForm() {
   const annualTotal = seats * 6 * 12;
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const selectedMode = mode === 'organization' ? 'organization' : 'personal';
+      localStorage.setItem('clickrypt_app_mode', selectedMode);
+    }
     if (invitedEmail) {
       setEmail(invitedEmail);
       setIsInvited(true);
     }
-  }, [invitedEmail]);
+  }, [invitedEmail, mode]);
 
   const strength = evaluatePasswordStrength(password);
 

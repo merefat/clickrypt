@@ -21,6 +21,20 @@ export default function SharedPage() {
   const [showBulkRevokeModal, setShowBulkRevokeModal] = useState(false);
   const [revoking, setRevoking] = useState(false);
 
+  const [appMode, setAppMode] = useState<'personal' | 'organization'>('personal');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const mode = (localStorage.getItem('clickrypt_app_mode') as any) || 'personal';
+      setAppMode(mode);
+      if (mode === 'organization') {
+        setActiveTab('received');
+      } else {
+        setActiveTab('outbound');
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (user) {
       fetchSharedResources();
@@ -177,15 +191,19 @@ export default function SharedPage() {
                 <Share2 className="w-5 h-5 text-[#0284c7]" />
               </div>
               <div>
-                <h1 className="text-3xl font-extrabold text-[#0f172a]">Shared by Me</h1>
+                <h1 className="text-3xl font-extrabold text-[#0f172a]">
+                  {appMode === 'organization' ? 'Shared Passwords' : 'Shared by Me'}
+                </h1>
                 <p className="text-xs text-[#64748b] mt-0.5">
-                  Manage active outbound password sharing permissions and access control.
+                  {appMode === 'organization'
+                    ? 'Manage active inbound and outbound password sharing permissions.'
+                    : 'Manage active outbound password sharing permissions and access control.'}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
-              {selectedIds.length > 0 && (
+              {activeTab === 'outbound' && selectedIds.length > 0 && (
                 <button
                   type="button"
                   onClick={() => setShowBulkRevokeModal(true)}
@@ -210,14 +228,46 @@ export default function SharedPage() {
             </div>
           </div>
 
-          {/* Navigation Tab Header */}
+          {/* Navigation Tabs Header */}
           <div className="flex gap-3 mb-6 border-b border-[#cbd5e1] pb-3">
-            <div className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-[#0284c7] text-white shadow-md flex items-center gap-2">
-              <span>Shared by Me</span>
-              <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px]">
-                {outboundResources.length}
-              </span>
-            </div>
+            {appMode === 'organization' ? (
+              <>
+                <button
+                  onClick={() => setActiveTab('received')}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
+                    activeTab === 'received'
+                      ? 'bg-[#0284c7] text-white shadow-md'
+                      : 'bg-[#ffffff] text-[#475569] hover:bg-[#e0f2fe] hover:text-[#0284c7] border border-[#cbd5e1]'
+                  }`}
+                >
+                  <span>Shared with Me</span>
+                  <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px]">
+                    {receivedResources.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('outbound')}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
+                    activeTab === 'outbound'
+                      ? 'bg-[#0284c7] text-white shadow-md'
+                      : 'bg-[#ffffff] text-[#475569] hover:bg-[#e0f2fe] hover:text-[#0284c7] border border-[#cbd5e1]'
+                  }`}
+                >
+                  <span>Shared by Me</span>
+                  <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px]">
+                    {outboundResources.length}
+                  </span>
+                </button>
+              </>
+            ) : (
+              <div className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-[#0284c7] text-white shadow-md flex items-center gap-2">
+                <span>Shared by Me</span>
+                <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px]">
+                  {outboundResources.length}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Table Container */}

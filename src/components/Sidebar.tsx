@@ -37,12 +37,21 @@ export default function Sidebar() {
     });
   };
 
+  const [appMode, setAppMode] = useState<'personal' | 'organization'>('personal');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedMode = (localStorage.getItem('clickrypt_app_mode') as any) || 'personal';
+      setAppMode(storedMode);
+    }
+  }, []);
+
   const menuItems = [
     { name: 'Passwords', path: '/vault', icon: KeyRound },
     { name: 'Secret Vault', path: '/secret-vault', icon: Lock, badge: 'Private', role: 'Owner' },
     { name: 'Groups', path: '/groups', icon: Users },
     { name: 'Folders', path: '/folders', icon: Folder },
-    { name: 'Shared by me', path: '/shared', icon: Share2 },
+    { name: appMode === 'organization' ? 'Shared with me' : 'Shared by me', path: '/shared', icon: Share2 },
     { name: 'Team Members', path: '/admin', icon: UserCheck, role: 'AdminOrOwner' },
     { name: 'Import / Export', path: '/import-export', icon: FileSpreadsheet },
     { name: 'Settings', path: '/settings', icon: Settings },
