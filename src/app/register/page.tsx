@@ -186,14 +186,14 @@ function RegisterForm() {
               <User className="w-4 h-4 text-[#64748b] absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Enter your full name"
+                placeholder=""
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck={false}
-                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl pl-10 pr-4 py-2.5 text-xs text-[#0f172a] font-bold placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none shadow-xs transition-all"
+                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl pl-10 pr-4 py-2.5 text-xs text-[#0f172a] font-bold outline-none shadow-xs transition-all focus:border-[#1fbbd2]"
                 required
               />
             </div>
@@ -207,7 +207,7 @@ function RegisterForm() {
               <Mail className="w-4 h-4 text-[#64748b] absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="email"
-                placeholder="Enter your email address"
+                placeholder=""
                 value={email}
                 readOnly={isInvited}
                 onChange={(e) => setEmail(e.target.value)}
@@ -222,7 +222,9 @@ function RegisterForm() {
                 }`}
                 required
               />
-              <CheckCircle className="w-4 h-4 text-emerald-600 absolute right-3.5 top-1/2 -translate-y-1/2" />
+              {email.trim().length > 0 && email.includes('@') && (
+                <CheckCircle className="w-4 h-4 text-emerald-600 absolute right-3.5 top-1/2 -translate-y-1/2" />
+              )}
             </div>
           </div>
 
