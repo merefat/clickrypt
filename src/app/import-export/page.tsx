@@ -392,6 +392,8 @@ export default function ImportExportPage() {
     }
   };
 
+  const canExport = user?.role === 'Owner' || user?.role === 'Admin';
+
   return (
     <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
       <Sidebar />
@@ -422,8 +424,8 @@ export default function ImportExportPage() {
             </div>
           </div>
 
-          {/* Grid Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Dynamic Grid Layout */}
+          <div className={canExport ? "grid grid-cols-1 lg:grid-cols-2 gap-8" : "w-full space-y-8"}>
             {/* Import Section */}
             <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-6 shadow-xl">
               <div className="flex items-center gap-3 border-b border-[#cbd5e1] pb-4">
@@ -523,35 +525,19 @@ export default function ImportExportPage() {
               </div>
             </div>
 
-            {/* Export Section with PDF Support */}
-            <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-6 flex flex-col justify-between shadow-xl">
-              {user?.role === 'User' || user?.role === 'External' ? (
-                <div className="flex flex-col items-center justify-center h-full text-center space-y-4 py-12">
-                  <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shadow-sm">
-                    <AlertTriangle className="w-6 h-6 text-rose-600" />
+            {/* Export Section with PDF Support - Only visible for Owners & Admins */}
+            {canExport && (
+              <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-6 flex flex-col justify-between shadow-xl">
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 border-b border-[#cbd5e1] pb-4">
+                    <div className="w-9 h-9 rounded-xl bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7]">
+                      <Download className="w-5 h-5 text-[#0284c7]" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-extrabold text-[#0f172a]">Export Vault</h2>
+                      <p className="text-xs text-[#64748b]">Export your passwords to CSV, JSON, or PDF Report.</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-base font-extrabold text-[#0f172a]">Vault Export Restricted</h3>
-                    <p className="text-xs text-[#64748b] max-w-sm mt-1">
-                      Your current account role (<strong className="text-rose-700">{user?.role}</strong>) is permitted to import passwords, but organization security policy restricts password vault exports to Owners and Admins.
-                    </p>
-                  </div>
-                  <div className="px-4 py-2 bg-[#f8fafc] border border-[#cbd5e1] rounded-xl text-[11px] text-[#475569] font-bold">
-                    User Import → Allowed | User Export → Forbidden 🔒
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-3 border-b border-[#cbd5e1] pb-4">
-                  <div className="w-9 h-9 rounded-xl bg-[#e0f2fe] border border-[#1fbbd2]/40 flex items-center justify-center text-[#0284c7]">
-                    <Download className="w-5 h-5 text-[#0284c7]" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-extrabold text-[#0f172a]">Export Vault</h2>
-                    <p className="text-xs text-[#64748b]">Export your passwords to CSV, JSON, or PDF Report.</p>
-                  </div>
-                </div>
 
                 <div className="space-y-3">
                   <label className="text-xs font-extrabold text-[#334155]">File Export Format</label>
@@ -749,9 +735,8 @@ export default function ImportExportPage() {
                   </span>
                 </button>
               </div>
-            </>
+            </div>
           )}
-        </div>
           </div>
 
           {/* Bottom Security Note */}
