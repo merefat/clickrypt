@@ -11,6 +11,9 @@ function getStorageShape(db: any) {
     users: db.users || [],
     folders: db.folders || [],
     resources: db.resources || [],
+    organizationResources: db.organizationResources || [],
+    organizationFolders: db.organizationFolders || [],
+    organizationAuditLogs: db.organizationAuditLogs || [],
     groups: db.groups || [],
     auditLogs: db.auditLogs || [],
     subscription: db.subscription || null,
@@ -37,19 +40,20 @@ export function loadDbSync(db: any) {
   }
 
   // 1. Try local JSON file first (always works, even if Supabase isn't configured)
+  let loadedData: any = null;
   try {
     if (fs.existsSync(DB_FILE)) {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
       if (raw && raw.trim()) {
-        const data = JSON.parse(raw);
-        if (data && typeof data === 'object') {
+        loadedData = JSON.parse(raw);
+        if (loadedData && typeof loadedData === 'object') {
           const keys = Object.keys(getStorageShape(db));
           for (const key of keys) {
-            if (data[key] !== undefined && db[key] !== undefined) {
+            if (loadedData[key] !== undefined && db[key] !== undefined) {
               if (Array.isArray(db[key])) {
-                db[key].splice(0, db[key].length, ...data[key]);
+                db[key].splice(0, db[key].length, ...loadedData[key]);
               } else {
-                Object.assign(db[key], data[key]);
+                Object.assign(db[key], loadedData[key]);
               }
             }
           }
@@ -58,6 +62,50 @@ export function loadDbSync(db: any) {
     }
   } catch (err) {
     console.warn('DB file load warning:', err);
+  }
+
+  // 1b. One-time migration: split legacy mixed-mode arrays into personal/organization arrays
+  const migrateByMode = <T extends { mode?: 'personal' | 'organization' }>(
+    legacy: T[],
+    personalTarget: T[],
+    orgTarget: T[],
+    defaultMode: 'personal' | 'organization' = 'personal'
+  ) => {
+    if (!legacy || legacy.length === 0) return;
+    const toPersonal: T[] = [];
+    const toOrg: T[] = [];
+    for (const item of legacy) {
+      if ((item.mode || defaultMode) === 'organization') {
+        toOrg.push(item);
+      } else {
+        toPersonal.push(item);
+      }
+    }
+    personalTarget.splice(0, personalTarget.length, ...toPersonal);
+    orgTarget.splice(0, orgTarget.length, ...toOrg);
+    legacy.length = 0;
+  };
+
+  const legacyResourceWasLoaded = loadedData?.resources && Array.isArray(loadedData.resources) && loadedData.resources.length > 0;
+  if (legacyResourceWasLoaded) {
+    migrateByMode(loadedData.resources as any[], db.resources, db.organizationResources, 'personal');
+  }
+
+  const legacyFolderWasLoaded = loadedData?.folders && Array.isArray(loadedData.folders) && loadedData.folders.length > 0;
+  if (legacyFolderWasLoaded) {
+    migrateByMode(loadedData.folders as any[], db.folders, db.organizationFolders, 'personal');
+  }
+
+  const legacyAuditWasLoaded = loadedData?.auditLogs && Array.isArray(loadedData.auditLogs) && loadedData.auditLogs.length > 0;
+  if (legacyAuditWasLoaded) {
+    migrateByMode(loadedData.auditLogs as any[], db.auditLogs, db.organizationAuditLogs, 'personal');
+  }
+
+  // 1c. Backfill missing accountMode for legacy users (default to organization to match prior defaults)
+  for (const user of db.users) {
+    if (!user.accountMode) {
+      user.accountMode = 'organization';
+    }
   }
 
   // 2. If Supabase is configured, try to load from there too (overwrites local if newer)

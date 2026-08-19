@@ -33,8 +33,8 @@ export async function getAuthUserFromRequest(request: Request) {
       if (user) return user;
     }
 
-    return db.users[0] || null;
+    return null;
   } catch {
-    return db.users[0] || null;
+    return null;
   }
 }

@@ -49,7 +49,8 @@ export async function POST(request: Request) {
 
     db.groups.push(newGroup);
 
-    db.auditLogs.unshift({
+    const userMode = (authUser.accountMode || 'organization') as 'personal' | 'organization';
+    db.auditLogsFor(userMode).unshift({
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'CREATE_GROUP',

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
+import { getAuthUserFromRequest } from '@/lib/authHelper';
 
 export async function GET() {
   try {
@@ -18,6 +19,11 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const authUser = await getAuthUserFromRequest(req);
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userMode = (authUser.accountMode || 'organization') as 'personal' | 'organization';
     const body = await req.json();
     const { provider, clientId, clientSecret, tenantId, discoveryUrl } = body;
 
@@ -36,11 +42,11 @@ export async function POST(req: Request) {
 
     db.ssoSettings.push(newSetting);
 
-    db.auditLogs.unshift({
+    db.auditLogsFor(userMode).unshift({
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'SSO_SETTINGS_DRAFT_CREATED',
-      userId: 'u-1',
+      userId: authUser.id,
       details: `Created draft SSO configuration for provider ${provider}`,
     });
 

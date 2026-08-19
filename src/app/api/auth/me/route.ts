@@ -27,6 +27,7 @@ export async function GET(request: Request) {
       name: modeProfile?.name || user.name,
       email: modeProfile?.email || user.email,
       avatarUrl: modeProfile?.avatarUrl !== undefined ? modeProfile.avatarUrl : user.avatarUrl,
+      accountMode: user.accountMode || 'personal',
     };
 
     return NextResponse.json({ user: effectiveUser }, { headers: NO_CACHE_HEADERS });

@@ -1,13 +1,19 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
+import { getAuthUserFromRequest } from '@/lib/authHelper';
 
 export async function GET(req: Request) {
   try {
+    const authUser = await getAuthUserFromRequest(req);
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userMode = (authUser.accountMode || 'personal') as 'personal' | 'organization';
     const { searchParams } = new URL(req.url);
     const secretVaultParam = searchParams.get('secretVault');
-    const mode = (req.headers.get('x-app-mode') || 'personal') as 'personal' | 'organization';
 
-    let folders = db.folders.filter((f) => (f.mode || 'personal') === mode);
+    const store = db.foldersFor(userMode);
+    let folders = store;
 
     if (secretVaultParam === 'true') {
       folders = folders.filter((f) => f.isPrivateOnly === true);
@@ -15,9 +21,10 @@ export async function GET(req: Request) {
       folders = folders.filter((f) => !f.isPrivateOnly);
     }
 
+    const resourcesStore = db.resourcesFor(userMode);
     const foldersWithCounts = folders.map((f) => ({
       ...f,
-      itemCount: db.resources.filter((r) => r.folderId === f.id).length,
+      itemCount: resourcesStore.filter((r) => r.folderId === f.id).length,
     }));
 
     return NextResponse.json(foldersWithCounts);
@@ -28,9 +35,13 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const authUser = await getAuthUserFromRequest(req);
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userMode = (authUser.accountMode || 'personal') as 'personal' | 'organization';
     const body = await req.json();
     const { name, description, isPrivateOnly } = body;
-    const mode = (req.headers.get('x-app-mode') || 'personal') as 'personal' | 'organization';
 
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -43,16 +54,16 @@ export async function POST(req: Request) {
       itemCount: 0,
       lastModified: 'Just now',
       isPrivateOnly: !!isPrivateOnly,
-      mode,
+      mode: userMode,
     };
 
-    db.folders.unshift(newFolder);
+    db.foldersFor(userMode).unshift(newFolder);
 
-    db.auditLogs.unshift({
+    db.auditLogsFor(userMode).unshift({
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'CREATE_FOLDER',
-      userId: 'u-1',
+      userId: authUser.id,
       details: `Created ${isPrivateOnly ? 'Private Secret' : 'Workplace'} folder ${name}`,
     });
 

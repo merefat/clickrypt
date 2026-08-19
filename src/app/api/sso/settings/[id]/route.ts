@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
+import { getAuthUserFromRequest } from '@/lib/authHelper';
 
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authUser = await getAuthUserFromRequest(req);
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userMode = (authUser.accountMode || 'organization') as 'personal' | 'organization';
     const { id } = await params;
     const body = await req.json();
     const { action } = body; // 'activate' | 'deactivate'
@@ -27,11 +33,11 @@ export async function PUT(
       setting.status = 'active';
       setting.modifiedAt = new Date().toISOString();
 
-      db.auditLogs.unshift({
+      db.auditLogsFor(userMode).unshift({
         id: `al-${Date.now()}`,
         timestamp: new Date().toISOString(),
         action: 'SSO_SETTINGS_ACTIVATED',
-        userId: 'u-1',
+        userId: authUser.id,
         details: `Activated SSO provider configuration ${setting.provider} (demoted previous active configs)`,
       });
 

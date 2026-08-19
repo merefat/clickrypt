@@ -23,17 +23,31 @@ export default function SharedPage() {
 
   const [appMode, setAppMode] = useState<'personal' | 'organization'>('personal');
 
+  const handleUpgradeAccount = async () => {
+    if (!confirm('Upgrade to a full Clickrypt account? This will unlock all features.')) return;
+    try {
+      const res = await api.post('/auth/upgrade-account', { role: 'User' });
+      if (res.data?.success) {
+        window.location.reload();
+      } else {
+        alert(res.data?.error || 'Upgrade failed.');
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to upgrade account.');
+    }
+  };
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const mode = (localStorage.getItem('clickrypt_app_mode') as any) || 'personal';
       setAppMode(mode);
-      if (mode === 'organization') {
+      if (user?.role === 'External' || mode === 'organization') {
         setActiveTab('received');
       } else {
         setActiveTab('outbound');
       }
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -228,46 +242,52 @@ export default function SharedPage() {
             </div>
           </div>
 
+          {user?.role === 'External' && (
+            <div className="mb-6 p-4 bg-[#fffbeb] border border-[#f39c12]/40 rounded-xl flex items-center justify-between shadow-sm">
+              <div>
+                <h2 className="text-sm font-extrabold text-[#0f172a]">External View-Only Account</h2>
+                <p className="text-[11px] text-[#64748b] mt-0.5">
+                  You can only view passwords shared with you. Upgrade to a full account to create and share your own.
+                </p>
+              </div>
+              <button
+                onClick={handleUpgradeAccount}
+                className="px-4 py-2 gold-cyan-gradient-btn rounded-xl text-xs font-extrabold text-white shadow-md hover:opacity-95 transition-all"
+              >
+                Upgrade to Full Account
+              </button>
+            </div>
+          )}
+
           {/* Navigation Tabs Header */}
           <div className="flex gap-3 mb-6 border-b border-[#cbd5e1] pb-3">
-            {appMode === 'organization' ? (
-              <>
-                <button
-                  onClick={() => setActiveTab('received')}
-                  className={`px-5 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
-                    activeTab === 'received'
-                      ? 'bg-[#0284c7] text-white shadow-md'
-                      : 'bg-[#ffffff] text-[#475569] hover:bg-[#e0f2fe] hover:text-[#0284c7] border border-[#cbd5e1]'
-                  }`}
-                >
-                  <span>Shared with Me</span>
-                  <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px]">
-                    {receivedResources.length}
-                  </span>
-                </button>
+            <button
+              onClick={() => setActiveTab('received')}
+              className={`px-5 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
+                activeTab === 'received'
+                  ? 'bg-[#0284c7] text-white shadow-md'
+                  : 'bg-[#ffffff] text-[#475569] hover:bg-[#e0f2fe] hover:text-[#0284c7] border border-[#cbd5e1]'
+              }`}
+            >
+              <span>Shared with Me</span>
+              <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px]">
+                {receivedResources.length}
+              </span>
+            </button>
 
-                <button
-                  onClick={() => setActiveTab('outbound')}
-                  className={`px-5 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
-                    activeTab === 'outbound'
-                      ? 'bg-[#0284c7] text-white shadow-md'
-                      : 'bg-[#ffffff] text-[#475569] hover:bg-[#e0f2fe] hover:text-[#0284c7] border border-[#cbd5e1]'
-                  }`}
-                >
-                  <span>Shared by Me</span>
-                  <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px]">
-                    {outboundResources.length}
-                  </span>
-                </button>
-              </>
-            ) : (
-              <div className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-[#0284c7] text-white shadow-md flex items-center gap-2">
-                <span>Shared by Me</span>
-                <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px]">
-                  {outboundResources.length}
-                </span>
-              </div>
-            )}
+            <button
+              onClick={() => setActiveTab('outbound')}
+              className={`px-5 py-2.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
+                activeTab === 'outbound'
+                  ? 'bg-[#0284c7] text-white shadow-md'
+                  : 'bg-[#ffffff] text-[#475569] hover:bg-[#e0f2fe] hover:text-[#0284c7] border border-[#cbd5e1]'
+              }`}
+            >
+              <span>Shared by Me</span>
+              <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px]">
+                {outboundResources.length}
+              </span>
+            </button>
           </div>
 
           {/* Table Container */}

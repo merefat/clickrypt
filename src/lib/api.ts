@@ -22,14 +22,15 @@ api.interceptors.response.use(
   (error) => {
     if (error.response && error.response.status === 401) {
       const url = error.config?.url || '';
-      const fallbackData = url.includes('/auth/me') ? { user: null } : [];
-      return Promise.resolve({
-        data: fallbackData,
-        status: 200,
-        statusText: 'OK',
-        headers: error.response?.headers || {},
-        config: error.config,
-      });
+      if (url.includes('/auth/me')) {
+        return Promise.resolve({
+          data: { user: null },
+          status: 200,
+          statusText: 'OK',
+          headers: error.response?.headers || {},
+          config: error.config,
+        });
+      }
     }
     return Promise.reject(error);
   }

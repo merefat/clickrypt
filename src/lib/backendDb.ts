@@ -27,6 +27,9 @@ export interface DbUser {
   avatarUrl?: string;
   personalProfile?: ModeProfile;
   organizationProfile?: ModeProfile;
+  accountMode?: 'personal' | 'organization';
+  twoFactorEnabled?: boolean;
+  twoFactorSecret?: string;
 }
 
 export interface DbResourceSecret {
@@ -102,6 +105,9 @@ const globalForDbData = globalThis as unknown as {
   dbUsersStore?: DbUser[];
   dbFoldersStore?: DbFolder[];
   dbResourcesStore?: DbResource[];
+  dbOrganizationResourcesStore?: DbResource[];
+  dbOrganizationFoldersStore?: DbFolder[];
+  dbOrganizationAuditLogsStore?: DbAuditLog[];
   dbGroupsStore?: DbGroup[];
   dbAuditLogsStore?: DbAuditLog[];
 };
@@ -142,6 +148,9 @@ if (!globalForDbData.dbUsersStore) {
 }
 if (!globalForDbData.dbFoldersStore) globalForDbData.dbFoldersStore = [];
 if (!globalForDbData.dbResourcesStore) globalForDbData.dbResourcesStore = [];
+if (!globalForDbData.dbOrganizationResourcesStore) globalForDbData.dbOrganizationResourcesStore = [];
+if (!globalForDbData.dbOrganizationFoldersStore) globalForDbData.dbOrganizationFoldersStore = [];
+if (!globalForDbData.dbOrganizationAuditLogsStore) globalForDbData.dbOrganizationAuditLogsStore = [];
 if (!globalForDbData.dbGroupsStore) globalForDbData.dbGroupsStore = [];
 if (!globalForDbData.dbAuditLogsStore) globalForDbData.dbAuditLogsStore = [];
 
@@ -165,6 +174,24 @@ class BackendDatabase {
     globalForDbData.dbUsersStore = val;
   }
 
+  get resources(): DbResource[] {
+    return globalForDbData.dbResourcesStore!;
+  }
+  set resources(val: DbResource[]) {
+    globalForDbData.dbResourcesStore = val;
+  }
+
+  get organizationResources(): DbResource[] {
+    return globalForDbData.dbOrganizationResourcesStore!;
+  }
+  set organizationResources(val: DbResource[]) {
+    globalForDbData.dbOrganizationResourcesStore = val;
+  }
+
+  resourcesFor(mode: 'personal' | 'organization'): DbResource[] {
+    return mode === 'organization' ? this.organizationResources : this.resources;
+  }
+
   get folders(): DbFolder[] {
     return globalForDbData.dbFoldersStore!;
   }
@@ -172,11 +199,15 @@ class BackendDatabase {
     globalForDbData.dbFoldersStore = val;
   }
 
-  get resources(): DbResource[] {
-    return globalForDbData.dbResourcesStore!;
+  get organizationFolders(): DbFolder[] {
+    return globalForDbData.dbOrganizationFoldersStore!;
   }
-  set resources(val: DbResource[]) {
-    globalForDbData.dbResourcesStore = val;
+  set organizationFolders(val: DbFolder[]) {
+    globalForDbData.dbOrganizationFoldersStore = val;
+  }
+
+  foldersFor(mode: 'personal' | 'organization'): DbFolder[] {
+    return mode === 'organization' ? this.organizationFolders : this.folders;
   }
 
   get groups(): DbGroup[] {
@@ -191,6 +222,17 @@ class BackendDatabase {
   }
   set auditLogs(val: DbAuditLog[]) {
     globalForDbData.dbAuditLogsStore = val;
+  }
+
+  get organizationAuditLogs(): DbAuditLog[] {
+    return globalForDbData.dbOrganizationAuditLogsStore!;
+  }
+  set organizationAuditLogs(val: DbAuditLog[]) {
+    globalForDbData.dbOrganizationAuditLogsStore = val;
+  }
+
+  auditLogsFor(mode: 'personal' | 'organization'): DbAuditLog[] {
+    return mode === 'organization' ? this.organizationAuditLogs : this.auditLogs;
   }
 
   // Account Recovery & SSO Tables
@@ -374,6 +416,9 @@ const persistableKeys = [
   'users',
   'folders',
   'resources',
+  'organizationResources',
+  'organizationFolders',
+  'organizationAuditLogs',
   'groups',
   'auditLogs',
   'invitations',

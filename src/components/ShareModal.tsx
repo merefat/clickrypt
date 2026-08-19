@@ -19,6 +19,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
   const [activeGroupFilter, setActiveGroupFilter] = useState<string>('all');
   const [shareMode, setShareMode] = useState<'members' | 'external'>('members');
   const [externalShareLink, setExternalShareLink] = useState<string>('');
+  const [externalEmail, setExternalEmail] = useState<string>('');
   const [copiedExternalLink, setCopiedExternalLink] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sharingSuccess, setSharingSuccess] = useState(false);
@@ -108,11 +109,16 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
 
   const handleCopyExternalLink = async () => {
     if (!externalShareLink) return;
+    const trimmed = externalEmail.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes('@')) {
+      alert('Please enter a valid recipient email address.');
+      return;
+    }
     setLoading(true);
     try {
       await api.post(`/resources/${resourceId}/share`, {
         isExternalShared: true,
-        externalRecipientEmail: 'external.partner@vendor.com',
+        externalShareEmail: trimmed,
       });
       await navigator.clipboard.writeText(externalShareLink);
       setCopiedExternalLink(true);
@@ -121,9 +127,9 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
         setCopiedExternalLink(false);
         onClose();
       }, 1800);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Failed to copy sharing link.');
+      alert(err.response?.data?.error || 'Failed to copy sharing link.');
     } finally {
       setLoading(false);
     }
@@ -345,6 +351,17 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
               <div className="space-y-3">
                 <div className="bg-[#f8fafc] p-3 rounded-xl border border-[#cbd5e1] font-mono text-[11px] text-[#0284c7] break-all text-left font-bold shadow-inner">
                   {externalShareLink}
+                </div>
+
+                <div>
+                  <label className="block text-left text-[11px] font-extrabold text-[#334155] mb-1">External recipient email</label>
+                  <input
+                    type="email"
+                    value={externalEmail}
+                    onChange={(e) => setExternalEmail(e.target.value)}
+                    placeholder="recipient@example.com"
+                    className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-xs text-[#0f172a] font-bold focus:border-[#1fbbd2] focus:outline-none shadow-sm"
+                  />
                 </div>
 
                 <button

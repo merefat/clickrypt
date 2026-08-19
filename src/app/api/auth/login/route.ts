@@ -11,11 +11,12 @@ export async function POST(request: Request) {
 
     // 1. Strict Subscription Bill Check - Block Owner, Admin & User if Bill Unpaid/Expired
     if (ENABLE_PAY_BILL && (db.subscription.status === 'Expired' || db.subscription.daysRemaining <= 0)) {
-      db.auditLogs.unshift({
+      const mode = 'organization';
+      db.auditLogsFor(mode).unshift({
         id: `al-${Date.now()}`,
         timestamp: new Date().toISOString(),
         action: 'LOGIN_BLOCKED_UNPAID_BILL',
-        userId: 'u-1',
+        userId: 'system',
         details: `Sign-in blocked for ${email}. Organization subscription bill is unpaid/expired.`,
       });
 
@@ -37,13 +38,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (email.toLowerCase() === 'alex.morgan@acme.com' || email.toLowerCase() === 'refat61899200@gmail.com') {
-      user.role = 'Owner';
-    }
+    const userMode = (user.accountMode || 'personal') as 'personal' | 'organization';
 
     // 2. Individual Account Suspension Check
     if (user.status === 'Suspended') {
-      db.auditLogs.unshift({
+      db.auditLogsFor(userMode).unshift({
         id: `al-${Date.now()}`,
         timestamp: new Date().toISOString(),
         action: 'LOGIN_BLOCKED_SUSPENDED',
@@ -56,13 +55,21 @@ export async function POST(request: Request) {
       );
     }
 
+    // 2FA Challenge: if 2FA is enabled, do not issue token yet
+    if (user.twoFactorEnabled && user.twoFactorSecret) {
+      return NextResponse.json({
+        success: true,
+        requires2FA: true,
+      });
+    }
+
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    db.auditLogs.unshift({
+    db.auditLogsFor(userMode).unshift({
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'LOGIN_SUCCESS',
@@ -78,6 +85,7 @@ export async function POST(request: Request) {
         email: user.email,
         name: user.name,
         role: user.role,
+        accountMode: user.accountMode || 'personal',
         publicKey: user.publicKey,
         encryptedPrivateKey: user.encryptedPrivateKey,
       },

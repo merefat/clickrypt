@@ -22,10 +22,12 @@ export async function GET(request: Request) {
   const folderId = searchParams.get('folderId');
   const secretVaultStr = searchParams.get('secretVault');
   const sharedWithUserId = searchParams.get('sharedWithUserId');
-  const mode = (request.headers.get('x-app-mode') || 'personal') as 'personal' | 'organization';
+  const userMode = (authUser.accountMode || 'personal') as 'personal' | 'organization';
 
   const currentUserId = authUser.id;
   const currentUserEmail = authUser.email.toLowerCase();
+
+  const store = db.resourcesFor(userMode);
 
   // Find all groups the current user is a member of
   const userGroups = db.groups.filter((g) => g.members.some((m) => m.userId === currentUserId));
@@ -36,11 +38,11 @@ export async function GET(request: Request) {
     }
   });
 
-  let result: typeof db.resources = [];
+  let result: any[] = [];
 
   if (sharedWithUserId) {
     // Shared With Me / Shared Out Panel (/shared page)
-    result = db.resources.filter((r) => {
+    result = store.filter((r) => {
       const isOwner = r.ownerId === currentUserId;
       const isSharedOut = isOwner && ((r.secrets && r.secrets.length > 1) || r.isExternalShared);
       const isRecipient = r.secrets && r.secrets.some((s) => s.userId === currentUserId && s.userId !== r.ownerId);
@@ -51,11 +53,15 @@ export async function GET(request: Request) {
       return isSharedOut || (!isOwner && (isRecipient || isExplicitlyShared || isExternalRecipient || isViaGroupFolder));
     });
   } else if (secretVaultStr === 'true') {
+    // Secret Vault is only available for organization-mode accounts
+    if (userMode !== 'organization') {
+      return NextResponse.json({ error: 'Secret Vault is only available in organization mode' }, { status: 403 });
+    }
     // Secret Vault (/secret-vault page): Only show private items owned by the current user
-    result = db.resources.filter((r) => r.ownerId === currentUserId && r.isPrivateOnly === true);
+    result = store.filter((r) => r.ownerId === currentUserId && r.isPrivateOnly === true);
   } else {
     // Standard Main Vault (/vault page): Show passwords OWNED by the current user + group folder assigned items
-    result = db.resources.filter((r) => {
+    result = store.filter((r) => {
       const isOwner = r.ownerId === currentUserId && !r.isPrivateOnly;
       const isViaGroupFolder = !!(r.folderId && userGroupFolderIds.has(r.folderId));
       return isOwner || isViaGroupFolder;
@@ -76,9 +82,6 @@ export async function GET(request: Request) {
     );
   }
 
-  // Scope to the current app mode (untagged legacy items are treated as personal)
-  result = result.filter((r) => (r.mode || 'personal') === mode);
-
   return NextResponse.json(result);
 }
 
@@ -95,8 +98,16 @@ export async function POST(request: Request) {
     if (!authUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const mode = (request.headers.get('x-app-mode') || 'personal') as 'personal' | 'organization';
+    const userMode = (authUser.accountMode || 'personal') as 'personal' | 'organization';
     const body = await request.json();
+
+    if (!body.name) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+    if (!body.encryptedData && !body.password) {
+      return NextResponse.json({ error: 'Password or encrypted data is required' }, { status: 400 });
+    }
+
     const newResource = {
       id: `r-${Date.now()}`,
       name: body.name,
@@ -106,20 +117,20 @@ export async function POST(request: Request) {
       ownerId: authUser.id,
       folderId: body.folderId || null,
       isPrivateOnly: !!body.isPrivateOnly,
-      mode,
+      mode: userMode,
       strength: body.strength || 'Strong',
       lastModified: 'Just now',
       secrets: [
         {
           userId: authUser.id,
-          encryptedData: body.encryptedData || `[PGP-ENCRYPTED-BLOB::${Buffer.from(body.password || 'AcmePass123!').toString('base64')}]`,
+          encryptedData: body.encryptedData || `[PGP-ENCRYPTED-BLOB::${Buffer.from(body.password).toString('base64')}]`,
         },
       ],
     };
 
-    db.resources.unshift(newResource);
+    db.resourcesFor(userMode).unshift(newResource);
 
-    db.auditLogs.unshift({
+    db.auditLogsFor(userMode).unshift({
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'CREATE_RESOURCE',

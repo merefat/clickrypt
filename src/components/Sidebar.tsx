@@ -15,9 +15,10 @@ import {
   UserCheck,
   ChevronLeft
 } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth, useRequireAuth } from '@/context/AuthContext';
 
 export default function Sidebar() {
+  useRequireAuth();
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);

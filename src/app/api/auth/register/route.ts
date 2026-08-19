@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
+import { isAllowedOrgEmailDomain } from '@/lib/config';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'SuperSecretClickryptJwtKey_2026!';
 
 export async function POST(request: Request) {
   try {
-    const { name, email, password, role, publicKey, encryptedPrivateKey } = await request.json();
+    const { name, email, password, role, publicKey, encryptedPrivateKey, accountMode } = await request.json();
+    const validatedAccountMode = (accountMode === 'organization' ? 'organization' : 'personal') as 'personal' | 'organization';
 
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
@@ -35,6 +37,12 @@ export async function POST(request: Request) {
       targetUser = existingUser;
     } else {
       // Create brand new user
+      if (validatedAccountMode === 'organization' && !isAllowedOrgEmailDomain(email)) {
+        return NextResponse.json(
+          { error: 'Organization accounts require a corporate email domain.' },
+          { status: 400 }
+        );
+      }
       const userRole = (role === 'External' ? 'External' : role || 'User') as any;
       const newUser = {
         id: `u-${Date.now()}`,
@@ -45,6 +53,7 @@ export async function POST(request: Request) {
         publicKey: publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n...',
         encryptedPrivateKey: encryptedPrivateKey || '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n...',
         lastActive: 'Just now',
+        accountMode: validatedAccountMode,
       };
 
       db.users.push(newUser);
@@ -57,7 +66,7 @@ export async function POST(request: Request) {
       { expiresIn: '7d' }
     );
 
-    db.auditLogs.unshift({
+    db.auditLogsFor((targetUser.accountMode || 'personal') as 'personal' | 'organization').unshift({
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'REGISTER_SUCCESS',
@@ -73,6 +82,7 @@ export async function POST(request: Request) {
         email: targetUser.email,
         name: targetUser.name,
         role: targetUser.role,
+        accountMode: targetUser.accountMode,
         publicKey: targetUser.publicKey,
         encryptedPrivateKey: targetUser.encryptedPrivateKey,
       },

@@ -1,18 +1,30 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
+import { getAuthUserFromRequest } from '@/lib/authHelper';
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authUser = await getAuthUserFromRequest(req);
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { id } = await params;
     const body = await req.json();
     const { action, revokeUserId, targetUserId, targetUserIds, encryptedData, secrets, isExternalShared, externalShareEmail } = body;
 
-    const resource = db.resources.find((r) => r.id === id);
+    const userMode = (authUser.accountMode || 'personal') as 'personal' | 'organization';
+    const resource = db.resourcesFor(userMode).find((r) => r.id === id);
     if (!resource) {
       return NextResponse.json({ error: 'Resource not found' }, { status: 404 });
+    }
+
+    // Only the resource owner can share or revoke it
+    if (resource.ownerId !== authUser.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // REVOCATION ACTION: Revoke sharing for a specific user ID or external share
@@ -34,7 +46,7 @@ export async function POST(
         resource.externalShareEmail = undefined;
       }
 
-      db.auditLogs.unshift({
+      db.auditLogsFor(userMode).unshift({
         id: `al-${Date.now()}`,
         timestamp: new Date().toISOString(),
         action: 'REVOKE_SHARE',
@@ -84,7 +96,7 @@ export async function POST(
       ? `external recipient (${externalShareEmail || 'external member'})`
       : `${(targetUserIds || [targetUserId]).filter(Boolean).length || 1} team member(s)`;
 
-    db.auditLogs.unshift({
+    db.auditLogsFor(userMode).unshift({
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'SHARE_RESOURCE',

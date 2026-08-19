@@ -31,6 +31,9 @@ export default function LoginPage() {
   const [unpaidBill, setUnpaidBill] = useState(false);
   const [subscription, setSubscription] = useState<any | null>(null);
   const [isExternalFlow, setIsExternalFlow] = useState(false);
+  const [show2FA, setShow2FA] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [twoFactorEmail, setTwoFactorEmail] = useState('');
 
   useEffect(() => {
     fetchSubscription();
@@ -119,8 +122,13 @@ export default function LoginPage() {
     setUnpaidBill(false);
 
     try {
-      const ok = await login(email, password);
-      if (ok) {
+      const result = await login(email, password);
+      if (result.requires2FA) {
+        setTwoFactorEmail(email);
+        setShow2FA(true);
+        return;
+      }
+      if (result.success) {
         try {
           const meRes = await api.get('/auth/me');
           if (meRes.data?.user?.role === 'External') {
@@ -138,6 +146,36 @@ export default function LoginPage() {
       if (err.response?.status === 402 || err.response?.data?.unpaidBill) {
         setUnpaidBill(true);
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handle2FASubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      const res = await api.post('/auth/2fa/login-verify', { email: twoFactorEmail, code: twoFactorCode });
+      if (res.data?.token && res.data?.user) {
+        const serverMode = res.data.user.accountMode || 'personal';
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('access_token', res.data.token);
+          localStorage.setItem('access_token', res.data.token);
+          localStorage.setItem('clickrypt_app_mode', serverMode);
+          localStorage.setItem(`clickrypt_user_profile_${serverMode}`, JSON.stringify(res.data.user));
+        }
+        if (res.data.user.role === 'External') {
+          router.push('/shared');
+        } else {
+          router.push('/vault');
+        }
+      } else {
+        setErrorMsg(res.data?.error || 'Two-factor authentication failed.');
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || err.message || 'Login error occurred';
+      setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
@@ -220,58 +258,90 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-[11px] font-semibold text-[#091528] uppercase tracking-wider mb-1">
-              Email Address
-            </label>
-            <div className="relative">
-              <Mail className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="email"
-                placeholder=""
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck={false}
-                className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-2.5 text-xs text-[#091528] focus:border-[#1fbbd2] outline-none"
-                required
-              />
+        <form onSubmit={show2FA ? handle2FASubmit : handleSubmit} className="space-y-4">
+          {show2FA && (
+            <div className="p-3 bg-[#e0f2fe] border border-[#1fbbd2]/40 rounded-xl text-xs text-[#0284c7] font-extrabold">
+              Two-Factor Authentication is required. Enter the 6-digit code from your authenticator app.
             </div>
-          </div>
+          )}
 
-          <div>
-            <label className="block text-[11px] font-semibold text-[#091528] uppercase tracking-wider mb-1">
-              Master Password
-            </label>
-            <div className="relative">
-              <Lock className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="••••••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-10 py-2.5 text-xs font-mono text-[#091528] focus:border-[#1fbbd2] outline-none"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[#1fbbd2]"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+          {!show2FA && (
+            <>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#091528] uppercase tracking-wider mb-1">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    placeholder=""
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-2.5 text-xs text-[#091528] focus:border-[#1fbbd2] outline-none"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-[#091528] uppercase tracking-wider mb-1">
+                  Master Password
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="••••••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-10 py-2.5 text-xs font-mono text-[#091528] focus:border-[#1fbbd2] outline-none"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[#1fbbd2]"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {show2FA && (
+            <div>
+              <label className="block text-[11px] font-semibold text-[#091528] uppercase tracking-wider mb-1">
+                6-Digit 2FA Code
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={twoFactorCode}
+                  onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
+                  className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-2.5 text-xs font-mono text-[#091528] focus:border-[#1fbbd2] outline-none"
+                  required
+                  autoFocus
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <button
             type="submit"
             disabled={loading}
             className="w-full py-3.5 gold-cyan-gradient-btn text-xs font-extrabold rounded-xl flex items-center justify-center gap-2 mt-4 shadow-xl"
           >
-            <span>{loading ? 'Authenticating & Verifying Bill...' : 'Sign In to Vault'}</span>
+            <span>{loading ? 'Authenticating...' : show2FA ? 'Verify 2FA Code' : 'Sign In to Vault'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>

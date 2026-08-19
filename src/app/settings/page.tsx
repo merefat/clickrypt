@@ -143,8 +143,9 @@ export default function SettingsPage() {
   const [showViewBackupKeyModal, setShowViewBackupKeyModal] = useState(false);
 
   // 2FA State
-  const [is2FAEnabled, setIs2FAEnabled] = useState(true);
-  const [totpSecret] = useState('JBSWY3DPEHPK3PXP');
+  const [is2FAEnabled, setIs2FAEnabled] = useState(!!user?.twoFactorEnabled);
+  const [totpSecret, setTotpSecret] = useState('');
+  const [totpUri, setTotpUri] = useState('');
   const [totpInputCode, setTotpInputCode] = useState('');
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [copiedBackupCodes, setCopiedBackupCodes] = useState(false);
@@ -153,6 +154,12 @@ export default function SettingsPage() {
     '9182-3710', '5819-2041', '1092-3847', '6720-4912'
   ]);
   const [totpSuccessMsg, setTotpSuccessMsg] = useState('');
+  const [totpError, setTotpError] = useState('');
+  const [is2FALoading, setIs2FALoading] = useState(false);
+
+  useEffect(() => {
+    setIs2FAEnabled(!!user?.twoFactorEnabled);
+  }, [user]);
 
   const handleDownloadBackupCodes = () => {
     const textContent = `====================================================
@@ -366,19 +373,63 @@ ${backupCodes.map((code, idx) => `${idx + 1}. ${code}`).join('\n')}
     }
   };
 
-  const handleToggle2FA = (e: React.FormEvent) => {
+  const handleOpen2FAModal = async () => {
+    setTotpSuccessMsg('');
+    setTotpError('');
+    setTotpInputCode('');
+    if (!user?.twoFactorEnabled) {
+      setIs2FALoading(true);
+      try {
+        const res = await api.post('/auth/2fa/setup');
+        if (!res.data?.secret) {
+          throw new Error(res.data?.error || '2FA setup failed.');
+        }
+        setTotpSecret(res.data.secret);
+        setTotpUri(res.data.uri);
+      } catch (err: any) {
+        setTotpError(err.response?.data?.error || 'Failed to generate 2FA setup.');
+      } finally {
+        setIs2FALoading(false);
+      }
+    }
+    setShowTwoFactorModal(true);
+  };
+
+  const handleToggle2FA = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (totpInputCode.length > 0 && totpInputCode.length < 6) {
-      alert('Please enter a valid 6-digit TOTP verification code.');
+    setTotpError('');
+    setTotpSuccessMsg('');
+    if (!totpInputCode || totpInputCode.length !== 6) {
+      setTotpError('Please enter a valid 6-digit TOTP verification code.');
       return;
     }
-    const nextState = !is2FAEnabled;
-    setIs2FAEnabled(nextState);
-    setTotpSuccessMsg(nextState ? 'Two-Factor Authentication (2FA) enabled successfully!' : '2FA has been disabled for your account.');
-    setTimeout(() => {
-      setTotpSuccessMsg('');
-      setShowTwoFactorModal(false);
-    }, 1800);
+    setIs2FALoading(true);
+    try {
+      if (is2FAEnabled) {
+        await api.post('/auth/2fa/disable', { code: totpInputCode });
+        setIs2FAEnabled(false);
+        setTotpInputCode('');
+        setTotpSecret('');
+        setTotpUri('');
+        setTotpSuccessMsg('2FA has been disabled for your account.');
+      } else {
+        const res = await api.post('/auth/2fa/verify', { code: totpInputCode });
+        if (!res.data?.success) {
+          throw new Error(res.data?.error || '2FA verification failed.');
+        }
+        setIs2FAEnabled(true);
+        setTotpInputCode('');
+        setTotpSuccessMsg('Two-Factor Authentication (2FA) enabled successfully!');
+      }
+    } catch (err: any) {
+      setTotpError(err.response?.data?.error || '2FA verification failed.');
+    } finally {
+      setIs2FALoading(false);
+      setTimeout(() => {
+        setTotpSuccessMsg('');
+        if (!totpError) setShowTwoFactorModal(false);
+      }, 1800);
+    }
   };
 
   const handleCopyTotpSecret = () => {
@@ -643,7 +694,7 @@ ${privKey}
                   </span>
 
                   <button
-                    onClick={() => setShowTwoFactorModal(true)}
+                    onClick={handleOpen2FAModal}
                     className="px-4 py-2 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl text-xs font-extrabold text-[#0f172a] flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
                   >
                     <QrCode className="w-3.5 h-3.5 text-[#0284c7]" />
@@ -952,29 +1003,39 @@ ${privKey}
                 </div>
               )}
 
-              {/* QR Code Scan Section */}
-              <div className="bg-[#f8fafc] p-4 rounded-xl border border-[#cbd5e1] flex flex-col items-center text-center space-y-3">
-                <div className="w-36 h-36 bg-white p-2 rounded-xl flex items-center justify-center shadow border border-[#cbd5e1]">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-                      `otpauth://totp/Clickrypt:${user?.email || 'alex.morgan@acme.com'}?secret=${totpSecret}&issuer=Clickrypt`
-                    )}`}
-                    alt="Clickrypt 2FA QR Code"
-                    className="w-full h-full object-contain"
-                  />
+              {totpError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center gap-2 shadow-xs">
+                  <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span className="font-extrabold">{totpError}</span>
                 </div>
-                <p className="text-[11px] text-[#64748b] font-medium">
-                  Scan this QR code with Microsoft Authenticator, Google Authenticator, or Authy.
-                </p>
-              </div>
+              )}
 
-              {/* Secret Key Box */}
-              <div>
-                <label className="block font-extrabold text-[#334155] mb-1">Manual Setup Secret Key</label>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-[#fffbeb] border border-[#f39c12]/40 rounded-xl p-2.5 font-mono text-[#d97706] font-bold text-center tracking-widest">
-                    {totpSecret}
+              {is2FALoading && !totpSecret && !is2FAEnabled && (
+                <div className="text-center text-xs text-[#64748b] py-4">Generating 2FA setup...</div>
+              )}
+
+              {!is2FAEnabled && totpUri && (
+                <div className="bg-[#f8fafc] p-4 rounded-xl border border-[#cbd5e1] flex flex-col items-center text-center space-y-3">
+                  <div className="w-36 h-36 bg-white p-2 rounded-xl flex items-center justify-center shadow border border-[#cbd5e1]">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(totpUri)}`}
+                      alt="Clickrypt 2FA QR Code"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
+                  <p className="text-[11px] text-[#64748b] font-medium">
+                    Scan this QR code with Microsoft Authenticator, Google Authenticator, or Authy.
+                  </p>
+                </div>
+              )}
+
+              {!is2FAEnabled && (
+                <div>
+                  <label className="block font-extrabold text-[#334155] mb-1">Manual Setup Secret Key</label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-[#fffbeb] border border-[#f39c12]/40 rounded-xl p-2.5 font-mono text-[#d97706] font-bold text-center tracking-widest">
+                      {totpSecret || '••••••••••'}
+                    </div>
                   <button
                     type="button"
                     onClick={handleCopyTotpSecret}
@@ -985,10 +1046,12 @@ ${privKey}
                   </button>
                 </div>
               </div>
+              )}
 
-              {/* Verification Code */}
               <div>
-                <label className="block font-extrabold text-[#334155] mb-1">Verify 6-Digit TOTP Code</label>
+                <label className="block font-extrabold text-[#334155] mb-1">
+                  {is2FAEnabled ? 'Enter current 2FA code to disable' : 'Verify 6-Digit TOTP Code'}
+                </label>
                 <input
                   type="text"
                   maxLength={6}
@@ -1045,13 +1108,16 @@ ${privKey}
                 </button>
                 <button
                   type="submit"
-                  className={`px-5 py-2 rounded-xl text-xs font-extrabold shadow-md cursor-pointer ${
+                  disabled={is2FALoading}
+                  className={`px-5 py-2 rounded-xl text-xs font-extrabold shadow-md cursor-pointer disabled:opacity-50 ${
                     is2FAEnabled
                       ? 'bg-rose-600 hover:bg-rose-700 text-white'
                       : 'gold-cyan-gradient-btn text-white'
                   }`}
                 >
-                  {is2FAEnabled ? 'Disable 2FA' : 'Enable 2FA'}
+                  {is2FALoading
+                    ? is2FAEnabled ? 'Disabling...' : 'Verifying...'
+                    : is2FAEnabled ? 'Disable 2FA' : 'Enable 2FA'}
                 </button>
               </div>
             </form>

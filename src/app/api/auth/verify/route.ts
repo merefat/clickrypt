@@ -170,7 +170,8 @@ export async function POST(req: Request) {
 
     user.lastActive = 'Just now';
 
-    db.auditLogs.unshift({
+    const userMode = (user.accountMode || 'organization') as 'personal' | 'organization';
+    db.auditLogsFor(userMode).unshift({
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'EXTENSION_GPGAUTH_LOGIN',

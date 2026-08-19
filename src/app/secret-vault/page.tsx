@@ -48,9 +48,9 @@ export default function SecretVaultPage() {
   const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Route Guard: Restrict Secret Vault exclusively to Owner role
+  // Route Guard: Restrict Secret Vault to organization-mode accounts with Owner role
   useEffect(() => {
-    if (user && user.role !== 'Owner') {
+    if (user && (user.accountMode !== 'organization' || user.role !== 'Owner')) {
       router.push('/vault');
     }
   }, [user, router]);
@@ -66,13 +66,13 @@ export default function SecretVaultPage() {
   }, []);
 
   useEffect(() => {
-    if (user?.role === 'Owner') {
+    if (user?.accountMode === 'organization' && user?.role === 'Owner') {
       fetchFolders();
     }
   }, [user]);
 
   useEffect(() => {
-    if (user?.role === 'Owner') {
+    if (user?.accountMode === 'organization' && user?.role === 'Owner') {
       fetchResources();
     }
   }, [searchTerm, selectedFolderId, user]);

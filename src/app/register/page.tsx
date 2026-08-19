@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useId, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -45,7 +45,7 @@ function RegisterForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isInvited, setIsInvited] = useState(false);
-  const [formId] = useState(() => Math.random().toString(36).slice(2, 9));
+  const formId = 'reg-form';
   const [errorMsg, setErrorMsg] = useState('');
   const [isConflict, setIsConflict] = useState(false);
 
@@ -78,7 +78,7 @@ function RegisterForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (isOrgMode && !paymentDone) {
+    if (ENABLE_PAY_BILL && isOrgMode && !paymentDone) {
       return;
     }
 
@@ -89,6 +89,11 @@ function RegisterForm() {
     try {
       const assignedRole = isExternalShare ? 'External' : (invitedRole as any) || 'User';
       await register(fullName || 'Guest User', email, password, assignedRole);
+      if (externalShareId) {
+        try {
+          await api.post('/auth/claim-external-share', { email, externalShareId });
+        } catch (e) {}
+      }
       if (assignedRole === 'External') {
         router.push('/shared');
       } else {

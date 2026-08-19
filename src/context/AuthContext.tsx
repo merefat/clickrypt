@@ -4,12 +4,15 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import api from '@/lib/api';
 import { generateKeyPair } from '@/lib/crypto';
 import { savePrivateKey, getPrivateKey, clearKeys } from '@/lib/secureStorage';
+import { useRouter } from 'next/navigation';
 
 export interface UserProfile {
   id: string;
   email: string;
   name: string;
   role: 'Owner' | 'Admin' | 'User' | 'External';
+  accountMode?: 'personal' | 'organization';
+  twoFactorEnabled?: boolean;
   publicKey?: string;
   encryptedPrivateKey?: string;
   avatarUrl?: string;
@@ -21,27 +24,40 @@ interface AuthContextType {
   masterPassword: string | null;
   appMode: 'personal' | 'organization';
   setAppMode: (mode: 'personal' | 'organization') => void;
-  login: (email: string, masterPassword: string) => Promise<boolean>;
+  login: (email: string, masterPassword: string) => Promise<{ success: boolean; requires2FA?: boolean }>;
   register: (name: string, email: string, masterPassword: string, role?: 'Owner' | 'Admin' | 'User' | 'External') => Promise<boolean>;
   updateMasterPassword: (newMasterPass: string) => Promise<void>;
   updateProfile: (name: string, email: string, avatarUrl?: string) => Promise<boolean>;
   logout: () => void;
   getEncryptedPrivateKey: () => Promise<string | null>;
+  isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [masterPassword, setMasterPassword] = useState<string | null>('password'); // default for quick demo access
-  const [appModeState, setAppModeState] = useState<'personal' | 'organization'>('organization');
+  const [masterPassword, setMasterPassword] = useState<string | null>(null);
+  const [appModeState, setAppModeState] = useState<'personal' | 'organization'>('personal');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const mode = (localStorage.getItem('clickrypt_app_mode') as 'personal' | 'organization') || 'organization';
+      const mode = (localStorage.getItem('clickrypt_app_mode') as 'personal' | 'organization') || 'personal';
       setAppModeState(mode);
     }
-    fetchSession();
+    setIsLoading(true);
+    fetchSession().finally(() => setIsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        fetchSession();
+      }
+    };
+    window.addEventListener('pageshow', handlePageShow);
+    return () => window.removeEventListener('pageshow', handlePageShow);
   }, []);
 
   const setAppMode = (mode: 'personal' | 'organization') => {
@@ -52,8 +68,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetchSession();
   };
 
-  const fetchSession = async () => {
-    const currentMode = typeof window !== 'undefined' ? localStorage.getItem('clickrypt_app_mode') || 'organization' : 'organization';
+  const fetchSession = async (modeOverride?: 'personal' | 'organization') => {
+    const currentMode =
+      modeOverride ||
+      (typeof window !== 'undefined' ? (localStorage.getItem('clickrypt_app_mode') as 'personal' | 'organization') || 'personal' : 'personal');
+    if (modeOverride && typeof window !== 'undefined') {
+      localStorage.setItem('clickrypt_app_mode', currentMode);
+    }
     let cachedUser: UserProfile | null = null;
     if (typeof window !== 'undefined') {
       const savedUser = localStorage.getItem(`clickrypt_user_profile_${currentMode}`);
@@ -67,6 +88,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await api.get(`/auth/me?mode=${currentMode}`);
       if (res.data?.user) {
+        const serverMode = (res.data.user.accountMode as 'personal' | 'organization') || currentMode;
+        if (serverMode !== currentMode && !modeOverride) {
+          setAppModeState(serverMode);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('clickrypt_app_mode', serverMode);
+          }
+          return fetchSession(serverMode);
+        }
         const mergedUser = cachedUser
           ? {
               ...res.data.user,
@@ -85,34 +114,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (email: string, masterPass: string): Promise<boolean> => {
-    const currentMode = typeof window !== 'undefined' ? localStorage.getItem('clickrypt_app_mode') || 'organization' : 'organization';
+  const login = async (email: string, masterPass: string): Promise<{ success: boolean; requires2FA?: boolean }> => {
     try {
       const res = await api.post('/auth/login', { email, password: masterPass });
+
+      if (res.data?.requires2FA) {
+        return { success: true, requires2FA: true };
+      }
+
       if (res.data?.user) {
+        const serverMode = (res.data.user.accountMode as 'personal' | 'organization') || 'personal';
         if (typeof window !== 'undefined') {
           if (res.data.token) {
             sessionStorage.setItem('access_token', res.data.token);
             localStorage.setItem('access_token', res.data.token);
           }
-          localStorage.setItem(`clickrypt_user_profile_${currentMode}`, JSON.stringify(res.data.user));
+          localStorage.setItem('clickrypt_app_mode', serverMode);
+          localStorage.setItem(`clickrypt_user_profile_${serverMode}`, JSON.stringify(res.data.user));
         }
         setUser(res.data.user);
+        setAppModeState(serverMode);
         setMasterPassword(masterPass);
         if (res.data.user.encryptedPrivateKey) {
           await savePrivateKey(res.data.user.encryptedPrivateKey);
         }
-        return true;
+        return { success: true };
       }
-      return false;
+      return { success: false };
     } catch (error) {
       console.error('Login error:', error);
-      return false;
+      throw error;
     }
   };
 
   const register = async (name: string, email: string, masterPass: string, role?: 'Owner' | 'Admin' | 'User' | 'External'): Promise<boolean> => {
-    const currentMode = typeof window !== 'undefined' ? localStorage.getItem('clickrypt_app_mode') || 'organization' : 'organization';
+    const currentMode = typeof window !== 'undefined' ? localStorage.getItem('clickrypt_app_mode') || 'personal' : 'personal';
     try {
       // 1. Generate client-side PGP keys
       const { privateKey, publicKey } = await generateKeyPair(email, masterPass);
@@ -125,6 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: role || 'User',
         publicKey,
         encryptedPrivateKey: privateKey,
+        accountMode: currentMode,
       });
 
       if (res.data?.user) {
@@ -166,7 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const updateProfile = async (name: string, email: string, avatarUrl?: string): Promise<boolean> => {
-    const currentMode = typeof window !== 'undefined' ? localStorage.getItem('clickrypt_app_mode') || 'organization' : 'organization';
+    const currentMode = typeof window !== 'undefined' ? localStorage.getItem('clickrypt_app_mode') || 'personal' : 'personal';
     try {
       const res = await api.put('/auth/me', { name, email, avatarUrl, mode: currentMode });
       const updatedUser = res.data?.user || (user ? { ...user, name, email, avatarUrl } : null);
@@ -207,7 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMasterPassword(null);
     await clearKeys();
     if (typeof window !== 'undefined') {
-      window.location.href = '/login';
+      window.location.replace('/login');
     }
   };
 
@@ -230,6 +267,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateProfile,
         logout,
         getEncryptedPrivateKey,
+        isLoading,
       }}
     >
       {children}
@@ -243,4 +281,15 @@ export function useAuth() {
     throw new Error('useAuth must be used within AuthProvider');
   }
   return context;
+}
+
+export function useRequireAuth() {
+  const { isLoading, isAuthenticated } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !isLoading && !isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isLoading, isAuthenticated, router]);
 }

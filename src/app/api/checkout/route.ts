@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/backendDb';
+import { getAuthUserFromRequest } from '@/lib/authHelper';
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || 'sk_test_51MzX90SampleStripeSecretKey1234567890';
 const stripe = new Stripe(stripeSecretKey, {
@@ -9,6 +10,11 @@ const stripe = new Stripe(stripeSecretKey, {
 
 export async function POST(request: Request) {
   try {
+    const authUser = await getAuthUserFromRequest(request);
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userMode = (authUser.accountMode || 'organization') as 'personal' | 'organization';
     const { seats, planName, cardHolder, amount, paymentMethodId } = await request.json();
 
     let paymentIntentId = `pi_${Math.random().toString(36).substring(2, 15)}`;
@@ -36,11 +42,11 @@ export async function POST(request: Request) {
 
     const invoiceId = `INV-2026-${Math.floor(10000 + Math.random() * 90000)}`;
 
-    db.auditLogs.unshift({
+    db.auditLogsFor(userMode).unshift({
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),
       action: 'STRIPE_PAYMENT_SUCCESS',
-      userId: 'u-1',
+      userId: authUser.id,
       details: `Stripe Credit Card Payment of $${amount}.00 USD processed via Stripe API (${paymentIntentId}) for ${seats || 25} seats. Invoice: ${invoiceId}`,
     });
 

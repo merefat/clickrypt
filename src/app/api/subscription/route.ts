@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
+import { getAuthUserFromRequest } from '@/lib/authHelper';
 
 export async function GET() {
   return NextResponse.json(db.subscription);
@@ -7,6 +8,11 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const authUser = await getAuthUserFromRequest(request);
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userMode = (authUser.accountMode || 'organization') as 'personal' | 'organization';
     const { action, seats } = await request.json();
 
     if (action === 'RENEW' || action === 'PAY') {
@@ -19,11 +25,11 @@ export async function POST(request: Request) {
         day: 'numeric',
       });
 
-      db.auditLogs.unshift({
+      db.auditLogsFor(userMode).unshift({
         id: `al-${Date.now()}`,
         timestamp: new Date().toISOString(),
         action: 'SUBSCRIPTION_RENEWED',
-        userId: 'u-1',
+        userId: authUser.id,
         details: `Organization Subscription renewed via Stripe for 365 days. Vault unlocked for all team members.`,
       });
 

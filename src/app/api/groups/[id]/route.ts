@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
+import { getAuthUserFromRequest } from '@/lib/authHelper';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const authUser = await getAuthUserFromRequest(request);
+  if (!authUser) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   const { id } = await params;
   const group = db.groups.find((g) => g.id === id);
   if (!group) {
@@ -11,6 +16,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const authUser = await getAuthUserFromRequest(request);
+  if (!authUser) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const userMode = (authUser.accountMode || 'organization') as 'personal' | 'organization';
   const { id } = await params;
   const body = await request.json();
   const group = db.groups.find((g) => g.id === id);
@@ -51,11 +61,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
   group.lastActive = 'Just now';
 
-  db.auditLogs.unshift({
+  db.auditLogsFor(userMode).unshift({
     id: `al-${Date.now()}`,
     timestamp: new Date().toISOString(),
     action: 'UPDATE_GROUP',
-    userId: 'u-1',
+    userId: authUser.id,
     details: `Updated team group ${group.name}`,
   });
 
@@ -63,6 +73,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const authUser = await getAuthUserFromRequest(request);
+  if (!authUser) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const userMode = (authUser.accountMode || 'organization') as 'personal' | 'organization';
   const { id } = await params;
   const index = db.groups.findIndex((g) => g.id === id);
 
@@ -72,11 +87,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
   const deleted = db.groups.splice(index, 1)[0];
 
-  db.auditLogs.unshift({
+  db.auditLogsFor(userMode).unshift({
     id: `al-${Date.now()}`,
     timestamp: new Date().toISOString(),
     action: 'DELETE_GROUP',
-    userId: 'u-1',
+    userId: authUser.id,
     details: `Deleted team group ${deleted.name}`,
   });
 
