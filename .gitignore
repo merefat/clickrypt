@@ -43,3 +43,6 @@ yarn-error.log*
 # TypeScript Build Info
 *.tsbuildinfo
 next-env.d.ts
+
+# Runtime Database Storage
+/data/db.json

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -21,7 +21,7 @@ const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_51MzX90SampleStripePublishableKey1234567890'
 );
 
-export default function StandaloneCheckoutPage() {
+function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isEnrollFlow = searchParams?.get('flow') === 'enroll';
@@ -506,5 +506,20 @@ export default function StandaloneCheckoutPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function StandaloneCheckoutPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#f5f8fb] flex items-center justify-center p-6 text-[#091528] font-sora">
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 border-4 border-[#0284c7] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs font-bold text-[#64748b]">Loading Stripe Secure Payment Portal...</p>
+        </div>
+      </div>
+    }>
+      <CheckoutContent />
+    </Suspense>
   );
 }

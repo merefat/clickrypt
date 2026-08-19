@@ -31,19 +31,26 @@ function getStorageShape(db: any) {
 }
 
 export function loadDbSync(db: any) {
+  // Skip filesystem and network operations during Next.js static build phase
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    return;
+  }
+
   // 1. Try local JSON file first (always works, even if Supabase isn't configured)
   try {
     if (fs.existsSync(DB_FILE)) {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
-      const data = JSON.parse(raw);
-      if (data && typeof data === 'object') {
-        const keys = Object.keys(getStorageShape(db));
-        for (const key of keys) {
-          if (data[key] !== undefined && db[key] !== undefined) {
-            if (Array.isArray(db[key])) {
-              db[key].splice(0, db[key].length, ...data[key]);
-            } else {
-              Object.assign(db[key], data[key]);
+      if (raw && raw.trim()) {
+        const data = JSON.parse(raw);
+        if (data && typeof data === 'object') {
+          const keys = Object.keys(getStorageShape(db));
+          for (const key of keys) {
+            if (data[key] !== undefined && db[key] !== undefined) {
+              if (Array.isArray(db[key])) {
+                db[key].splice(0, db[key].length, ...data[key]);
+              } else {
+                Object.assign(db[key], data[key]);
+              }
             }
           }
         }
@@ -89,6 +96,11 @@ export function loadDbSync(db: any) {
 }
 
 export function persistDb(db: any) {
+  // Skip filesystem and network operations during Next.js static build phase
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    return;
+  }
+
   const payload = getStorageShape(db);
 
   // 1. Save to local JSON file (works without any external setup)
