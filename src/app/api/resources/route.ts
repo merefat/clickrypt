@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
+import { ENABLE_PAY_BILL } from '@/lib/config';
 
 export async function GET(request: Request) {
   // Subscription check
-  if (db.subscription.status === 'Expired' || db.subscription.daysRemaining <= 0) {
+  if (ENABLE_PAY_BILL && (db.subscription.status === 'Expired' || db.subscription.daysRemaining <= 0)) {
     return NextResponse.json(
       { error: 'Organization subscription expired. Payment required to unlock vault.' },
       { status: 402 }
@@ -82,7 +83,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (db.subscription.status === 'Expired' || db.subscription.daysRemaining <= 0) {
+  if (ENABLE_PAY_BILL && (db.subscription.status === 'Expired' || db.subscription.daysRemaining <= 0)) {
     return NextResponse.json(
       { error: 'Organization subscription expired. Payment required to unlock vault.' },
       { status: 402 }

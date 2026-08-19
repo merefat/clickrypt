@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
+import { ENABLE_PAY_BILL } from '@/lib/config';
 
 interface HeaderProps {
   searchTerm?: string;
@@ -216,7 +217,7 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
   return (
     <header className="sticky top-0 z-30 bg-[#f5f8fb]/95 backdrop-blur-md border-b border-[#cbd5e1] px-8 py-3.5 flex flex-col gap-2 font-sora">
       {/* Dynamic 7-Second Auto-Dismissing Renewal Notice Banner */}
-      {showBanner && subscription && (
+      {ENABLE_PAY_BILL && showBanner && subscription && (
         <div className="bg-gradient-to-r from-[#fff7ed] via-[#ffedd5] to-[#fff7ed] border border-[#f39c12] rounded-xl px-4 py-2 flex items-center justify-between text-xs text-[#c2410c] shadow-lg animate-in slide-in-from-top-2 duration-300">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-[#d97706] shrink-0 animate-bounce" />

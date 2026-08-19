@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import { ENABLE_PAY_BILL } from '@/lib/config';
 import { decryptSecret } from '@/lib/crypto';
 import { useAuth } from '@/context/AuthContext';
 
@@ -196,7 +197,7 @@ export default function VaultPage() {
     fetchResources();
   };
 
-  const isExpired = subscription && (subscription.status === 'Expired' || subscription.daysRemaining <= 0);
+  const isExpired = ENABLE_PAY_BILL && subscription && (subscription.status === 'Expired' || subscription.daysRemaining <= 0);
 
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);

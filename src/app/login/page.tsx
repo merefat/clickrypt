@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
+import { ENABLE_PAY_BILL } from '@/lib/config';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -154,31 +155,35 @@ export default function LoginPage() {
 
       {/* Login Box */}
       <div className="w-full max-w-md glass-panel p-8 rounded-2xl !bg-[#f5f8fb] z-10 relative">
-        {/* Header Action Bar with Pay Bill Button */}
+        {/* Header Action Bar */}
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-300/60">
           <span className="text-xs font-bold text-[#091528]">Sign In Portal</span>
 
-          <Link
-            href="/checkout"
-            className="px-3 py-1.5 gold-gradient-btn text-xs font-bold rounded-lg flex items-center gap-1.5 shadow"
-          >
-            <CreditCard className="w-3.5 h-3.5" />
-            <span>Pay Bill</span>
-          </Link>
+          {ENABLE_PAY_BILL && (
+            <Link
+              href="/checkout"
+              className="px-3 py-1.5 gold-gradient-btn text-xs font-bold rounded-lg flex items-center gap-1.5 shadow"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Pay Bill</span>
+            </Link>
+          )}
         </div>
 
         {/* Demo Toggle for Expiry Simulation */}
-        <div className="mb-4">
-          <button
-            type="button"
-            onClick={handleToggleDemoExpiry}
-            className="w-full py-1.5 bg-[#f39c12]/10 hover:bg-[#f39c12]/20 border border-[#f39c12] text-[#f39c12] text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all"
-            title="Click to simulate an unpaid bill lockout or restore active bill"
-          >
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Demo: {subscription?.status === 'Expired' ? 'Restore Active Bill' : 'Simulate Unpaid Bill Lockout'}</span>
-          </button>
-        </div>
+        {ENABLE_PAY_BILL && (
+          <div className="mb-4">
+            <button
+              type="button"
+              onClick={handleToggleDemoExpiry}
+              className="w-full py-1.5 bg-[#f39c12]/10 hover:bg-[#f39c12]/20 border border-[#f39c12] text-[#f39c12] text-[11px] font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all"
+              title="Click to simulate an unpaid bill lockout or restore active bill"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>Demo: {subscription?.status === 'Expired' ? 'Restore Active Bill' : 'Simulate Unpaid Bill Lockout'}</span>
+            </button>
+          </div>
+        )}
 
         <div className="text-center mb-6">
           <h1 className="text-2xl font-extrabold text-[#091528] mb-1">Sign In to Your Vault</h1>
@@ -186,7 +191,7 @@ export default function LoginPage() {
         </div>
 
         {/* UNPAID BILL LOCKOUT WARNING BANNER */}
-        {unpaidBill && (
+        {ENABLE_PAY_BILL && unpaidBill && (
           <div className="mb-6 p-4 bg-rose-100 border border-rose-300 rounded-xl text-xs text-rose-800 space-y-3 animate-in fade-in shadow-xl">
             <div className="flex items-start gap-2.5">
               <LockIcon className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
@@ -311,13 +316,15 @@ export default function LoginPage() {
           </div>
         )}
 
-        <div className="mt-6 pt-4 border-t border-gray-300/60 flex items-center justify-between text-[11px]">
-          <span className="text-gray-500">Need to pay subscription bill?</span>
-          <Link href="/checkout" className="text-[#f39c12] font-extrabold hover:underline flex items-center gap-1">
-            <CreditCard className="w-3.5 h-3.5" />
-            <span>Pay Bill Page</span>
-          </Link>
-        </div>
+        {ENABLE_PAY_BILL && (
+          <div className="mt-6 pt-4 border-t border-gray-300/60 flex items-center justify-between text-[11px]">
+            <span className="text-gray-500">Need to pay subscription bill?</span>
+            <Link href="/checkout" className="text-[#f39c12] font-extrabold hover:underline flex items-center gap-1">
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Pay Bill Page</span>
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

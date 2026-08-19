@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import { CreditCard, CheckCircle, ShieldCheck, ArrowRight, Download, Building2 } from 'lucide-react';
+import { ENABLE_PAY_BILL } from '@/lib/config';
 
 export default function BillingPage() {
   const invoices = [
@@ -33,14 +34,16 @@ export default function BillingPage() {
               </div>
             </div>
 
-            <Link
-              href="/checkout"
-              className="gold-gradient-btn px-5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow-md cursor-pointer"
-            >
-              <CreditCard className="w-4 h-4" />
-              <span>Stripe Checkout</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+            {ENABLE_PAY_BILL && (
+              <Link
+                href="/checkout"
+                className="gold-gradient-btn px-5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow-md cursor-pointer"
+              >
+                <CreditCard className="w-4 h-4" />
+                <span>Stripe Checkout</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -82,27 +85,29 @@ export default function BillingPage() {
               </div>
 
               {/* Credit Card Payment Banner linking to Stripe Checkout */}
-              <div className="glass-panel p-6 rounded-2xl border border-[#d0dbe5] bg-[#ffffff] space-y-4 shadow-xl">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[#fffbeb] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706] shadow-xs">
-                      <CreditCard className="w-5 h-5 text-[#d97706]" />
+              {ENABLE_PAY_BILL && (
+                <div className="glass-panel p-6 rounded-2xl border border-[#d0dbe5] bg-[#ffffff] space-y-4 shadow-xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-[#fffbeb] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706] shadow-xs">
+                        <CreditCard className="w-5 h-5 text-[#d97706]" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-extrabold text-[#0f172a]">Pay with Credit Card</h3>
+                        <p className="text-xs text-[#64748b]">Secure payment powered by Stripe Payments.</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-sm font-extrabold text-[#0f172a]">Pay with Credit Card</h3>
-                      <p className="text-xs text-[#64748b]">Secure payment powered by Stripe Payments.</p>
-                    </div>
-                  </div>
 
-                  <Link
-                    href="/checkout"
-                    className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 text-white shadow-md cursor-pointer"
-                  >
-                    <span>Proceed to Stripe Checkout</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
+                    <Link
+                      href="/checkout"
+                      className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 text-white shadow-md cursor-pointer"
+                    >
+                      <span>Proceed to Stripe Checkout</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Right: Payment Security Overview */}

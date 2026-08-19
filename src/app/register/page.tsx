@@ -24,6 +24,7 @@ import { evaluatePasswordStrength } from '@/lib/crypto';
 import { generatePassword } from '@/lib/generator';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
+import { ENABLE_PAY_BILL } from '@/lib/config';
 
 function RegisterForm() {
   const router = useRouter();
@@ -131,7 +132,7 @@ function RegisterForm() {
             </div>
           )}
 
-          {isOrgMode && (
+          {ENABLE_PAY_BILL && isOrgMode && (
             <div className="inline-flex items-center gap-1.5 bg-[#fffbeb] text-[#d97706] border border-[#f39c12]/40 px-3 py-1 rounded-full text-xs font-extrabold mb-3 shadow-xs">
               <Building2 className="w-3.5 h-3.5 text-[#d97706]" />
               <span>Organization Enrollment (Stripe Payment Gate)</span>
@@ -146,10 +147,10 @@ function RegisterForm() {
           )}
 
           <h1 className="text-2xl font-extrabold text-[#0f172a] mb-1">
-            {isOrgMode ? 'Organization Setup & Credit Card Enrollment' : 'Complete Profile Setup'}
+            {ENABLE_PAY_BILL && isOrgMode ? 'Organization Setup & Credit Card Enrollment' : 'Complete Profile Setup'}
           </h1>
           <p className="text-xs text-[#64748b] font-medium">
-            {isOrgMode
+            {ENABLE_PAY_BILL && isOrgMode
               ? 'Complete Stripe credit card payment to enroll and activate your team vault.'
               : 'Set up your master password and OpenPGP key pair.'}
           </p>
@@ -160,7 +161,7 @@ function RegisterForm() {
           <input type="text" className="hidden" name={`decoy-user-${formId}`} tabIndex={-1} readOnly autoComplete="off" />
           <input type="password" className="hidden" name={`decoy-pass-${formId}`} tabIndex={-1} readOnly autoComplete="off" />
 
-          {isOrgMode && !paymentDone ? (
+          {ENABLE_PAY_BILL && isOrgMode && !paymentDone ? (
             <div className="glass-panel p-6 rounded-2xl border border-[#cbd5e1] bg-[#f8fafc] space-y-4 shadow-xs text-center">
               <div className="inline-flex items-center gap-2 text-[#d97706]">
                 <CreditCard className="w-5 h-5" />

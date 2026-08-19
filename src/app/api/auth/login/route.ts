@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 import jwt from 'jsonwebtoken';
+import { ENABLE_PAY_BILL } from '@/lib/config';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'SuperSecretClickryptJwtKey_2026!';
 
@@ -9,7 +10,7 @@ export async function POST(request: Request) {
     const { email, password } = await request.json();
 
     // 1. Strict Subscription Bill Check - Block Owner, Admin & User if Bill Unpaid/Expired
-    if (db.subscription.status === 'Expired' || db.subscription.daysRemaining <= 0) {
+    if (ENABLE_PAY_BILL && (db.subscription.status === 'Expired' || db.subscription.daysRemaining <= 0)) {
       db.auditLogs.unshift({
         id: `al-${Date.now()}`,
         timestamp: new Date().toISOString(),
