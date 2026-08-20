@@ -191,8 +191,8 @@ export default function ImportExportPage() {
   };
 
   const processFile = async (file: File) => {
-    if (user?.role !== 'Owner' && user?.role !== 'Admin' && localStorage.getItem('clickrypt_app_mode') !== 'personal') {
-      alert('🔒 Import Restricted: Import is available for Organization Owners/Admins or in Personal mode.');
+    if (localStorage.getItem('clickrypt_app_mode') !== 'personal' && !['Owner', 'Admin', 'User'].includes(user?.role as string)) {
+      alert('🔒 Import Restricted: Import is available for Organization members (Owner/Admin/User) or in Personal mode.');
       return;
     }
     setLoadingImport(true);
@@ -266,8 +266,8 @@ export default function ImportExportPage() {
   };
 
   const handleExportVault = async () => {
-    if (user?.role === 'External') {
-      alert('🔒 Export Restricted: Password export is not available for External users.');
+    if (localStorage.getItem('clickrypt_app_mode') !== 'personal' && !['Owner', 'Admin'].includes(user?.role as string)) {
+      alert('🔒 Export Restricted: Password export is only available for Organization Owners/Admins or in Personal mode.');
       return;
     }
 
@@ -451,8 +451,8 @@ export default function ImportExportPage() {
     }
   }, []);
 
-  const canImport = isPersonalMode || user?.role === 'Owner' || user?.role === 'Admin';
-  const canExport = user?.role !== 'External';
+  const canImport = isPersonalMode || ['Owner', 'Admin', 'User'].includes(user?.role as string);
+  const canExport = isPersonalMode || ['Owner', 'Admin'].includes(user?.role as string);
 
   return (
     <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
