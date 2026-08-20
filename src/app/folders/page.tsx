@@ -91,7 +91,9 @@ export default function FoldersPage() {
     }
   };
 
-  const selectedFolder = folders.find((f) => f.id === selectedFolderId) || folders[0];
+  const canManageAll = user?.role === 'Owner' || user?.role === 'Admin';
+  const visibleFolders = canManageAll ? folders : folders.filter((f) => (f.itemCount || 0) > 0);
+  const selectedFolder = visibleFolders.find((f) => f.id === selectedFolderId) || visibleFolders[0];
 
   const handleToggleRevealPassword = async (item: any) => {
     if (revealedPasswords[item.id]) {
@@ -170,17 +172,17 @@ export default function FoldersPage() {
             <div className="lg:col-span-1 glass-panel rounded-2xl p-4 border border-[#d0dbe5] bg-[#ffffff] space-y-4 shadow-xl">
               <div className="flex items-center justify-between pb-3 border-b border-[#cbd5e1]">
                 <span className="text-xs font-extrabold text-[#0f172a] uppercase tracking-wider">
-                  Workplace Folders ({folders.length})
+                  Workplace Folders ({visibleFolders.length})
                 </span>
               </div>
 
               <div className="space-y-2">
                 {loading ? (
                   <p className="text-xs text-[#64748b] text-center py-4">Loading folders...</p>
-                ) : folders.length === 0 ? (
+                ) : visibleFolders.length === 0 ? (
                   <p className="text-xs text-[#64748b] text-center py-4">No folders created yet.</p>
                 ) : (
-                  folders.map((f) => {
+                  visibleFolders.map((f) => {
                     const isSelected = f.id === selectedFolderId;
                     return (
                       <div
