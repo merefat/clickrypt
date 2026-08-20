@@ -60,11 +60,15 @@ export async function GET(request: Request) {
     // Secret Vault (/secret-vault page): Only show private items owned by the current user
     result = store.filter((r) => r.ownerId === currentUserId && r.isPrivateOnly === true);
   } else {
-    // Standard Main Vault (/vault page): Show passwords OWNED by the current user + group folder assigned items
+    // Standard Main Vault (/vault page): Show passwords owned by, group-assigned to, or explicitly shared with the current user
     result = store.filter((r) => {
       const isOwner = r.ownerId === currentUserId && !r.isPrivateOnly;
       const isViaGroupFolder = !!(r.folderId && userGroupFolderIds.has(r.folderId));
-      return isOwner || isViaGroupFolder;
+      const isExplicitlyShared =
+        r.sharedWith && (r.sharedWith.includes(currentUserId) || r.sharedWith.includes(currentUserEmail));
+      const isSecretRecipient =
+        r.secrets && r.secrets.some((s: any) => s.userId === currentUserId && s.userId !== r.ownerId);
+      return isOwner || (!r.isPrivateOnly && (isViaGroupFolder || isExplicitlyShared || isSecretRecipient));
     });
   }
 

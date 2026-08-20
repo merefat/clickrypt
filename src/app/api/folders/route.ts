@@ -21,10 +21,32 @@ export async function GET(req: Request) {
       folders = folders.filter((f) => !f.isPrivateOnly);
     }
 
+    const currentUserId = authUser.id;
+    const currentUserEmail = authUser.email.toLowerCase();
+
+    const userGroups = db.groups.filter((g) => g.members.some((m) => m.userId === currentUserId));
+    const userGroupFolderIds = new Set<string>();
+    userGroups.forEach((g) => {
+      if (g.assignedFolderIds) {
+        g.assignedFolderIds.forEach((fid) => userGroupFolderIds.add(fid));
+      }
+    });
+
     const resourcesStore = db.resourcesFor(userMode);
+
+    const isVisibleToUser = (r: any) => {
+      const isOwner = r.ownerId === currentUserId && !r.isPrivateOnly;
+      const isViaGroupFolder = !!(r.folderId && userGroupFolderIds.has(r.folderId));
+      const isExplicitlyShared =
+        r.sharedWith && (r.sharedWith.includes(currentUserId) || r.sharedWith.includes(currentUserEmail));
+      const isSecretRecipient =
+        r.secrets && r.secrets.some((s: any) => s.userId === currentUserId && s.userId !== r.ownerId);
+      return isOwner || (!r.isPrivateOnly && (isViaGroupFolder || isExplicitlyShared || isSecretRecipient));
+    };
+
     const foldersWithCounts = folders.map((f) => ({
       ...f,
-      itemCount: resourcesStore.filter((r) => r.folderId === f.id).length,
+      itemCount: resourcesStore.filter((r) => r.folderId === f.id && isVisibleToUser(r)).length,
     }));
 
     return NextResponse.json(foldersWithCounts);

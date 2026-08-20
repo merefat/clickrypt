@@ -436,7 +436,7 @@ export default function VaultPage() {
                     </div>
 
                     {/* Created Folders Items */}
-                    {folders.map((f) => {
+                    {folders.filter((f) => (f.itemCount || 0) > 0).map((f) => {
                       const isSelected = selectedFolderId === f.id;
                       return (
                         <div
@@ -459,7 +459,12 @@ export default function VaultPage() {
                               )}
                             </div>
                           </div>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                              {f.itemCount || 0}
+                            </span>
+                            {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
+                          </div>
                         </div>
                       );
                     })}
