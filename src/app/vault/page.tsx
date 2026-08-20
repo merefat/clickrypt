@@ -436,7 +436,7 @@ export default function VaultPage() {
                     </div>
 
                     {/* Created Folders Items */}
-                    {folders.filter((f) => (f.itemCount || 0) > 0).map((f) => {
+                    {folders.map((f) => {
                       const isSelected = selectedFolderId === f.id;
                       return (
                         <div

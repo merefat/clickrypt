@@ -68,6 +68,7 @@ export interface DbFolder {
   lastModified: string;
   isPrivateOnly?: boolean;
   mode?: 'personal' | 'organization';
+  creatorId?: string;
 }
 
 export interface DbGroupMember {

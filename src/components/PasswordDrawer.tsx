@@ -94,7 +94,11 @@ export default function PasswordDrawer({
 
   const fetchFolders = async () => {
     try {
-      const res = await api.get('/folders', { params: { secretVault: !!isSecretVault } });
+      const params: any = { secretVault: !!isSecretVault };
+      if (user?.role === 'Owner' || user?.role === 'Admin') {
+        params.scope = 'manage';
+      }
+      const res = await api.get('/folders', { params });
       setFolders(res.data);
     } catch (err) {
       console.error(err);

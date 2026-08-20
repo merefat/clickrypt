@@ -42,7 +42,11 @@ export default function FoldersPage() {
   const fetchFolders = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/folders', { params: { secretVault: false } });
+      const params: any = { secretVault: false };
+      if (user?.role === 'Owner' || user?.role === 'Admin') {
+        params.scope = 'manage';
+      }
+      const res = await api.get('/folders', { params });
       setFolders(res.data);
       if (res.data.length > 0 && !selectedFolderId) {
         setSelectedFolderId(res.data[0].id);
@@ -91,9 +95,7 @@ export default function FoldersPage() {
     }
   };
 
-  const canManageAll = user?.role === 'Owner' || user?.role === 'Admin';
-  const visibleFolders = canManageAll ? folders : folders.filter((f) => (f.itemCount || 0) > 0);
-  const selectedFolder = visibleFolders.find((f) => f.id === selectedFolderId) || visibleFolders[0];
+  const selectedFolder = folders.find((f) => f.id === selectedFolderId) || folders[0];
 
   const handleToggleRevealPassword = async (item: any) => {
     if (revealedPasswords[item.id]) {
@@ -172,17 +174,17 @@ export default function FoldersPage() {
             <div className="lg:col-span-1 glass-panel rounded-2xl p-4 border border-[#d0dbe5] bg-[#ffffff] space-y-4 shadow-xl">
               <div className="flex items-center justify-between pb-3 border-b border-[#cbd5e1]">
                 <span className="text-xs font-extrabold text-[#0f172a] uppercase tracking-wider">
-                  Workplace Folders ({visibleFolders.length})
+                  Workplace Folders ({folders.length})
                 </span>
               </div>
 
               <div className="space-y-2">
                 {loading ? (
                   <p className="text-xs text-[#64748b] text-center py-4">Loading folders...</p>
-                ) : visibleFolders.length === 0 ? (
+                ) : folders.length === 0 ? (
                   <p className="text-xs text-[#64748b] text-center py-4">No folders created yet.</p>
                 ) : (
-                  visibleFolders.map((f) => {
+                  folders.map((f) => {
                     const isSelected = f.id === selectedFolderId;
                     return (
                       <div

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability */
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import {
@@ -86,6 +86,18 @@ export default function GroupsPage() {
   const [addMemberRole, setAddMemberRole] = useState<'User' | 'Admin'>('User');
   const [selectedFolderToAssign, setSelectedFolderToAssign] = useState('');
   const [selectedResourceToShare, setSelectedResourceToShare] = useState('');
+  const [isAssignFolderDropdownOpen, setIsAssignFolderDropdownOpen] = useState(false);
+  const assignFolderDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (assignFolderDropdownRef.current && !assignFolderDropdownRef.current.contains(event.target as Node)) {
+        setIsAssignFolderDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     fetchGroups();
@@ -121,7 +133,11 @@ export default function GroupsPage() {
 
   const fetchFolders = async () => {
     try {
-      const res = await api.get('/folders', { params: { secretVault: false } });
+      const params: any = { secretVault: false };
+      if (user?.role === 'Owner' || user?.role === 'Admin') {
+        params.scope = 'manage';
+      }
+      const res = await api.get('/folders', { params });
       setFolders(res.data);
     } catch (err) {
       console.error(err);
@@ -1018,21 +1034,51 @@ export default function GroupsPage() {
                 {unassignedFoldersForGroup.length === 0 ? (
                   <p className="text-[#64748b] text-xs py-3">All workplace folders are already assigned to this group.</p>
                 ) : (
-                  <div className="relative">
-                    <select
-                      value={selectedFolderToAssign}
-                      onChange={(e) => setSelectedFolderToAssign(e.target.value)}
-                      className="w-full appearance-none bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] focus:border-[#1fbbd2] rounded-xl px-3.5 py-2.5 text-[#0f172a] font-bold focus:outline-none transition-all cursor-pointer font-sora shadow-xs pr-10"
-                      required
+                  <div className="relative" ref={assignFolderDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsAssignFolderDropdownOpen((prev) => !prev)}
+                      className="w-full flex items-center justify-between bg-[#ffffff] hover:bg-[#f8fafc] border border-[#cbd5e1] hover:border-[#1fbbd2] px-3.5 py-2.5 rounded-xl text-xs text-[#0f172a] font-extrabold shadow-xs transition-all cursor-pointer"
                     >
-                      <option value="" className="bg-white text-[#64748b]">Select a folder...</option>
-                      {unassignedFoldersForGroup.map((f) => (
-                        <option key={f.id} value={f.id} className="bg-white text-[#0f172a]">
-                          📁 / {f.name} ({f.itemCount} items)
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="w-4 h-4 text-[#0284c7] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <span className="flex items-center gap-2 truncate">
+                        <Folder className="w-4 h-4 text-[#f39c12] shrink-0" />
+                        {selectedFolderToAssign
+                          ? unassignedFoldersForGroup.find((f) => f.id === selectedFolderToAssign)?.name
+                          : 'Select a folder...'}
+                      </span>
+                      <ChevronDown className={`w-4 h-4 text-[#64748b] shrink-0 transition-transform ${isAssignFolderDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {isAssignFolderDropdownOpen && (
+                      <div className="absolute left-0 right-0 mt-1.5 bg-[#ffffff] border border-[#cbd5e1] rounded-2xl shadow-xl z-50 overflow-hidden animate-in slide-in-from-top-2 duration-150 p-1.5 space-y-1">
+                        {unassignedFoldersForGroup.length === 0 ? (
+                          <p className="px-3 py-2 text-xs text-[#64748b]">No folders available</p>
+                        ) : (
+                          unassignedFoldersForGroup.map((f) => {
+                            const isSelected = selectedFolderToAssign === f.id;
+                            return (
+                              <button
+                                key={f.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedFolderToAssign(f.id);
+                                  setIsAssignFolderDropdownOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                                  isSelected ? 'bg-[#e0f2fe] text-[#0284c7]' : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                                }`}
+                              >
+                                <span className="flex items-center gap-2 truncate">
+                                  <Folder className="w-3.5 h-3.5 text-[#f39c12]" />
+                                  {f.name} ({f.itemCount || 0} items)
+                                </span>
+                                {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
