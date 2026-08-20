@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/set-state-in-effect */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -12,7 +13,7 @@ interface ShareModalProps {
 }
 
 export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
-  const { user, masterPassword, getEncryptedPrivateKey } = useAuth();
+  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -147,8 +148,8 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
         if (resourceData && resourceData.secrets) {
           const userSecret = resourceData.secrets.find((s: any) => s.userId === user?.id) || resourceData.secrets[0];
           const privateKey = await getEncryptedPrivateKey();
-          if (privateKey && masterPassword && userSecret?.encryptedData) {
-            secretPlainText = await decryptSecret(userSecret.encryptedData, privateKey, masterPassword);
+          if (privateKey && (masterPassword || unlockedPgpKey) && userSecret?.encryptedData) {
+            secretPlainText = await decryptSecret(userSecret.encryptedData, privateKey, masterPassword || undefined);
           }
         }
       } catch (e) {

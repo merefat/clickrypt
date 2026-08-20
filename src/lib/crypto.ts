@@ -108,6 +108,60 @@ export async function generateKeyPair(email: string, passphrase: string): Promis
 }
 
 /**
+ * Decrypt an OpenPGP armored private key with the master passphrase and re-armor it
+ * without a passphrase. Used to produce a wrapped PGP key that can be unlocked with a
+ * passkey-derived key.
+ */
+export async function unprotectPrivateKey(
+  privateKeyArmored: string,
+  passphrase: string
+): Promise<string> {
+  const privateKey = await openpgp.decryptKey({
+    privateKey: await openpgp.readPrivateKey({ armoredKey: privateKeyArmored }),
+    passphrase,
+  });
+  return privateKey.armor();
+}
+
+/**
+ * Decrypt an existing armored private key with an old passphrase and re-encrypt
+ * it under a new passphrase while keeping the same key material.
+ */
+export async function reencryptPrivateKey(
+  privateKeyArmored: string,
+  oldPassphrase: string,
+  newPassphrase: string
+): Promise<string> {
+  const decrypted = await openpgp.decryptKey({
+    privateKey: await openpgp.readPrivateKey({ armoredKey: privateKeyArmored }),
+    passphrase: oldPassphrase,
+  });
+  const encrypted = await openpgp.encryptKey({
+    privateKey: decrypted,
+    passphrase: newPassphrase,
+  });
+  return encrypted.armor();
+}
+
+/**
+ * Re-encrypt an already unprotected (decrypted) armored private key under a new
+ * passphrase.
+ */
+export async function protectPrivateKey(
+  unprotectedKeyArmored: string,
+  newPassphrase: string
+): Promise<string> {
+  const privateKey = await openpgp.readPrivateKey({
+    armoredKey: unprotectedKeyArmored,
+  });
+  const encrypted = await openpgp.encryptKey({
+    privateKey,
+    passphrase: newPassphrase,
+  });
+  return encrypted.armor();
+}
+
+/**
  * Encrypt a secret (e.g. password, note) using a target user's public key
  */
 export async function encryptSecret(secret: string, publicKeyArmored: string): Promise<string> {
@@ -136,7 +190,7 @@ export async function encryptSecret(secret: string, publicKeyArmored: string): P
 export async function decryptSecret(
   encryptedSecret: string,
   privateKeyArmored: string,
-  passphrase: string
+  passphrase?: string
 ): Promise<string> {
   if (!encryptedSecret) return '';
 
@@ -146,10 +200,13 @@ export async function decryptSecret(
   }
 
   try {
-    const privateKey = await openpgp.decryptKey({
-      privateKey: await openpgp.readPrivateKey({ armoredKey: privateKeyArmored }),
-      passphrase,
+    const rawPrivateKey = await openpgp.readPrivateKey({
+      armoredKey: privateKeyArmored,
     });
+
+    const privateKey = passphrase
+      ? await openpgp.decryptKey({ privateKey: rawPrivateKey, passphrase })
+      : rawPrivateKey;
 
     const message = await openpgp.readMessage({
       armoredMessage: encryptedSecret,

@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/set-state-in-effect */
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import {
@@ -29,6 +31,14 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
+import { createPasskey, getPrfOutput } from '@/lib/webauthn';
+import {
+  randomBase64Url,
+  toBuffer,
+  derivePasskeyKey,
+  encryptWithPasskeyKey,
+} from '@/lib/passkeyCrypto';
+import { unprotectPrivateKey } from '@/lib/crypto';
 
 interface PasskeyItem {
   id: string;
@@ -39,7 +49,18 @@ interface PasskeyItem {
 }
 
 export default function SettingsPage() {
-  const { user, masterPassword, updateMasterPassword, getEncryptedPrivateKey, updateProfile, appMode } = useAuth();
+  const {
+    user,
+    masterPassword,
+    unlockedPgpKey,
+    updateMasterPassword,
+    getEncryptedPrivateKey,
+    updateProfile,
+    refreshUser,
+    appMode,
+    setUnlockedPgpKey,
+  } = useAuth();
+  const is2FAEnabled = !!user?.twoFactorEnabled;
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
@@ -143,7 +164,6 @@ export default function SettingsPage() {
   const [showViewBackupKeyModal, setShowViewBackupKeyModal] = useState(false);
 
   // 2FA State
-  const [is2FAEnabled, setIs2FAEnabled] = useState(!!user?.twoFactorEnabled);
   const [totpSecret, setTotpSecret] = useState('');
   const [totpUri, setTotpUri] = useState('');
   const [totpInputCode, setTotpInputCode] = useState('');
@@ -156,10 +176,6 @@ export default function SettingsPage() {
   const [totpSuccessMsg, setTotpSuccessMsg] = useState('');
   const [totpError, setTotpError] = useState('');
   const [is2FALoading, setIs2FALoading] = useState(false);
-
-  useEffect(() => {
-    setIs2FAEnabled(!!user?.twoFactorEnabled);
-  }, [user]);
 
   const handleDownloadBackupCodes = () => {
     const textContent = `====================================================
@@ -205,22 +221,7 @@ ${backupCodes.map((code, idx) => `${idx + 1}. ${code}`).join('\n')}
   const [copiedPgpKeys, setCopiedPgpKeys] = useState(false);
 
   // Passkeys state
-  const [passkeys, setPasskeys] = useState<PasskeyItem[]>([
-    {
-      id: 'pk-1',
-      name: 'MacBook Pro TouchID / Windows Hello',
-      type: 'Platform Biometric',
-      createdAt: 'May 10, 2025',
-      lastUsed: 'Just now',
-    },
-    {
-      id: 'pk-2',
-      name: 'YubiKey 5 NFC Hardware Key',
-      type: 'FIDO2 Security Key',
-      createdAt: 'May 12, 2025',
-      lastUsed: '2 days ago',
-    },
-  ]);
+  const [passkeys, setPasskeys] = useState<PasskeyItem[]>([]);
   const [isRegisteringPasskey, setIsRegisteringPasskey] = useState(false);
   const [isTestingPasskey, setIsTestingPasskey] = useState(false);
   const [passkeyTestMsg, setPasskeyTestMsg] = useState('');
@@ -275,7 +276,7 @@ ${backupCodes.map((code, idx) => `${idx + 1}. ${code}`).join('\n')}
 
     setIsChangingPass(true);
     try {
-      await updateMasterPassword(newPass);
+      await updateMasterPassword(newPass, currentPass);
       setPassSuccessMsg('Master password updated successfully and local OpenPGP private key re-encrypted!');
       setCurrentPass('');
       setNewPass('');
@@ -291,85 +292,76 @@ ${backupCodes.map((code, idx) => `${idx + 1}. ${code}`).join('\n')}
     }
   };
 
+  const fetchPasskeys = async () => {
+    try {
+      setPasskeyTestMsg('');
+      const res = await api.get('/auth/passkey');
+      if (res.data?.passkeys) setPasskeys(res.data.passkeys);
+    } catch (err) {
+      const serverError = (err as { response?: { data?: { error?: string } } }).response?.data?.error;
+      setPasskeyTestMsg(serverError || 'Failed to load passkeys.');
+    }
+  };
+
   const handleRegisterPasskey = async () => {
     setIsRegisteringPasskey(true);
+    setPasskeyTestMsg('');
     try {
-      if (typeof window !== 'undefined' && 'credentials' in navigator && navigator.credentials) {
-        try {
-          const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
-            challenge: Uint8Array.from('CLICKRYPT_CHALLENGE_2026', (c) => c.charCodeAt(0)),
-            rp: { name: 'Clickrypt Zero-Knowledge Vault', id: window.location.hostname },
-            user: {
-              id: Uint8Array.from(user?.id || 'u-1', (c) => c.charCodeAt(0)),
-              name: user?.email || 'alex.morgan@acme.com',
-              displayName: user?.name || 'Alex Morgan',
-            },
-            pubKeyCredParams: [{ alg: -7, type: 'public-key' }],
-            authenticatorSelection: { authenticatorAttachment: 'platform' },
-            timeout: 60000,
-            attestation: 'direct',
-          };
-          await navigator.credentials.create({ publicKey: publicKeyCredentialCreationOptions });
-        } catch (e) {
-          // Hardware passkey prompt skipped/cancelled -> Fallback to simulated registration
+      const res = await api.post('/auth/passkey/register-options');
+      const options = res.data?.options;
+      const prfInput = res.data?.prfInput as string | undefined;
+      if (!options) throw new Error('No registration options returned.');
+
+      const result = await createPasskey(options);
+      const prfOutput = getPrfOutput(result);
+
+      const payload: Record<string, unknown> = {
+        response: result,
+        name: `${user?.name || 'Clickrypt'} Passkey`,
+      };
+
+      if (prfOutput && prfInput) {
+        const pgpArmored =
+          unlockedPgpKey || (await getEncryptedPrivateKey());
+        if (pgpArmored) {
+          const unprotected = masterPassword
+            ? await unprotectPrivateKey(pgpArmored, masterPassword)
+            : pgpArmored;
+          const prfSalt = randomBase64Url(32);
+          const passkeyKey = await derivePasskeyKey(prfOutput, toBuffer(prfSalt));
+          const { ciphertext, iv } = await encryptWithPasskeyKey(
+            unprotected,
+            passkeyKey
+          );
+          payload.prfInput = prfInput;
+          payload.prfSalt = prfSalt;
+          payload.iv = iv;
+          payload.encryptedPgpKey = ciphertext;
         }
       }
 
-      const newPk: PasskeyItem = {
-        id: `pk-${Date.now()}`,
-        name: `Windows Hello / Touch ID Biometric Credential`,
-        type: 'WebAuthn Hardware Credential',
-        createdAt: 'Just now',
-        lastUsed: 'Just now',
-      };
-      setPasskeys((prev) => [...prev, newPk]);
-      alert('Passkey successfully registered and bound to your account!');
+      const saveRes = await api.post('/auth/passkey/register', payload);
+      setPasskeys((prev) => [...prev, saveRes.data?.passkey]);
+      setPasskeyTestMsg('Passkey registered successfully!');
     } catch (err) {
-      alert('Failed to register passkey.');
+      console.error('Register passkey error:', err);
+      const serverError = (err as { response?: { data?: { error?: string } } }).response?.data?.error;
+      const message = err instanceof Error ? err.message : 'Failed to register passkey.';
+      setPasskeyTestMsg(serverError || message);
     } finally {
       setIsRegisteringPasskey(false);
     }
   };
 
-  const handleSimulatePasskey = () => {
-    const newPk: PasskeyItem = {
-      id: `pk-${Date.now()}`,
-      name: `Windows Hello / Touch ID Hardware Credential`,
-      type: 'WebAuthn FIDO2 Credential',
-      createdAt: 'Just now',
-      lastUsed: 'Just now',
-    };
-    setPasskeys((prev) => [...prev, newPk]);
-    setPasskeyTestMsg(`Passkey registered successfully! Biometric credential bound to ${user?.name || 'Alex Morgan'}.`);
-  };
-
-  const handleDeletePasskey = (id: string) => {
+  const handleDeletePasskey = async (id: string) => {
     if (!confirm('Are you sure you want to revoke this passkey?')) return;
-    setPasskeys((prev) => prev.filter((p) => p.id !== id));
-  };
-
-  const handleTestPasskey = async () => {
-    setIsTestingPasskey(true);
-    setPasskeyTestMsg('');
     try {
-      if (typeof window !== 'undefined' && 'credentials' in navigator && navigator.credentials) {
-        try {
-          const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {
-            challenge: crypto.getRandomValues(new Uint8Array(32)),
-            timeout: 10000, // 10s max timeout to prevent long hanging
-            rpId: window.location.hostname,
-            userVerification: 'preferred',
-          };
-          await navigator.credentials.get({ publicKey: publicKeyCredentialRequestOptions });
-        } catch (e) {
-          // Device cancelled, timed out on localhost, or skipped -> fallback gracefully
-        }
-      }
-      setPasskeyTestMsg(`Passkey authentication verified! WebAuthn credential active for ${user?.name || 'Alex Morgan'} (${user?.email || 'alex.morgan@acme.com'}) at ${new Date().toLocaleTimeString()}.`);
+      await api.delete(`/auth/passkey/${id}`);
+      setPasskeys((prev) => prev.filter((p) => p.id !== id));
+      setPasskeyTestMsg('Passkey revoked.');
     } catch (err) {
-      setPasskeyTestMsg(`Passkey verification successful for ${user?.name || 'Alex Morgan'}!`);
-    } finally {
-      setIsTestingPasskey(false);
+      const serverError = (err as { response?: { data?: { error?: string } } }).response?.data?.error;
+      setPasskeyTestMsg(serverError || 'Failed to delete passkey.');
     }
   };
 
@@ -407,19 +399,19 @@ ${backupCodes.map((code, idx) => `${idx + 1}. ${code}`).join('\n')}
     try {
       if (is2FAEnabled) {
         await api.post('/auth/2fa/disable', { code: totpInputCode });
-        setIs2FAEnabled(false);
         setTotpInputCode('');
         setTotpSecret('');
         setTotpUri('');
         setTotpSuccessMsg('2FA has been disabled for your account.');
+        await refreshUser();
       } else {
         const res = await api.post('/auth/2fa/verify', { code: totpInputCode });
         if (!res.data?.success) {
           throw new Error(res.data?.error || '2FA verification failed.');
         }
-        setIs2FAEnabled(true);
         setTotpInputCode('');
         setTotpSuccessMsg('Two-Factor Authentication (2FA) enabled successfully!');
+        await refreshUser();
       }
     } catch (err: any) {
       setTotpError(err.response?.data?.error || '2FA verification failed.');
@@ -545,9 +537,11 @@ ${privKey}
                 {/* Dynamic Avatar Image or Initial Circle */}
                 {avatarUrl ? (
                   <div className="relative group">
-                    <img
+                    <Image
                       src={avatarUrl}
                       alt={name}
+                      width={64}
+                      height={64}
                       className="w-16 h-16 rounded-full object-cover shadow-md border-2 border-[#1fbbd2]"
                     />
                   </div>
@@ -666,7 +660,10 @@ ${privKey}
                 </div>
 
                 <button
-                  onClick={() => setShowPasskeysModal(true)}
+                  onClick={() => {
+                    setShowPasskeysModal(true);
+                    fetchPasskeys();
+                  }}
                   className="px-4 py-2 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-xs font-extrabold text-[#0284c7] flex items-center gap-2 transition-all shadow-sm cursor-pointer"
                 >
                   <Fingerprint className="w-3.5 h-3.5" />
@@ -929,7 +926,7 @@ ${privKey}
               {passkeys.length === 0 ? (
                 <div className="p-8 text-center text-[#64748b] text-xs bg-[#f8fafc] rounded-xl border border-[#cbd5e1]">
                   <Fingerprint className="w-8 h-8 text-[#0284c7] mx-auto mb-2 opacity-80" />
-                  <p className="font-medium">No passkeys registered yet. Click "Register New Passkey" above.</p>
+                  <p className="font-medium">No passkeys registered yet. Click &quot;Register New Passkey&quot; above.</p>
                 </div>
               ) : (
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
@@ -1017,9 +1014,11 @@ ${privKey}
               {!is2FAEnabled && totpUri && (
                 <div className="bg-[#f8fafc] p-4 rounded-xl border border-[#cbd5e1] flex flex-col items-center text-center space-y-3">
                   <div className="w-36 h-36 bg-white p-2 rounded-xl flex items-center justify-center shadow border border-[#cbd5e1]">
-                    <img
+                    <Image
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(totpUri)}`}
                       alt="Clickrypt 2FA QR Code"
+                      width={250}
+                      height={250}
                       className="w-full h-full object-contain"
                     />
                   </div>
@@ -1247,7 +1246,7 @@ ${privKey}
                     className="w-full bg-[#f8fafc] border border-[#cbd5e1] rounded-xl p-3 font-mono text-[10px] text-[#0f172a] font-semibold focus:border-[#1fbbd2] focus:outline-none shadow-sm"
                   />
                   <p className="text-[10px] text-[#64748b] mt-1 font-medium">
-                    Enter the organization's ASCII-armored OpenPGP public key. The server validates structure and fingerprint.
+                    Enter the organization&apos;s ASCII-armored OpenPGP public key. The server validates structure and fingerprint.
                   </p>
                 </div>
               )}

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
 
 export const dynamic = 'force-dynamic';
@@ -22,12 +23,21 @@ export async function GET(request: Request) {
     const mode = searchParams.get('mode') || 'organization';
 
     const modeProfile = mode === 'personal' ? user.personalProfile : user.organizationProfile;
+    const organization = user.organizationId ? db.organizations.find((o) => o.id === user.organizationId) : null;
     const effectiveUser = {
       ...user,
       name: modeProfile?.name || user.name,
       email: modeProfile?.email || user.email,
       avatarUrl: modeProfile?.avatarUrl !== undefined ? modeProfile.avatarUrl : user.avatarUrl,
       accountMode: user.accountMode || 'personal',
+      organization: organization
+        ? {
+            id: organization.id,
+            domain: organization.domain,
+            verificationStatus: organization.verificationStatus,
+            openEnrollment: organization.openEnrollment,
+          }
+        : null,
     };
 
     return NextResponse.json({ user: effectiveUser }, { headers: NO_CACHE_HEADERS });

@@ -20,7 +20,7 @@ import { useAuth, useRequireAuth } from '@/context/AuthContext';
 export default function Sidebar() {
   useRequireAuth();
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, logout, appMode } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
@@ -37,15 +37,6 @@ export default function Sidebar() {
       return nextState;
     });
   };
-
-  const [appMode, setAppMode] = useState<'personal' | 'organization'>('personal');
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedMode = (localStorage.getItem('clickrypt_app_mode') as any) || 'personal';
-      setAppMode(storedMode);
-    }
-  }, []);
 
   const menuItems = [
     { name: 'Passwords', path: '/vault', icon: KeyRound },

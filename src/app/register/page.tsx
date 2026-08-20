@@ -24,7 +24,12 @@ import { evaluatePasswordStrength } from '@/lib/crypto';
 import { generatePassword } from '@/lib/generator';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
-import { ENABLE_PAY_BILL } from '@/lib/config';
+import {
+  ENABLE_PAY_BILL,
+  isAllowedOrgEmailDomain,
+  matchesOrganizationDomain,
+  normalizeOrganizationDomain,
+} from '@/lib/config';
 
 function RegisterForm() {
   const router = useRouter();
@@ -48,6 +53,7 @@ function RegisterForm() {
   const formId = 'reg-form';
   const [errorMsg, setErrorMsg] = useState('');
   const [isConflict, setIsConflict] = useState(false);
+  const [organizationDomain, setOrganizationDomain] = useState('');
 
   const [paymentDone, setPaymentDone] = useState(false);
 
@@ -82,13 +88,41 @@ function RegisterForm() {
       return;
     }
 
+    if (isOrgMode && !isInvited) {
+      const normalized = normalizeOrganizationDomain(organizationDomain);
+      if (!normalized) {
+        setErrorMsg('Organization domain is required.');
+        return;
+      }
+      if (!isAllowedOrgEmailDomain(email)) {
+        setErrorMsg('Consumer email providers cannot be used for organization accounts.');
+        return;
+      }
+      if (!matchesOrganizationDomain(email, normalized)) {
+        setErrorMsg('Your email domain must exactly match the organization domain.');
+        return;
+      }
+    }
+
     setErrorMsg('');
     setIsConflict(false);
     setLoading(true);
 
     try {
       const assignedRole = isExternalShare ? 'External' : (invitedRole as any) || 'User';
-      await register(fullName || 'Guest User', email, password, assignedRole);
+      const res = await register(
+        fullName || 'Guest User',
+        email,
+        password,
+        assignedRole,
+        isInvited ? undefined : organizationDomain
+      );
+
+      if (res.requiresVerification) {
+        router.push(`/verify-organization?email=${encodeURIComponent(res.email || email)}`);
+        return;
+      }
+
       if (externalShareId) {
         try {
           await api.post('/auth/claim-external-share', { email, externalShareId });
@@ -253,6 +287,31 @@ function RegisterForm() {
                   )}
                 </div>
               </div>
+
+              {isOrgMode && !isInvited && (
+                <div>
+                  <label className="block text-[11px] font-extrabold text-[#334155] uppercase tracking-wider mb-1">
+                    Organization Domain
+                  </label>
+                  <div className="relative">
+                    <Building2 className="w-4 h-4 text-[#64748b] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      name={`org-domain-${formId}`}
+                      placeholder="acme.com"
+                      value={organizationDomain}
+                      onChange={(e) => setOrganizationDomain(e.target.value)}
+                      autoComplete="off"
+                      data-lpignore="true"
+                      className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl pl-10 pr-4 py-2.5 text-xs text-[#0f172a] font-bold outline-none shadow-xs transition-all focus:border-[#1fbbd2]"
+                      required
+                    />
+                  </div>
+                  <p className="text-[10px] text-[#64748b] mt-1">
+                    Your email must exactly match this domain.
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-extrabold text-[#334155] uppercase tracking-wider">

@@ -38,7 +38,6 @@ export async function POST(request: Request) {
     }
 
     user.twoFactorEnabled = false;
-    user.twoFactorSecret = undefined;
     persistDb(db);
 
     return NextResponse.json({ success: true, message: 'Two-Factor Authentication disabled.' });

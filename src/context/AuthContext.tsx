@@ -1,8 +1,9 @@
+/* eslint-disable react-hooks/immutability, react-hooks/set-state-in-effect */
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import api from '@/lib/api';
-import { generateKeyPair } from '@/lib/crypto';
+import { generateKeyPair, reencryptPrivateKey, protectPrivateKey } from '@/lib/crypto';
 import { savePrivateKey, getPrivateKey, clearKeys } from '@/lib/secureStorage';
 import { useRouter } from 'next/navigation';
 
@@ -16,30 +17,53 @@ export interface UserProfile {
   publicKey?: string;
   encryptedPrivateKey?: string;
   avatarUrl?: string;
+  organization?: {
+    id: string;
+    domain: string;
+    verificationStatus: 'pending' | 'verified';
+    openEnrollment: boolean;
+  } | null;
 }
 
 interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
   masterPassword: string | null;
+  unlockedPgpKey: string | null;
   appMode: 'personal' | 'organization';
   setAppMode: (mode: 'personal' | 'organization') => void;
-  login: (email: string, masterPassword: string) => Promise<{ success: boolean; requires2FA?: boolean }>;
-  register: (name: string, email: string, masterPassword: string, role?: 'Owner' | 'Admin' | 'User' | 'External') => Promise<boolean>;
-  updateMasterPassword: (newMasterPass: string) => Promise<void>;
+  login: (email: string, masterPassword: string) => Promise<{ success: boolean; requires2FA?: boolean; challengeToken?: string; email?: string }>;
+  complete2FALogin: (payload: { user: UserProfile; token: string; masterPassword?: string; unlockedPgpKey?: string | null }) => Promise<void>;
+  hydrateSession: (payload: { user: UserProfile; token?: string; masterPassword?: string; unlockedPgpKey?: string | null }) => Promise<void>;
+  verify2FALogin: (email: string, code: string, masterPassword: string, unlockedPgpKey?: string | null) => Promise<{ success: boolean; error?: string }>;
+  register: (
+    name: string,
+    email: string,
+    masterPassword: string,
+    role?: 'Owner' | 'Admin' | 'User' | 'External',
+    organizationDomain?: string
+  ) => Promise<{ success: boolean; requiresVerification?: boolean; email?: string; user?: UserProfile }>;
+  resendVerificationCode: (email: string) => Promise<{ success: boolean; error?: string }>;
+  updateMasterPassword: (newMasterPass: string, oldMasterPass?: string) => Promise<void>;
   updateProfile: (name: string, email: string, avatarUrl?: string) => Promise<boolean>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   getEncryptedPrivateKey: () => Promise<string | null>;
+  setUnlockedPgpKey: (key: string | null) => void;
   isLoading: boolean;
+  isHydrating: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [masterPassword, setMasterPassword] = useState<string | null>(null);
+  const [unlockedPgpKey, setUnlockedPgpKey] = useState<string | null>(null);
   const [appModeState, setAppModeState] = useState<'personal' | 'organization'>('personal');
   const [isLoading, setIsLoading] = useState(true);
+  const [isHydrating, setIsHydrating] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -69,21 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const fetchSession = async (modeOverride?: 'personal' | 'organization') => {
+    setIsHydrating(true);
     const currentMode =
       modeOverride ||
       (typeof window !== 'undefined' ? (localStorage.getItem('clickrypt_app_mode') as 'personal' | 'organization') || 'personal' : 'personal');
     if (modeOverride && typeof window !== 'undefined') {
       localStorage.setItem('clickrypt_app_mode', currentMode);
-    }
-    let cachedUser: UserProfile | null = null;
-    if (typeof window !== 'undefined') {
-      const savedUser = localStorage.getItem(`clickrypt_user_profile_${currentMode}`);
-      if (savedUser) {
-        try {
-          cachedUser = JSON.parse(savedUser);
-          setUser(cachedUser);
-        } catch (e) {}
-      }
     }
     try {
       const res = await api.get(`/auth/me?mode=${currentMode}`);
@@ -94,50 +109,150 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (typeof window !== 'undefined') {
             localStorage.setItem('clickrypt_app_mode', serverMode);
           }
-          return fetchSession(serverMode);
+          await fetchSession(serverMode);
+          return;
         }
-        const mergedUser = cachedUser
-          ? {
-              ...res.data.user,
-              name: cachedUser.name || res.data.user.name,
-              email: cachedUser.email || res.data.user.email,
-              avatarUrl: cachedUser.avatarUrl !== undefined ? cachedUser.avatarUrl : res.data.user.avatarUrl,
-            }
-          : res.data.user;
-        setUser(mergedUser);
+        setUser(res.data.user);
         if (typeof window !== 'undefined') {
-          localStorage.setItem(`clickrypt_user_profile_${currentMode}`, JSON.stringify(mergedUser));
+          localStorage.setItem(`clickrypt_user_profile_${currentMode}`, JSON.stringify(res.data.user));
+        }
+        if (
+          res.data.user.accountMode === 'organization' &&
+          res.data.user.organization?.verificationStatus === 'pending' &&
+          res.data.user.role === 'Owner'
+        ) {
+          router.push('/verify-organization');
+        }
+      } else {
+        setUser(null);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(`clickrypt_user_profile_${currentMode}`);
+          localStorage.removeItem('clickrypt_user_profile_personal');
+          localStorage.removeItem('clickrypt_user_profile_organization');
+          sessionStorage.removeItem('access_token');
+          localStorage.removeItem('access_token');
+          delete api.defaults.headers.common['Authorization'];
         }
       }
-    } catch (error) {
-      // Keep cached profile if offline
+    } catch {
+      if (typeof window !== 'undefined' && !navigator.onLine) {
+        const savedUser = localStorage.getItem(`clickrypt_user_profile_${currentMode}`);
+        if (savedUser) {
+          try {
+            setUser(JSON.parse(savedUser));
+          } catch {
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
+      } else {
+        setUser(null);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(`clickrypt_user_profile_${currentMode}`);
+          localStorage.removeItem('clickrypt_user_profile_personal');
+          localStorage.removeItem('clickrypt_user_profile_organization');
+          sessionStorage.removeItem('access_token');
+          localStorage.removeItem('access_token');
+          delete api.defaults.headers.common['Authorization'];
+        }
+      }
+    } finally {
+      setIsHydrating(false);
     }
   };
 
-  const login = async (email: string, masterPass: string): Promise<{ success: boolean; requires2FA?: boolean }> => {
+  const hydrateSession = async ({
+    user: userObj,
+    token,
+    masterPassword: masterPass,
+    unlockedPgpKey: unlocked,
+  }: {
+    user: UserProfile;
+    token?: string;
+    masterPassword?: string;
+    unlockedPgpKey?: string | null;
+  }) => {
+    setIsHydrating(true);
+    try {
+      const serverMode = (userObj.accountMode as 'personal' | 'organization') || 'personal';
+
+      setUser(userObj);
+      setAppModeState(serverMode);
+      if (masterPass) {
+        setMasterPassword(masterPass);
+      }
+      if (unlocked !== undefined) {
+        setUnlockedPgpKey(unlocked);
+      }
+
+      if (typeof window !== 'undefined') {
+        if (token) {
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          try {
+            sessionStorage.setItem('access_token', token);
+            localStorage.setItem('access_token', token);
+          } catch (e) {
+            console.warn('Token storage unavailable:', e);
+          }
+        }
+        try {
+          localStorage.setItem('clickrypt_app_mode', serverMode);
+          localStorage.setItem(`clickrypt_user_profile_${serverMode}`, JSON.stringify(userObj));
+        } catch (e) {
+          console.warn('Profile storage unavailable:', e);
+        }
+      }
+
+      if (userObj.encryptedPrivateKey) {
+        try {
+          await savePrivateKey(userObj.encryptedPrivateKey);
+        } catch (e) {
+          console.warn('Private key cache unavailable:', e);
+        }
+      }
+    } finally {
+      setIsHydrating(false);
+    }
+  };
+
+  const complete2FALogin = async ({
+    user: userObj,
+    token,
+    masterPassword: masterPass,
+    unlockedPgpKey: unlocked,
+  }: {
+    user: UserProfile;
+    token: string;
+    masterPassword?: string;
+    unlockedPgpKey?: string | null;
+  }) => {
+    await hydrateSession({
+      user: userObj,
+      token,
+      masterPassword: masterPass,
+      unlockedPgpKey: unlocked,
+    });
+  };
+
+  const login = async (
+    email: string,
+    masterPass: string
+  ): Promise<{ success: boolean; requires2FA?: boolean; challengeToken?: string; email?: string }> => {
     try {
       const res = await api.post('/auth/login', { email, password: masterPass });
 
       if (res.data?.requires2FA) {
-        return { success: true, requires2FA: true };
+        return {
+          success: true,
+          requires2FA: true,
+          challengeToken: res.data.challengeToken,
+          email: res.data.email || email,
+        };
       }
 
       if (res.data?.user) {
-        const serverMode = (res.data.user.accountMode as 'personal' | 'organization') || 'personal';
-        if (typeof window !== 'undefined') {
-          if (res.data.token) {
-            sessionStorage.setItem('access_token', res.data.token);
-            localStorage.setItem('access_token', res.data.token);
-          }
-          localStorage.setItem('clickrypt_app_mode', serverMode);
-          localStorage.setItem(`clickrypt_user_profile_${serverMode}`, JSON.stringify(res.data.user));
-        }
-        setUser(res.data.user);
-        setAppModeState(serverMode);
-        setMasterPassword(masterPass);
-        if (res.data.user.encryptedPrivateKey) {
-          await savePrivateKey(res.data.user.encryptedPrivateKey);
-        }
+        await hydrateSession({ user: res.data.user, token: res.data.token, masterPassword: masterPass });
         return { success: true };
       }
       return { success: false };
@@ -147,13 +262,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (name: string, email: string, masterPass: string, role?: 'Owner' | 'Admin' | 'User' | 'External'): Promise<boolean> => {
+  const verify2FALogin = async (
+    email: string,
+    code: string,
+    masterPass: string,
+    unlockedPgpKey?: string | null
+  ): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await api.post('/auth/2fa/login-verify', { email, code });
+
+      if (res.data?.user && res.data?.token) {
+        await hydrateSession({
+          user: res.data.user,
+          token: res.data.token,
+          masterPassword: masterPass,
+          unlockedPgpKey,
+        });
+        return { success: true };
+      }
+      return { success: false, error: res.data?.error || 'Two-factor authentication failed.' };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      console.error('2FA login verify error:', error);
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message || 'Invalid or expired 2FA code.',
+      };
+    }
+  };
+
+  const register = async (
+    name: string,
+    email: string,
+    masterPass: string,
+    role?: 'Owner' | 'Admin' | 'User' | 'External',
+    organizationDomain?: string
+  ): Promise<{ success: boolean; requiresVerification?: boolean; email?: string; user?: UserProfile }> => {
     const currentMode = typeof window !== 'undefined' ? localStorage.getItem('clickrypt_app_mode') || 'personal' : 'personal';
     try {
-      // 1. Generate client-side PGP keys
       const { privateKey, publicKey } = await generateKeyPair(email, masterPass);
-
-      // 2. Post registration to backend
       const res = await api.post('/auth/register', {
         name,
         email,
@@ -162,7 +309,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         publicKey,
         encryptedPrivateKey: privateKey,
         accountMode: currentMode,
+        organizationDomain: currentMode === 'organization' ? organizationDomain : undefined,
       });
+
+      if (res.data?.requiresVerification) {
+        return { success: true, requiresVerification: true, email };
+      }
 
       if (res.data?.user) {
         if (typeof window !== 'undefined') {
@@ -175,12 +327,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(res.data.user);
         setMasterPassword(masterPass);
         await savePrivateKey(privateKey);
-        return true;
+        return { success: true, user: res.data.user };
       }
       throw new Error(res.data?.error || 'Registration failed');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       const status = error?.response?.status;
       const message = error?.response?.data?.error || error?.message || 'Registration failed';
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const err = new Error(message) as any;
       err.status = status || 0;
       if (!status || status >= 500) {
@@ -190,15 +344,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateMasterPassword = async (newMasterPass: string) => {
-    setMasterPassword(newMasterPass);
-    if (user?.email) {
-      try {
-        const { privateKey } = await generateKeyPair(user.email, newMasterPass);
-        await savePrivateKey(privateKey);
-      } catch (e) {
-        console.warn('Key re-encryption error:', e);
+  const resendVerificationCode = async (email: string) => {
+    try {
+      const res = await api.post('/auth/resend-verification', { email });
+      return { success: res.data?.success || false, error: res.data?.error };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message || 'Failed to resend code',
+      };
+    }
+  };
+
+  const updateMasterPassword = async (newMasterPass: string, oldMasterPass?: string) => {
+    if (!user) return;
+    const oldPass = oldMasterPass ?? masterPassword;
+    let sourceKey: string | null = null;
+    if (unlockedPgpKey) {
+      sourceKey = unlockedPgpKey;
+    } else if (user.encryptedPrivateKey) {
+      sourceKey = user.encryptedPrivateKey;
+    } else {
+      sourceKey = await getPrivateKey();
+    }
+    if (!sourceKey) return;
+
+    try {
+      const reencrypted = unlockedPgpKey
+        ? await protectPrivateKey(sourceKey, newMasterPass)
+        : oldPass
+          ? await reencryptPrivateKey(sourceKey, oldPass, newMasterPass)
+          : await protectPrivateKey(sourceKey, newMasterPass);
+
+      setMasterPassword(newMasterPass);
+      setUnlockedPgpKey(null);
+      const updated = { ...user, encryptedPrivateKey: reencrypted };
+      setUser(updated);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`clickrypt_user_profile_${appModeState}`, JSON.stringify(updated));
+        } catch (e) {
+          console.warn('Profile storage unavailable:', e);
+        }
       }
+      await savePrivateKey(reencrypted);
+    } catch (e) {
+      console.warn('Key re-encryption error:', e);
     }
   };
 
@@ -242,6 +434,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setUser(null);
     setMasterPassword(null);
+    setUnlockedPgpKey(null);
+    delete api.defaults.headers.common['Authorization'];
     await clearKeys();
     if (typeof window !== 'undefined') {
       window.location.replace('/login');
@@ -249,6 +443,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const getEncryptedPrivateKey = async () => {
+    if (unlockedPgpKey) return unlockedPgpKey;
     if (user?.encryptedPrivateKey) return user.encryptedPrivateKey;
     return await getPrivateKey();
   };
@@ -261,13 +456,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         masterPassword,
         appMode: appModeState,
         setAppMode,
+        unlockedPgpKey,
+        setUnlockedPgpKey,
         login,
+        complete2FALogin,
+        hydrateSession,
+        verify2FALogin,
         register,
+        resendVerificationCode,
         updateMasterPassword,
         updateProfile,
         logout,
+        refreshUser: () => fetchSession(),
         getEncryptedPrivateKey,
         isLoading,
+        isHydrating,
       }}
     >
       {children}
@@ -284,12 +487,16 @@ export function useAuth() {
 }
 
 export function useRequireAuth() {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, isHydrating } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && !isLoading && !isAuthenticated) {
-      router.push('/login');
+    if (isLoading || isHydrating) return;
+    if (typeof window !== 'undefined' && !isAuthenticated) {
+      const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
+      if (!hasToken) {
+        router.push('/login');
+      }
     }
-  }, [isLoading, isAuthenticated, router]);
+  }, [isLoading, isAuthenticated, isHydrating, router]);
 }

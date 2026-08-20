@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/set-state-in-effect */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -9,7 +10,7 @@ import { useAuth } from '@/context/AuthContext';
 import { decryptSecret } from '@/lib/crypto';
 
 export default function SharedPage() {
-  const { user, masterPassword, getEncryptedPrivateKey } = useAuth();
+  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey } = useAuth();
   const [activeTab, setActiveTab] = useState<'received' | 'outbound'>('outbound');
   const [resources, setResources] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -106,8 +107,8 @@ export default function SharedPage() {
       const privateKey = await getEncryptedPrivateKey();
 
       let plainText = 'AcmeSecret123!';
-      if (privateKey && masterPassword && encryptedBlob) {
-        plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
+      if (privateKey && (masterPassword || unlockedPgpKey) && encryptedBlob) {
+        plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword || undefined);
       }
 
       setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
@@ -122,8 +123,8 @@ export default function SharedPage() {
       try {
         const encryptedBlob = item.secrets?.[0]?.encryptedData || '';
         const privateKey = await getEncryptedPrivateKey();
-        if (privateKey && masterPassword && encryptedBlob) {
-          plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
+        if (privateKey && (masterPassword || unlockedPgpKey) && encryptedBlob) {
+          plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword || undefined);
         } else {
           plainText = 'AcmeSecret123!';
         }

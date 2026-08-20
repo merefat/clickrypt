@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { loadDbSync, schedulePersist, persistDb } from './dbPersistence';
 
 export interface DbSubscription {
@@ -28,8 +28,10 @@ export interface DbUser {
   personalProfile?: ModeProfile;
   organizationProfile?: ModeProfile;
   accountMode?: 'personal' | 'organization';
+  passkeys?: DbPasskey[];
   twoFactorEnabled?: boolean;
   twoFactorSecret?: string;
+  organizationId?: string;
 }
 
 export interface DbResourceSecret {
@@ -101,6 +103,47 @@ export interface DbInvitation {
   status: 'Pending' | 'Accepted';
 }
 
+export interface DbOrganization {
+  id: string;
+  domain: string;
+  ownerId: string;
+  createdAt: string;
+  verificationStatus: 'pending' | 'verified';
+  verificationCode?: string | null;
+  verificationCodeExpiresAt?: string | null;
+  verifiedAt?: string | null;
+  openEnrollment: boolean;
+  transferCode?: string | null;
+  transferCodeExpiresAt?: string | null;
+  transferTargetId?: string | null;
+}
+
+export interface DbPasskey {
+  id: string;
+  credentialId: string;
+  publicKey: string;
+  counter: number;
+  name: string;
+  mode: 'personal' | 'organization';
+  transports?: string[];
+  createdAt: string;
+  lastUsed: string;
+  // vault-unlock material (prf / hmac-secret based)
+  prfInput?: string;
+  prfSalt?: string;
+  iv?: string;
+  encryptedPgpKey?: string;
+}
+
+export interface DbPasskeyChallenge {
+  id: string;
+  userId: string;
+  purpose: 'registration' | 'authentication';
+  mode: 'personal' | 'organization';
+  challenge: string;
+  expiresAt: string;
+}
+
 const globalForDbData = globalThis as unknown as {
   dbUsersStore?: DbUser[];
   dbFoldersStore?: DbFolder[];
@@ -110,6 +153,8 @@ const globalForDbData = globalThis as unknown as {
   dbOrganizationAuditLogsStore?: DbAuditLog[];
   dbGroupsStore?: DbGroup[];
   dbAuditLogsStore?: DbAuditLog[];
+  dbPasskeyChallengesStore?: DbPasskeyChallenge[];
+  dbOrganizationsStore?: DbOrganization[];
 };
 
 if (!globalForDbData.dbUsersStore) {
@@ -153,6 +198,8 @@ if (!globalForDbData.dbOrganizationFoldersStore) globalForDbData.dbOrganizationF
 if (!globalForDbData.dbOrganizationAuditLogsStore) globalForDbData.dbOrganizationAuditLogsStore = [];
 if (!globalForDbData.dbGroupsStore) globalForDbData.dbGroupsStore = [];
 if (!globalForDbData.dbAuditLogsStore) globalForDbData.dbAuditLogsStore = [];
+if (!globalForDbData.dbPasskeyChallengesStore) globalForDbData.dbPasskeyChallengesStore = [];
+if (!globalForDbData.dbOrganizationsStore) globalForDbData.dbOrganizationsStore = [];
 
 class BackendDatabase {
   public isSupabaseConnected = true;
@@ -164,6 +211,8 @@ class BackendDatabase {
     renewalDate: 'May 18, 2026',
     daysRemaining: 365,
   };
+
+  public organizations: DbOrganization[] = [];
 
   public invitations: DbInvitation[] = [];
 
@@ -257,6 +306,13 @@ class BackendDatabase {
   public ssoStates: DbSsoState[] = [];
   public ssoTokens: DbSsoToken[] = [];
   public authChallenges: DbAuthChallenge[] = [];
+
+  get passkeyChallenges(): DbPasskeyChallenge[] {
+    return globalForDbData.dbPasskeyChallengesStore!;
+  }
+  set passkeyChallenges(val: DbPasskeyChallenge[]) {
+    globalForDbData.dbPasskeyChallengesStore = val;
+  }
 }
 
 export interface DbAuthChallenge {
@@ -422,6 +478,7 @@ const persistableKeys = [
   'groups',
   'auditLogs',
   'invitations',
+  'organizations',
   'ssoSettings',
   'ssoKeys',
   'ssoStates',

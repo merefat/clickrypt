@@ -39,13 +39,12 @@ interface VaultNotification {
 }
 
 export default function Header({ searchTerm = '', onSearchChange }: HeaderProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, appMode } = useAuth();
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const [subscription, setSubscription] = useState<any | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [appMode, setAppMode] = useState<'personal' | 'organization'>('personal');
 
   // Notifications state strictly constrained to the 3 user-requested categories:
   // 1. Leaked / Compromised Passwords
@@ -54,11 +53,6 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
   const [notifications, setNotifications] = useState<VaultNotification[]>([]);
 
   const unreadCount = notifications.filter((n) => n.unread).length;
-
-  useEffect(() => {
-    const stored = (typeof window !== 'undefined' && localStorage.getItem('clickrypt_app_mode')) || 'personal';
-    setAppMode(stored as 'personal' | 'organization');
-  }, []);
 
   useEffect(() => {
     fetchSubscription();

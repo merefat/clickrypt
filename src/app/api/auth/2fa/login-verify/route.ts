@@ -8,7 +8,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'SuperSecretClickryptJwtKey_2026!';
 
 export async function POST(request: Request) {
   try {
-    const { email, code } = await request.json();
+    const { email, challengeToken, code } = await request.json();
     if (!email || !code) {
       return NextResponse.json({ error: 'Email and 2FA code are required.' }, { status: 400 });
     }
@@ -22,6 +22,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '2FA is not enabled for this account.' }, { status: 400 });
     }
 
+    // Validate challengeToken if passed
+    if (challengeToken) {
+      try {
+        const decoded = jwt.verify(challengeToken, JWT_SECRET) as {
+          is2FAChallenge?: boolean;
+          userId?: string;
+          passkeyCredentialId?: string;
+        };
+        if (!decoded || !decoded.is2FAChallenge || decoded.userId !== user.id) {
+          return NextResponse.json({ error: 'Invalid or expired 2FA session. Please try logging in again.' }, { status: 401 });
+        }
+      } catch {
+        return NextResponse.json({ error: '2FA challenge token expired. Please try logging in again.' }, { status: 401 });
+      }
+    }
+
     const totp = new TOTP({
       secret: Secret.fromBase32(user.twoFactorSecret),
       algorithm: 'SHA1',
@@ -31,11 +47,27 @@ export async function POST(request: Request) {
 
     const delta = totp.validate({ token: code, window: 1 });
     if (delta === null) {
-      return NextResponse.json({ error: 'Invalid or expired 2FA code.' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid 2FA code. Try again.' }, { status: 401 });
     }
 
     user.lastActive = 'Just now';
     persistDb(db);
+
+    let passkeyCredentialId: string | undefined;
+    if (challengeToken) {
+      try {
+        const decoded = jwt.verify(challengeToken, JWT_SECRET) as {
+          passkeyCredentialId?: string;
+        };
+        passkeyCredentialId = decoded.passkeyCredentialId;
+      } catch {
+        // passkey credential id is optional
+      }
+    }
+
+    const passkey = passkeyCredentialId
+      ? user.passkeys?.find((p) => p.credentialId === passkeyCredentialId)
+      : undefined;
 
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
@@ -63,6 +95,14 @@ export async function POST(request: Request) {
         publicKey: user.publicKey,
         encryptedPrivateKey: user.encryptedPrivateKey,
       },
+      passkeyVaultKey: passkey?.encryptedPgpKey
+        ? {
+            prfInput: passkey.prfInput,
+            prfSalt: passkey.prfSalt,
+            iv: passkey.iv,
+            encryptedPgpKey: passkey.encryptedPgpKey,
+          }
+        : null,
     });
 
     response.cookies.set('access_token', token, {

@@ -16,13 +16,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    const issuer = 'Clickrypt';
+    const label = user.email || 'Clickrypt User';
+
+    if (user.twoFactorSecret) {
+      // Re-use the existing secret/QR so re-enabling does not require a fresh setup
+      const uri = new TOTP({
+        secret: Secret.fromBase32(user.twoFactorSecret),
+        label,
+        issuer,
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+      }).toString();
+
+      return NextResponse.json({
+        success: true,
+        secret: user.twoFactorSecret,
+        uri,
+      });
+    }
+
     const secret = new Secret({ size: 20 });
     user.twoFactorSecret = secret.base32;
     user.twoFactorEnabled = false;
     persistDb(db);
 
-    const issuer = 'Clickrypt';
-    const label = user.email || 'Clickrypt User';
     const uri = new TOTP({
       secret,
       label,

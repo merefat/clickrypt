@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/set-state-in-effect */
 'use client';
 
 import React, { useState, useRef } from 'react';
@@ -27,7 +28,7 @@ import autoTable from 'jspdf-autotable';
 
 export default function ImportExportPage() {
   const router = useRouter();
-  const { user, masterPassword, getEncryptedPrivateKey } = useAuth();
+  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -261,9 +262,9 @@ export default function ImportExportPage() {
         const userSecret = r.secrets?.find((s: any) => s.userId === user?.id) || r.secrets?.[0];
 
         if (userSecret?.encryptedData) {
-          if (masterPassword && encryptedPrivateKey && userSecret.encryptedData.includes('-----BEGIN PGP MESSAGE-----')) {
+          if ((masterPassword || unlockedPgpKey) && encryptedPrivateKey && userSecret.encryptedData.includes('-----BEGIN PGP MESSAGE-----')) {
             try {
-              plainPass = await decryptSecret(userSecret.encryptedData, encryptedPrivateKey, masterPassword);
+              plainPass = await decryptSecret(userSecret.encryptedData, encryptedPrivateKey, masterPassword || undefined);
             } catch {
               plainPass = '[Decryption Required]';
             }

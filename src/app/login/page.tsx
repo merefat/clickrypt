@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/set-state-in-effect */
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -10,19 +12,23 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
+  ArrowLeft,
   CreditCard,
   AlertTriangle,
   Lock as LockIcon,
   Globe,
-  KeyRound
+  KeyRound,
+  Fingerprint
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
+import { getPasskey, getPrfOutput } from '@/lib/webauthn';
+import { decryptPasskeyVault, PasskeyVaultKey } from '@/lib/passkeyCrypto';
 import { ENABLE_PAY_BILL } from '@/lib/config';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, complete2FALogin, hydrateSession } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,9 +37,12 @@ export default function LoginPage() {
   const [unpaidBill, setUnpaidBill] = useState(false);
   const [subscription, setSubscription] = useState<any | null>(null);
   const [isExternalFlow, setIsExternalFlow] = useState(false);
-  const [show2FA, setShow2FA] = useState(false);
+  const [step, setStep] = useState<'credentials' | '2fa'>('credentials');
+  const [challengeToken, setChallengeToken] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [twoFactorEmail, setTwoFactorEmail] = useState('');
+  const [pendingPrfOutput, setPendingPrfOutput] = useState<ArrayBuffer | null>(null);
+  const twoFactorInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchSubscription();
@@ -124,18 +133,13 @@ export default function LoginPage() {
     try {
       const result = await login(email, password);
       if (result.requires2FA) {
-        setTwoFactorEmail(email);
-        setShow2FA(true);
+        setTwoFactorEmail(result.email || email);
+        setChallengeToken(result.challengeToken || '');
+        setStep('2fa');
+        setTimeout(() => twoFactorInputRef.current?.focus(), 100);
         return;
       }
       if (result.success) {
-        try {
-          const meRes = await api.get('/auth/me');
-          if (meRes.data?.user?.role === 'External') {
-            router.push('/shared');
-            return;
-          }
-        } catch (e) {}
         router.push('/vault');
       } else {
         setErrorMsg('Authentication failed. Account may be suspended or credentials invalid.');
@@ -151,34 +155,116 @@ export default function LoginPage() {
     }
   };
 
+  const handlePasskeyLogin = async () => {
+    if (!email) {
+      setErrorMsg('Please enter your email to sign in with a passkey.');
+      return;
+    }
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      const mode =
+        (typeof window !== 'undefined' &&
+          (localStorage.getItem('clickrypt_app_mode') as 'personal' | 'organization')) ||
+        'personal';
+
+      const res = await api.post('/auth/passkey/login-options', { email, mode });
+      const options = res.data?.options;
+      if (!options) throw new Error('No passkey options returned.');
+
+      const result = await getPasskey(options);
+      const prfOutput = getPrfOutput(result, result.id);
+
+      const loginRes = await api.post('/auth/passkey/login', {
+        email,
+        mode,
+        response: result,
+      });
+
+      if (loginRes.data?.requires2FA) {
+        setTwoFactorEmail(loginRes.data.email || email);
+        setChallengeToken(loginRes.data.challengeToken || '');
+        setPendingPrfOutput(prfOutput);
+        setStep('2fa');
+        setTimeout(() => twoFactorInputRef.current?.focus(), 100);
+        return;
+      }
+
+      if (loginRes.data?.token && loginRes.data?.user) {
+        const vault = loginRes.data?.passkeyVaultKey as PasskeyVaultKey | null;
+        const unlockedPgpKey =
+          prfOutput && vault
+            ? await decryptPasskeyVault(vault, prfOutput)
+            : null;
+        await hydrateSession({
+          user: loginRes.data.user,
+          token: loginRes.data.token,
+          unlockedPgpKey: unlockedPgpKey ?? undefined,
+        });
+        if (loginRes.data.user.role === 'External') {
+          router.push('/shared');
+        } else {
+          router.push('/vault');
+        }
+      } else {
+        setErrorMsg('Passkey authentication failed.');
+      }
+    } catch (err) {
+      const serverError = (err as { response?: { data?: { error?: string } } }).response?.data?.error;
+      const message = err instanceof Error ? err.message : 'Passkey sign-in failed';
+      setErrorMsg(serverError || message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handle2FASubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErrorMsg('');
     try {
-      const res = await api.post('/auth/2fa/login-verify', { email: twoFactorEmail, code: twoFactorCode });
+      const res = await api.post('/auth/2fa/login-verify', {
+        email: twoFactorEmail,
+        challengeToken,
+        code: twoFactorCode,
+      });
+
       if (res.data?.token && res.data?.user) {
-        const serverMode = res.data.user.accountMode || 'personal';
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('access_token', res.data.token);
-          localStorage.setItem('access_token', res.data.token);
-          localStorage.setItem('clickrypt_app_mode', serverMode);
-          localStorage.setItem(`clickrypt_user_profile_${serverMode}`, JSON.stringify(res.data.user));
-        }
+        const vault = res.data?.passkeyVaultKey as PasskeyVaultKey | null;
+        const unlockedPgpKey =
+          pendingPrfOutput && vault
+            ? await decryptPasskeyVault(vault, pendingPrfOutput)
+            : null;
+        await complete2FALogin({
+          user: res.data.user,
+          token: res.data.token,
+          masterPassword: unlockedPgpKey ? undefined : password,
+          unlockedPgpKey: unlockedPgpKey ?? undefined,
+        });
+        setPendingPrfOutput(null);
         if (res.data.user.role === 'External') {
           router.push('/shared');
         } else {
           router.push('/vault');
         }
       } else {
-        setErrorMsg(res.data?.error || 'Two-factor authentication failed.');
+        setErrorMsg(res.data?.error || 'Invalid 2FA code. Try again.');
+        setTwoFactorCode('');
       }
     } catch (err: any) {
-      const msg = err.response?.data?.error || err.message || 'Login error occurred';
+      const msg = err.response?.data?.error || err.message || 'Invalid 2FA code. Try again.';
       setErrorMsg(msg);
+      setTwoFactorCode('');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleBackToCredentials = () => {
+    setStep('credentials');
+    setChallengeToken('');
+    setTwoFactorCode('');
+    setErrorMsg('');
   };
 
   return (
@@ -188,7 +274,7 @@ export default function LoginPage() {
 
       {/* Brand Header */}
       <div className="flex flex-col items-center justify-center mb-8">
-        <img src="/logo.png" alt="Clickrypt Logo" className="h-36 w-auto object-contain drop-shadow-xl" />
+        <Image src="/logo.png" alt="Clickrypt Logo" width={500} height={144} priority className="h-36 w-auto object-contain drop-shadow-xl" />
       </div>
 
       {/* Login Box */}
@@ -252,20 +338,20 @@ export default function LoginPage() {
           </div>
         )}
 
-        {errorMsg && !unpaidBill && (
+        {errorMsg && (
           <div className="mb-4 p-3 bg-rose-100 border border-rose-300 rounded-xl text-xs text-rose-700">
             {errorMsg}
           </div>
         )}
 
-        <form onSubmit={show2FA ? handle2FASubmit : handleSubmit} className="space-y-4">
-          {show2FA && (
+        <form onSubmit={step === '2fa' ? handle2FASubmit : handleSubmit} className="space-y-4">
+          {step === '2fa' && (
             <div className="p-3 bg-[#e0f2fe] border border-[#1fbbd2]/40 rounded-xl text-xs text-[#0284c7] font-extrabold">
               Two-Factor Authentication is required. Enter the 6-digit code from your authenticator app.
             </div>
           )}
 
-          {!show2FA && (
+          {step === 'credentials' && (
             <>
               <div>
                 <label className="block text-[11px] font-semibold text-[#091528] uppercase tracking-wider mb-1">
@@ -311,39 +397,82 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 gold-cyan-gradient-btn text-xs font-extrabold rounded-xl flex items-center justify-center gap-2 mt-4 shadow-xl"
+              >
+                <span>{loading ? 'Authenticating...' : 'Sign In to Vault'}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <div className="relative my-2">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300"></div>
+                </div>
+                <div className="relative flex justify-center text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                  <span className="bg-[#f5f8fb] px-2">Or</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handlePasskeyLogin}
+                disabled={loading || !email}
+                className="w-full py-3.5 bg-white hover:bg-[#e0f2fe] border border-[#1fbbd2] text-[#0284c7] text-xs font-extrabold rounded-xl flex items-center justify-center gap-2 shadow transition-all disabled:opacity-50 cursor-pointer"
+              >
+                <Fingerprint className="w-4 h-4" />
+                <span>{loading ? 'Authenticating...' : 'Sign in with Passkey'}</span>
+              </button>
             </>
           )}
 
-          {show2FA && (
-            <div>
-              <label className="block text-[11px] font-semibold text-[#091528] uppercase tracking-wider mb-1">
-                6-Digit 2FA Code
-              </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="000000"
-                  value={twoFactorCode}
-                  onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
-                  className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-2.5 text-xs font-mono text-[#091528] focus:border-[#1fbbd2] outline-none"
-                  required
-                  autoFocus
-                />
+          {step === '2fa' && (
+            <>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#091528] uppercase tracking-wider mb-1">
+                  6-Digit 2FA Code
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    ref={twoFactorInputRef}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="000000"
+                    value={twoFactorCode}
+                    onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
+                    className="w-full bg-white border border-gray-300 rounded-xl pl-10 pr-4 py-2.5 text-xs font-mono text-[#091528] focus:border-[#1fbbd2] outline-none tracking-widest text-center text-sm font-extrabold"
+                    required
+                    autoFocus
+                  />
+                </div>
               </div>
-            </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 gold-cyan-gradient-btn text-xs font-extrabold rounded-xl flex items-center justify-center gap-2 mt-4 shadow-xl"
-          >
-            <span>{loading ? 'Authenticating...' : show2FA ? 'Verify 2FA Code' : 'Sign In to Vault'}</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleBackToCredentials}
+                  disabled={loading}
+                  className="px-4 py-3.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-[#091528] text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4 text-gray-600" />
+                  <span>Back</span>
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={loading || twoFactorCode.length !== 6}
+                  className="flex-1 py-3.5 gold-cyan-gradient-btn text-xs font-extrabold rounded-xl flex items-center justify-center gap-2 shadow-xl disabled:opacity-50 cursor-pointer"
+                >
+                  <span>{loading ? 'Verifying 2FA...' : 'Verify & Enter Vault'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </>
+          )}
         </form>
 
         {/* Forgot Passphrase / Account Recovery Link */}

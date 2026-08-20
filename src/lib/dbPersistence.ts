@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { supabase } from './supabase';
 
 const DB_FILE = path.join(process.cwd(), 'data', 'db.json');
@@ -23,6 +24,8 @@ function getStorageShape(db: any) {
     ssoStates: db.ssoStates || [],
     ssoTokens: db.ssoTokens || [],
     authChallenges: db.authChallenges || [],
+    passkeyChallenges: db.passkeyChallenges || [],
+    organizations: db.organizations || [],
     accountRecoveryPolicies: db.accountRecoveryPolicies || [],
     accountRecoveryOrgPublicKeys: db.accountRecoveryOrgPublicKeys || [],
     accountRecoveryUserSettings: db.accountRecoveryUserSettings || [],
@@ -105,6 +108,26 @@ export function loadDbSync(db: any) {
   for (const user of db.users) {
     if (!user.accountMode) {
       user.accountMode = 'organization';
+    }
+  }
+
+  // 1d. Backfill existing users into default verified organizations
+  for (const user of db.users) {
+    if (!user.organizationId) {
+      const domain = user.email.split('@')[1]?.toLowerCase() || 'default';
+      let org = db.organizations.find((o: any) => o.domain === domain);
+      if (!org) {
+        org = {
+          id: `org-${crypto.randomUUID()}`,
+          domain,
+          ownerId: user.id,
+          createdAt: new Date().toISOString(),
+          verificationStatus: 'verified',
+          openEnrollment: false,
+        };
+        db.organizations.push(org);
+      }
+      user.organizationId = org.id;
     }
   }
 

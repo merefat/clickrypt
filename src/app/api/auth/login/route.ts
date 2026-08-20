@@ -55,11 +55,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2FA Challenge: if 2FA is enabled, do not issue token yet
+    // 2FA Challenge: if 2FA is enabled, do not issue session token yet. Return short-lived challengeToken
     if (user.twoFactorEnabled && user.twoFactorSecret) {
+      const challengeToken = jwt.sign(
+        { userId: user.id, email: user.email, is2FAChallenge: true },
+        JWT_SECRET,
+        { expiresIn: '5m' }
+      );
       return NextResponse.json({
         success: true,
         requires2FA: true,
+        challengeToken,
+        email: user.email,
       });
     }
 

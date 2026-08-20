@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability */
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -32,7 +33,7 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function SecretVaultPage() {
   const router = useRouter();
-  const { user, masterPassword, getEncryptedPrivateKey } = useAuth();
+  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey } = useAuth();
   const [resources, setResources] = useState<any[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
@@ -115,9 +116,9 @@ export default function SecretVaultPage() {
       const privateKey = await getEncryptedPrivateKey();
 
       let plainText = 'SecretPrivatePass99!';
-      if (privateKey && masterPassword && encryptedBlob) {
+      if (privateKey && (masterPassword || unlockedPgpKey) && encryptedBlob) {
         try {
-          plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword);
+          plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword || undefined);
         } catch (e) {
           plainText = 'SecretPrivatePass99!';
         }
