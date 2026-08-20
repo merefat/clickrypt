@@ -37,7 +37,7 @@ export default function ImportExportPage() {
     }
   }, [user, router]);
 
-  const [selectedFormat, setSelectedFormat] = useState<'csv' | 'json' | '1password' | 'lastpass' | 'bitwarden'>('csv');
+  const [selectedFormat, setSelectedFormat] = useState<'csv' | 'json' | '1password' | 'lastpass' | 'bitwarden' | 'kdbx'>('csv');
   const [exportOption, setExportOption] = useState<'all' | 'group' | 'selected'>('all');
   const [exportType, setExportType] = useState<'csv' | 'json' | 'pdf'>('csv');
   const [groups, setGroups] = useState<any[]>([]);
@@ -90,6 +90,7 @@ export default function ImportExportPage() {
   const [importedCount, setImportedCount] = useState<number | null>(null);
   const [exportSuccessMessage, setExportSuccessMessage] = useState<string | null>(null);
   const [importedFileName, setImportedFileName] = useState<string | null>(null);
+  const [kdbxPassword, setKdbxPassword] = useState('');
 
   const handleOpenFileDialog = () => {
     fileInputRef.current?.click();
@@ -155,6 +156,40 @@ export default function ImportExportPage() {
     return [parsed];
   };
 
+  const parseKdbx = async (file: File, password: string) => {
+    const kdbxweb = await import('kdbxweb');
+    const arrayBuffer = await file.arrayBuffer();
+    const credentials = new kdbxweb.Credentials(kdbxweb.ProtectedValue.fromString(password));
+    const db = await kdbxweb.Kdbx.load(arrayBuffer, credentials);
+
+    const getField = (entry: any, field: string): string => {
+      const value = entry.fields.get(field);
+      if (!value) return '';
+      if (typeof value === 'string') return value;
+      if (typeof value?.getText === 'function') return value.getText();
+      return String(value);
+    };
+
+    const items: any[] = [];
+    const collect = (group: any) => {
+      for (const entry of group.entries || []) {
+        items.push({
+          name: getField(entry, 'Title') || 'Imported Item',
+          username: getField(entry, 'UserName') || '',
+          password: getField(entry, 'Password') || '',
+          url: getField(entry, 'URL') || 'example.com',
+          category: group.name || 'Imported',
+        });
+      }
+      for (const sub of group.groups || []) {
+        collect(sub);
+      }
+    };
+
+    collect(db.getDefaultGroup());
+    return items;
+  };
+
   const processFile = async (file: File) => {
     if (user?.role !== 'Owner' && user?.role !== 'Admin' && localStorage.getItem('clickrypt_app_mode') !== 'personal') {
       alert('🔒 Import Restricted: Import is available for Organization Owners/Admins or in Personal mode.');
@@ -165,19 +200,29 @@ export default function ImportExportPage() {
     setImportedFileName(file.name);
 
     try {
-      const text = await file.text();
       let parsedItems: any[] = [];
 
-      if (file.name.endsWith('.csv') || selectedFormat === 'csv' || selectedFormat === 'lastpass') {
-        parsedItems = parseCSV(text);
-      } else if (file.name.endsWith('.json') || file.name.endsWith('.1pux') || selectedFormat === 'json' || selectedFormat === 'bitwarden' || selectedFormat === '1password') {
-        try {
-          parsedItems = parseJSON(text);
-        } catch {
+      if (file.name.endsWith('.kdbx') || selectedFormat === 'kdbx') {
+        if (!kdbxPassword) {
+          alert('Please enter the KeePass master password to decrypt this .kdbx file.');
+          setLoadingImport(false);
+          return;
+        }
+        parsedItems = await parseKdbx(file, kdbxPassword);
+      } else {
+        const text = await file.text();
+
+        if (file.name.endsWith('.csv') || selectedFormat === 'csv' || selectedFormat === 'lastpass') {
+          parsedItems = parseCSV(text);
+        } else if (file.name.endsWith('.json') || file.name.endsWith('.1pux') || selectedFormat === 'json' || selectedFormat === 'bitwarden' || selectedFormat === '1password') {
+          try {
+            parsedItems = parseJSON(text);
+          } catch {
+            parsedItems = parseCSV(text);
+          }
+        } else {
           parsedItems = parseCSV(text);
         }
-      } else {
-        parsedItems = parseCSV(text);
       }
 
       if (parsedItems.length === 0) {
@@ -418,7 +463,7 @@ export default function ImportExportPage() {
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
-        accept=".csv,.json,.1pux,.txt"
+        accept=".csv,.json,.1pux,.txt,.kdbx"
         className="hidden"
       />
 
@@ -464,6 +509,7 @@ export default function ImportExportPage() {
                     { id: '1password', name: '1Password', sub: '(.1pux)' },
                     { id: 'lastpass', name: 'LastPass', sub: '(.csv)' },
                     { id: 'bitwarden', name: 'Bitwarden', sub: '(.json)' },
+                    { id: 'kdbx', name: 'KeePass', sub: '(.kdbx)' },
                   ].map((fmt) => {
                     const isSel = selectedFormat === fmt.id;
                     return (
@@ -484,6 +530,20 @@ export default function ImportExportPage() {
                   })}
                 </div>
               </div>
+
+              {/* KeePass Master Password */}
+              {selectedFormat === 'kdbx' && (
+                <div className="space-y-2">
+                  <label className="text-xs font-extrabold text-[#334155]">KeePass Master Password</label>
+                  <input
+                    type="password"
+                    value={kdbxPassword}
+                    onChange={(e) => setKdbxPassword(e.target.value)}
+                    placeholder="Enter your .kdbx master password"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#cbd5e1] text-xs font-extrabold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#1fbbd2]/50"
+                  />
+                </div>
+              )}
 
               {/* Interactive Dropzone with Native File Picker */}
               <div
@@ -509,7 +569,7 @@ export default function ImportExportPage() {
                       <p className="text-xs font-extrabold text-[#0f172a]">
                         Click here to browse your local computer files or drag & drop
                       </p>
-                      <p className="text-[11px] text-[#64748b] mt-1 font-medium">Supports CSV, JSON, 1pux, and TXT files</p>
+                      <p className="text-[11px] text-[#64748b] mt-1 font-medium">Supports CSV, JSON, 1pux, TXT, and KDBX files</p>
                     </div>
                   </>
                 )}
