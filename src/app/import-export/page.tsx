@@ -69,9 +69,13 @@ export default function ImportExportPage() {
 
   const fetchGroupsAndFolders = async () => {
     try {
+      const folderParams: any = { secretVault: false };
+      if (user?.role === 'Owner' || user?.role === 'Admin') {
+        folderParams.scope = 'manage';
+      }
       const [groupsRes, foldersRes] = await Promise.all([
         api.get('/groups'),
-        api.get('/folders', { params: { secretVault: false } }),
+        api.get('/folders', { params: folderParams }),
       ]);
       const fetchedGroups = groupsRes.data || [];
       const fetchedFolders = foldersRes.data || [];

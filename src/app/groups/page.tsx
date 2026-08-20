@@ -136,6 +136,8 @@ export default function GroupsPage() {
       const params: any = { secretVault: false };
       if (user?.role === 'Owner' || user?.role === 'Admin') {
         params.scope = 'manage';
+      } else {
+        params.includeGroupFolders = true;
       }
       const res = await api.get('/folders', { params });
       setFolders(res.data);

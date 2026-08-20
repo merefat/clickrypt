@@ -13,6 +13,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const secretVaultParam = searchParams.get('secretVault');
     const scope = searchParams.get('scope');
+    const includeGroupFolders = searchParams.get('includeGroupFolders') === 'true';
 
     const store = db.foldersFor(userMode);
     let folders = store;
@@ -25,37 +26,39 @@ export async function GET(req: Request) {
 
     const currentUserId = authUser.id;
     const currentUserEmail = authUser.email.toLowerCase();
-
     const resourcesStore = db.resourcesFor(userMode);
 
+    const canManage = authUser.role === 'Owner' || authUser.role === 'Admin';
+    const isManagerView = canManage && scope === 'manage';
+
     const userGroups = db.groups.filter((g) => g.members.some((m) => m.userId === currentUserId));
-    const userGroupFolderIds = new Set<string>();
-    userGroups.forEach((g) => {
-      if (g.assignedFolderIds) {
-        g.assignedFolderIds.forEach((fid) => userGroupFolderIds.add(fid));
-      }
-    });
+    const groupFolderIds = new Set<string>();
+    if (userMode === 'organization') {
+      userGroups.forEach((g) => {
+        (g.assignedFolderIds || []).forEach((fid: string) => groupFolderIds.add(fid));
+      });
+    }
 
     const isExplicitlySharedWithMe = (r: any) => {
+      if (r.isPrivateOnly) return false;
       if (r.sharedWith && (r.sharedWith.includes(currentUserId) || r.sharedWith.includes(currentUserEmail))) return true;
       if (r.secrets && r.secrets.some((s: any) => s.userId === currentUserId && s.userId !== r.ownerId)) return true;
       return false;
     };
 
+    const isResourceMineOrExplicitlyShared = (r: any) => {
+      if (r.isPrivateOnly) return false;
+      if (r.ownerId === currentUserId) return true;
+      return isExplicitlySharedWithMe(r);
+    };
+
     const isResourceVisibleToMe = (r: any) => {
-      const isOwner = r.ownerId === currentUserId && !r.isPrivateOnly;
-      const isViaGroupFolder = !!(r.folderId && userGroupFolderIds.has(r.folderId));
-      const isExplicitlyShared = isExplicitlySharedWithMe(r);
-      const isSecretRecipient = r.secrets && r.secrets.some((s: any) => s.userId === currentUserId && s.userId !== r.ownerId);
-      return isOwner || (!r.isPrivateOnly && (isViaGroupFolder || isExplicitlyShared || isSecretRecipient));
+      if (r.isPrivateOnly) return false;
+      if (r.ownerId === currentUserId) return true;
+      if (isExplicitlySharedWithMe(r)) return true;
+      if (r.folderId && groupFolderIds.has(r.folderId)) return true;
+      return false;
     };
-
-    const isResourceExplicitlySharedWithMe = (r: any) => {
-      return !r.isPrivateOnly && isExplicitlySharedWithMe(r);
-    };
-
-    const canManage = authUser.role === 'Owner' || authUser.role === 'Admin';
-    const isManagerView = canManage && scope === 'manage';
 
     // Secret Vault: keep existing Owner-only private view.
     if (secretVaultParam === 'true') {
@@ -66,7 +69,7 @@ export async function GET(req: Request) {
       return NextResponse.json(foldersWithCounts);
     }
 
-    // Personal mode: keep resource-level visibility behavior.
+    // Personal mode: keep broad resource-level visibility.
     if (userMode !== 'organization') {
       const foldersWithCounts = folders.map((f) => ({
         ...f,
@@ -84,17 +87,28 @@ export async function GET(req: Request) {
       return NextResponse.json(foldersWithCounts);
     }
 
-    // Organization user view: folder is visible only to its creator or when at
-    // least one password is explicitly shared with the current user.
+    // Organization member view: default (Vault/Folders panels) OR include group folders for the Groups page.
     const foldersWithCounts = folders.map((f) => {
       const isCreator = f.creatorId === currentUserId;
-      const visibleResources = resourcesStore.filter((r) =>
-        r.folderId === f.id && (isCreator ? isResourceVisibleToMe(r) : isResourceExplicitlySharedWithMe(r))
+      const isGroupFolder = groupFolderIds.has(f.id);
+
+      if (includeGroupFolders && isGroupFolder) {
+        // Full access through group assignment; show total count.
+        return { ...f, itemCount: resourcesStore.filter((r) => r.folderId === f.id && !r.isPrivateOnly).length };
+      }
+
+      // Individual sharing: visible only if the user created it or has an explicitly shared password.
+      const visibleResources = resourcesStore.filter(
+        (r) => r.folderId === f.id && (isCreator ? isResourceMineOrExplicitlyShared(r) : isExplicitlySharedWithMe(r))
       );
       return { ...f, itemCount: visibleResources.length };
     });
 
-    const visibleFolders = foldersWithCounts.filter((f) => f.creatorId === currentUserId || f.itemCount > 0);
+    const visibleFolders = foldersWithCounts.filter((f) => {
+      if (f.creatorId === currentUserId) return true;
+      if (includeGroupFolders && groupFolderIds.has(f.id)) return true;
+      return f.itemCount > 0;
+    });
 
     return NextResponse.json(visibleFolders);
   } catch (err: any) {
