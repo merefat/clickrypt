@@ -28,7 +28,7 @@ import autoTable from 'jspdf-autotable';
 
 export default function ImportExportPage() {
   const router = useRouter();
-  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey } = useAuth();
+  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey, isLoading } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -453,6 +453,21 @@ export default function ImportExportPage() {
 
   const canImport = isPersonalMode || ['Owner', 'Admin', 'User'].includes(user?.role as string);
   const canExport = isPersonalMode || ['Owner', 'Admin'].includes(user?.role as string);
+  const visibleSectionCount = Number(canImport) + Number(canExport);
+
+  if (isLoading || !user) {
+    return (
+      <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-w-0">
+          <Header />
+          <main className="p-8 flex-1 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 text-[#0284c7] animate-spin" />
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
@@ -485,7 +500,7 @@ export default function ImportExportPage() {
           </div>
 
           {/* Dynamic Grid Layout */}
-          <div className={canImport ? "grid grid-cols-1 lg:grid-cols-2 gap-8" : "w-full space-y-8"}>
+          <div className={visibleSectionCount === 2 ? "grid grid-cols-1 lg:grid-cols-2 gap-8" : "grid grid-cols-1"}>
             {/* Import Section */}
             {canImport && (
               <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-6 shadow-xl">
