@@ -45,6 +45,7 @@ import {
   exportPasswords,
   addImportExportHistory,
 } from '@/lib/exportVault';
+import { provisionSecretsForFolder } from '@/lib/folderSharing';
 import { formatExactDateTime } from '@/lib/dateUtils';
 
 export default function VaultPage() {
@@ -72,7 +73,10 @@ export default function VaultPage() {
   const [pendingExportTarget, setPendingExportTarget] = useState<any[] | null>(null);
   const [pendingUnlockAction, setPendingUnlockAction] = useState<'reveal' | 'copy' | 'export' | null>(null);
   const [pendingUnlockItem, setPendingUnlockItem] = useState<any | null>(null);
+  const [users, setUsers] = useState<any[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const syncInProgress = React.useRef(false);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -102,6 +106,8 @@ export default function VaultPage() {
       return;
     }
     fetchFolders();
+    fetchGroups();
+    fetchUsers();
     fetchSubscription();
 
     const searchParams = new URLSearchParams(window.location.search);
@@ -116,9 +122,59 @@ export default function VaultPage() {
     fetchResources();
   }, [searchTerm, selectedFolderId]);
 
+  useEffect(() => {
+    if (!unlockedPgpKey || !user?.id) return;
+    if (!groups.length || !users.length || !resources.length) return;
+    if (syncInProgress.current) return;
+    syncInProgress.current = true;
+
+    (async () => {
+      try {
+        const privateKey = await getEncryptedPrivateKey();
+        if (!privateKey) return;
+        const passphrase = unlockedPgpKey ? undefined : masterPassword || undefined;
+
+        for (const g of groups) {
+          const groupMemberIds = (g.members || [])
+            .map((m: any) => m.userId)
+            .filter((id: string) => id !== user?.id);
+          for (const folderId of g.assignedFolderIds || []) {
+            const myFolderResources = resources.filter(
+              (r) => r.ownerId === user?.id && r.folderId === folderId
+            );
+            if (myFolderResources.length === 0) continue;
+
+            const missing = new Set<string>();
+            for (const r of myFolderResources) {
+              for (const mId of groupMemberIds) {
+                if (!r.secrets?.some((s: any) => s.userId === mId)) {
+                  missing.add(mId);
+                }
+              }
+            }
+            if (missing.size === 0) continue;
+
+            await provisionSecretsForFolder({
+              folderId,
+              targetUserIds: Array.from(missing),
+              users,
+              ownerId: user?.id || '',
+              privateKey,
+              passphrase,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Background group folder sync failed:', err);
+      } finally {
+        syncInProgress.current = false;
+      }
+    })();
+  }, [resources, groups, users, unlockedPgpKey, user, getEncryptedPrivateKey, masterPassword]);
+
   const handleFullRefresh = async () => {
     setLoading(true);
-    await Promise.all([fetchResources(), fetchFolders(), fetchSubscription()]);
+    await Promise.all([fetchResources(), fetchFolders(), fetchGroups(), fetchUsers(), fetchSubscription()]);
     setTimeout(() => {
       setLoading(false);
     }, 600);
@@ -157,6 +213,24 @@ export default function VaultPage() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchGroups = async () => {
+    try {
+      const res = await api.get('/groups');
+      setGroups(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const res = await api.get('/admin/users');
+      setUsers(res.data);
+    } catch (err) {
+      console.error(err);
     }
   };
 

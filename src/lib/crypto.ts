@@ -216,7 +216,11 @@ export async function decryptSecret(
       message,
       decryptionKeys: privateKey,
     });
-    return decrypted.data as string;
+    const plainText = decrypted.data as string;
+    if (plainText.includes('-----BEGIN PGP MESSAGE-----')) {
+      throw new Error('Nested or undecryptable ciphertext');
+    }
+    return plainText;
   } catch (error) {
     // Handle legacy base64 mock payload
     if (encryptedSecret.includes('::')) {

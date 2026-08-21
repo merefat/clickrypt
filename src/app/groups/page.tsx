@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability */
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/immutability, react-hooks/set-state-in-effect */
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -35,7 +35,9 @@ import {
   exportPasswords,
   addImportExportHistory,
 } from '@/lib/exportVault';
+import { provisionSecretsForFolder } from '@/lib/folderSharing';
 import UnlockVaultModal from '@/components/UnlockVaultModal';
+import PasswordDrawer from '@/components/PasswordDrawer';
 
 export default function GroupsPage() {
   const router = useRouter();
@@ -89,8 +91,13 @@ export default function GroupsPage() {
   const [showAssignFolderModal, setShowAssignFolderModal] = useState(false);
   const [showSharePasswordModal, setShowSharePasswordModal] = useState(false);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
-  const [pendingUnlockAction, setPendingUnlockAction] = useState<'reveal' | 'copy' | 'share' | null>(null);
+  const [pendingUnlockAction, setPendingUnlockAction] = useState<'reveal' | 'copy' | 'share' | 'provision' | null>(null);
   const [pendingUnlockItem, setPendingUnlockItem] = useState<any | null>(null);
+  const [pendingProvisionPayload, setPendingProvisionPayload] = useState<any | null>(null);
+
+  // Passwords tab folder drill-down state
+  const [passwordsFolderView, setPasswordsFolderView] = useState<string | null>(null);
+  const [showNewPasswordDrawer, setShowNewPasswordDrawer] = useState(false);
 
   // Form states
   const [newGroupName, setNewGroupName] = useState('');
@@ -125,6 +132,12 @@ export default function GroupsPage() {
       fetchAuditLogs(selectedGroupId);
     }
   }, [selectedGroupId]);
+
+  useEffect(() => {
+    setPasswordsFolderView(null);
+    setSelectedIds([]);
+    setBulkSelectMode(false);
+  }, [selectedGroupId, activeTab]);
 
   const fetchGroups = async () => {
     setLoading(true);
@@ -230,12 +243,56 @@ export default function GroupsPage() {
         addUserId: addMemberUserId,
         role: addMemberRole,
       });
-
-      setAddMemberUserId('');
-      setShowAddMemberModal(false);
-      fetchGroups();
     } catch (err) {
       alert('Failed to add member to group');
+      return;
+    }
+
+    const newMemberId = addMemberUserId;
+    const assignedFolderIds = selectedGroup.assignedFolderIds || [];
+
+    if (assignedFolderIds.length === 0) {
+      setAddMemberUserId('');
+      setShowAddMemberModal(false);
+      await fetchGroups();
+      return;
+    }
+
+    if (!unlockedPgpKey && !masterPassword) {
+      setPendingUnlockAction('provision');
+      setPendingProvisionPayload({ newMemberId, assignedFolderIds });
+      setPendingUnlockItem(null);
+      setAddMemberUserId('');
+      setShowAddMemberModal(false);
+      setShowUnlockModal(true);
+      return;
+    }
+
+    try {
+      const privateKey = await getEncryptedPrivateKey();
+      if (!privateKey) throw new Error('No private key available');
+      const passphrase = unlockedPgpKey ? undefined : masterPassword || undefined;
+      let totalProvisioned = 0;
+      for (const folderId of assignedFolderIds) {
+        const result = await provisionSecretsForFolder({
+          folderId,
+          targetUserIds: [newMemberId],
+          users,
+          ownerId: user?.id || '',
+          privateKey,
+          passphrase,
+        });
+        totalProvisioned += result.provisioned;
+      }
+      if (totalProvisioned > 0) {
+        alert(`Member added and ${totalProvisioned} secrets provisioned.`);
+      }
+    } catch (err: any) {
+      alert('Failed to provision secrets: ' + (err.message || 'Unknown error'));
+    } finally {
+      setAddMemberUserId('');
+      setShowAddMemberModal(false);
+      await fetchGroups();
     }
   };
 
@@ -247,18 +304,51 @@ export default function GroupsPage() {
       await api.put(`/groups/${selectedGroup.id}`, {
         addFolderId: selectedFolderToAssign,
       });
+    } catch (err) {
+      alert('Failed to assign folder to group');
+      return;
+    }
 
-      setGroupFolderIds((prev) => {
-        const current = prev[selectedGroup.id] || [];
-        if (current.includes(selectedFolderToAssign)) return prev;
-        return { ...prev, [selectedGroup.id]: [...current, selectedFolderToAssign] };
+    setGroupFolderIds((prev) => {
+      const current = prev[selectedGroup.id] || [];
+      if (current.includes(selectedFolderToAssign)) return prev;
+      return { ...prev, [selectedGroup.id]: [...current, selectedFolderToAssign] };
+    });
+
+    const targetUserIds = selectedGroup.members.map((m: any) => m.userId);
+    const payload = { folderId: selectedFolderToAssign, targetUserIds };
+
+    if (!unlockedPgpKey && !masterPassword) {
+      setPendingUnlockAction('provision');
+      setPendingProvisionPayload(payload);
+      setPendingUnlockItem(null);
+      setSelectedFolderToAssign('');
+      setShowAssignFolderModal(false);
+      setShowUnlockModal(true);
+      return;
+    }
+
+    try {
+      const privateKey = await getEncryptedPrivateKey();
+      if (!privateKey) throw new Error('No private key available');
+      const passphrase = unlockedPgpKey ? undefined : masterPassword || undefined;
+      const result = await provisionSecretsForFolder({
+        folderId: selectedFolderToAssign,
+        targetUserIds,
+        users,
+        ownerId: user?.id || '',
+        privateKey,
+        passphrase,
       });
-
+      if (result.provisioned > 0) {
+        alert(`Folder assigned and ${result.provisioned} secrets provisioned to group members.`);
+      }
+    } catch (err: any) {
+      alert('Failed to provision secrets: ' + (err.message || 'Unknown error'));
+    } finally {
       setSelectedFolderToAssign('');
       setShowAssignFolderModal(false);
       await fetchGroups();
-    } catch (err) {
-      alert('Failed to assign folder to group');
     }
   };
 
@@ -344,6 +434,16 @@ export default function GroupsPage() {
     }));
   };
 
+  const performReveal = async (item: any, privateKeyOverride?: string) => {
+    const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
+    const encryptedBlob = userSecret?.encryptedData || '';
+    const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
+    if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+
+    const plainText = await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
+    setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
+  };
+
   const handleRevealToggle = async (item: any) => {
     if (revealedPasswords[item.id]) {
       setRevealedPasswords((prev) => {
@@ -354,35 +454,110 @@ export default function GroupsPage() {
       return;
     }
 
-    try {
-      const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
-      const encryptedBlob = userSecret?.encryptedData || '';
-      const privateKey = await getEncryptedPrivateKey();
-      if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+    if (!unlockedPgpKey && !masterPassword) {
+      setPendingUnlockAction('reveal');
+      setPendingUnlockItem(item);
+      setShowUnlockModal(true);
+      return;
+    }
 
-      const plainText = await decryptSecret(encryptedBlob, privateKey, unlockedPgpKey ? undefined : masterPassword || undefined);
-      setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
+    try {
+      await performReveal(item);
     } catch (err) {
       alert('Failed to decrypt secret.');
     }
   };
 
+  const performCopy = async (item: any, privateKeyOverride?: string) => {
+    const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
+    const encryptedBlob = userSecret?.encryptedData || '';
+    const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
+    if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+
+    return await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
+  };
+
   const handleCopyPass = async (item: any) => {
     let pass = revealedPasswords[item.id];
-    if (!pass) {
-      try {
-        const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
-        const encryptedBlob = userSecret?.encryptedData || '';
-        const privateKey = await getEncryptedPrivateKey();
-        if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
-        pass = await decryptSecret(encryptedBlob, privateKey, unlockedPgpKey ? undefined : masterPassword || undefined);
-      } catch {
-        alert('Failed to decrypt.');
-        return;
-      }
+    if (pass) {
+      navigator.clipboard.writeText(pass);
+      alert(`Copied password for ${item.name} to clipboard!`);
+      return;
     }
+
+    if (!unlockedPgpKey && !masterPassword) {
+      setPendingUnlockAction('copy');
+      setPendingUnlockItem(item);
+      setShowUnlockModal(true);
+      return;
+    }
+
+    try {
+      pass = await performCopy(item);
+    } catch {
+      alert('Failed to decrypt.');
+      return;
+    }
+
     navigator.clipboard.writeText(pass);
     alert(`Copied password for ${item.name} to clipboard!`);
+  };
+
+  const handleUnlockSubmit = async (password: string) => {
+    const privateKey = await unlockVault(password);
+    if (!privateKey) return false;
+    setShowUnlockModal(false);
+
+    try {
+      if (pendingUnlockAction === 'reveal' && pendingUnlockItem) {
+        await performReveal(pendingUnlockItem, privateKey);
+      } else if (pendingUnlockAction === 'copy' && pendingUnlockItem) {
+        const pass = await performCopy(pendingUnlockItem, privateKey);
+        navigator.clipboard.writeText(pass);
+        alert(`Copied password for ${pendingUnlockItem.name} to clipboard!`);
+      } else if (pendingUnlockAction === 'share') {
+        await performShare(privateKey);
+      } else if (pendingUnlockAction === 'provision' && pendingProvisionPayload) {
+        if (pendingProvisionPayload.assignedFolderIds) {
+          const { newMemberId, assignedFolderIds } = pendingProvisionPayload;
+          let totalProvisioned = 0;
+          for (const folderId of assignedFolderIds) {
+            const result = await provisionSecretsForFolder({
+              folderId,
+              targetUserIds: [newMemberId],
+              users,
+              ownerId: user?.id || '',
+              privateKey,
+              passphrase: undefined,
+            });
+            totalProvisioned += result.provisioned;
+          }
+          if (totalProvisioned > 0) {
+            alert(`Member added and ${totalProvisioned} secrets provisioned.`);
+          }
+        } else if (pendingProvisionPayload.folderId) {
+          const { folderId, targetUserIds } = pendingProvisionPayload;
+          const result = await provisionSecretsForFolder({
+            folderId,
+            targetUserIds,
+            users,
+            ownerId: user?.id || '',
+            privateKey,
+            passphrase: undefined,
+          });
+          if (result.provisioned > 0) {
+            alert(`Folder assigned and ${result.provisioned} secrets provisioned to group members.`);
+          }
+        }
+      }
+    } catch (err) {
+      alert('Failed to decrypt.');
+    }
+
+    setPendingUnlockAction(null);
+    setPendingUnlockItem(null);
+    setPendingProvisionPayload(null);
+    return true;
   };
 
   const handleRemoveMember = async (userId: string) => {
@@ -438,12 +613,28 @@ export default function GroupsPage() {
     ? users.filter((u) => !selectedGroup.members.some((m: any) => m.userId === u.id))
     : [];
 
+  const selectedFolderName = passwordsFolderView
+    ? passwordsFolderView === '__direct__'
+      ? 'Direct Shares'
+      : assignedFoldersForGroup.find((f) => f.id === passwordsFolderView)?.name || 'Unknown Folder'
+    : null;
+
+  const directSharedResources = assignedResourcesForGroup.filter(
+    (r) => !r.folderId || !assignedFolderIds.includes(r.folderId)
+  );
+
+  const currentPasswordsList = !passwordsFolderView
+    ? []
+    : passwordsFolderView === '__direct__'
+      ? directSharedResources
+      : assignedResourcesForGroup.filter((r) => r.folderId === passwordsFolderView);
+
   const toggleResourceSelection = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
   const toggleSelectAllAssigned = () => {
-    const ids = assignedResourcesForGroup.map((r) => r.id);
+    const ids = currentPasswordsList.map((r) => r.id);
     const allSelected = ids.every((id) => selectedIds.includes(id));
     if (allSelected) {
       setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)));
@@ -459,8 +650,8 @@ export default function GroupsPage() {
     }
 
     const target = selectedIds.length > 0
-      ? assignedResourcesForGroup.filter((r) => selectedIds.includes(r.id))
-      : assignedResourcesForGroup;
+      ? currentPasswordsList.filter((r) => selectedIds.includes(r.id))
+      : currentPasswordsList;
 
     if (target.length === 0) {
       alert('No passwords selected to export.');
@@ -745,22 +936,43 @@ export default function GroupsPage() {
 
                   {/* TAB 3: PASSWORDS */}
                   {activeTab === 'passwords' && (
-                    <div className="space-y-4">
+                    <>
+                      {passwordsFolderView ? (
+                        <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-[#64748b] font-extrabold">
-                          Shared Group Passwords ({assignedResourcesForGroup.length})
-                        </span>
+                        <div className="flex items-center gap-2 text-xs">
+                          <button
+                            onClick={() => setPasswordsFolderView(null)}
+                            className="flex items-center gap-1 text-[#0284c7] hover:text-[#1fbbd2] font-extrabold transition-colors cursor-pointer"
+                          >
+                            <ChevronLeft className="w-4 h-4" />
+                            <span>All Folders</span>
+                          </button>
+                          <span className="text-[#cbd5e1]">/</span>
+                          <span className="font-extrabold text-[#0f172a]">{selectedFolderName}</span>
+                          <span className="text-[#64748b] font-bold">({currentPasswordsList.length})</span>
+                        </div>
 
-                        <button
-                          onClick={() => {
-                            setSelectedResourceToShare('');
-                            setShowSharePasswordModal(true);
-                          }}
-                          className="gold-gradient-btn px-3 py-1.5 rounded-xl text-xs font-extrabold text-white flex items-center gap-1.5 shadow cursor-pointer"
-                        >
-                          <Share2 className="w-3.5 h-3.5" />
-                          <span>Share Password with Group</span>
-                        </button>
+                        {passwordsFolderView !== '__direct__' ? (
+                          <button
+                            onClick={() => setShowNewPasswordDrawer(true)}
+                            className="gold-gradient-btn px-3 py-1.5 rounded-xl text-xs font-extrabold text-white flex items-center gap-1.5 shadow cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>New Password</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setSelectedResourceToShare('');
+                              setShowSharePasswordModal(true);
+                            }}
+                            className="gold-gradient-btn px-3 py-1.5 rounded-xl text-xs font-extrabold text-white flex items-center gap-1.5 shadow cursor-pointer"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                            <span>Share Password with Group</span>
+                          </button>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-3 bg-[#ffffff] border border-[#d0dbe5] rounded-2xl p-3 shadow-sm">
@@ -801,10 +1013,10 @@ export default function GroupsPage() {
                         )}
                       </div>
 
-                      {assignedResourcesForGroup.length === 0 ? (
+                      {currentPasswordsList.length === 0 ? (
                         <div className="p-8 text-center text-[#64748b] text-xs bg-[#f8fafc] rounded-xl border border-[#cbd5e1]">
                           <Lock className="w-8 h-8 text-[#0284c7] mx-auto mb-2 opacity-80" />
-                          <p>No password secrets shared with this group yet. Click &quot;Share Password with Group&quot; above.</p>
+                          <p>No password secrets in {selectedFolderName}. Add a new password to this folder.</p>
                         </div>
                       ) : (
                         <div className="overflow-x-auto border border-[#cbd5e1] rounded-xl overflow-hidden shadow-sm">
@@ -816,8 +1028,8 @@ export default function GroupsPage() {
                                     <input
                                       type="checkbox"
                                       checked={
-                                        assignedResourcesForGroup.length > 0 &&
-                                        assignedResourcesForGroup.every((r) => selectedIds.includes(r.id))
+                                        currentPasswordsList.length > 0 &&
+                                        currentPasswordsList.every((r) => selectedIds.includes(r.id))
                                       }
                                       onChange={toggleSelectAllAssigned}
                                       className="accent-[#f39c12] w-4 h-4"
@@ -831,7 +1043,7 @@ export default function GroupsPage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-[#e2e8f0]">
-                              {assignedResourcesForGroup.map((res) => {
+                              {currentPasswordsList.map((res) => {
                                 const isRev = !!revealedPasswords[res.id];
                                 return (
                                   <tr key={res.id} className="hover:bg-[#f1f6fb]">
@@ -884,7 +1096,62 @@ export default function GroupsPage() {
                         </div>
                       )}
                     </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-[#64748b] font-extrabold">
+                          Select a folder to view shared passwords
+                        </span>
+                      </div>
+
+                      {assignedFoldersForGroup.length === 0 && directSharedResources.length === 0 ? (
+                        <div className="p-8 text-center text-[#64748b] text-xs bg-[#f8fafc] rounded-xl border border-[#cbd5e1]">
+                          <Folder className="w-8 h-8 text-[#d97706] mx-auto mb-2 opacity-80" />
+                          <p>No folders or directly-shared secrets assigned to this group yet.</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {assignedFoldersForGroup.map((f) => {
+                            const count = assignedResourcesForGroup.filter((r) => r.folderId === f.id).length;
+                            return (
+                              <button
+                                key={f.id}
+                                onClick={() => setPasswordsFolderView(f.id)}
+                                className="p-4 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl flex items-center justify-between shadow-sm transition-all cursor-pointer text-left"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Folder className="w-5 h-5 text-[#d97706]" />
+                                  <div>
+                                    <h4 className="text-xs font-extrabold text-[#0f172a]">{f.name}</h4>
+                                    <p className="text-[10px] text-[#64748b]">{count} passwords</p>
+                                  </div>
+                                </div>
+                                <ChevronRight className="w-4 h-4 text-gray-400" />
+                              </button>
+                            );
+                          })}
+
+                          {directSharedResources.length > 0 && (
+                            <button
+                              onClick={() => setPasswordsFolderView('__direct__')}
+                              className="p-4 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl flex items-center justify-between shadow-sm transition-all cursor-pointer text-left"
+                            >
+                              <div className="flex items-center gap-3">
+                                <Share2 className="w-5 h-5 text-[#0284c7]" />
+                                <div>
+                                  <h4 className="text-xs font-extrabold text-[#0f172a]">Direct Shares</h4>
+                                  <p className="text-[10px] text-[#64748b]">{directSharedResources.length} passwords</p>
+                                </div>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-gray-400" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
+                </>
+              )}
 
                   {/* TAB 4: ACTIVITY */}
                   {activeTab === 'activity' && (() => {
@@ -1332,6 +1599,26 @@ export default function GroupsPage() {
           </div>
         </div>
       )}
+
+      <PasswordDrawer
+        isOpen={showNewPasswordDrawer}
+        onClose={() => setShowNewPasswordDrawer(false)}
+        onSaved={() => {
+          fetchResources();
+          setShowNewPasswordDrawer(false);
+        }}
+        defaultFolderId={passwordsFolderView && passwordsFolderView !== '__direct__' ? passwordsFolderView : ''}
+      />
+      <UnlockVaultModal
+        isOpen={showUnlockModal}
+        onClose={() => {
+          setShowUnlockModal(false);
+          setPendingUnlockAction(null);
+          setPendingUnlockItem(null);
+          setPendingProvisionPayload(null);
+        }}
+        onSubmit={handleUnlockSubmit}
+      />
     </div>
   );
 }
