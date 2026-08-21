@@ -29,6 +29,7 @@ import {
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { decryptSecret } from '@/lib/crypto';
+import { formatExactDateTime } from '@/lib/dateUtils';
 import { useAuth } from '@/context/AuthContext';
 
 export default function SecretVaultPage() {
@@ -112,7 +113,8 @@ export default function SecretVaultPage() {
     }
 
     try {
-      const encryptedBlob = item.secrets?.[0]?.encryptedData || '';
+      const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
+      const encryptedBlob = userSecret?.encryptedData || '';
       const privateKey = await getEncryptedPrivateKey();
 
       let plainText = 'SecretPrivatePass99!';
@@ -366,7 +368,6 @@ export default function SecretVaultPage() {
                     <thead className="bg-[#e6eff7] text-[#334155] font-extrabold uppercase tracking-wider border-b border-[#cbd5e1]">
                       <tr>
                         <th className="py-3.5 px-6">Item</th>
-                        <th className="py-3.5 px-4">Type</th>
                         <th className="py-3.5 px-4">Strength</th>
                         <th className="py-3.5 px-4">Last Accessed</th>
                         <th className="py-3.5 px-4">Password</th>
@@ -377,7 +378,7 @@ export default function SecretVaultPage() {
                     <tbody className="divide-y divide-[#e2e8f0]">
                       {resources.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-12 text-center text-[#64748b] text-xs">
+                          <td colSpan={5} className="py-12 text-center text-[#64748b] text-xs">
                             No private secret items found in this view.
                           </td>
                         </tr>
@@ -415,13 +416,6 @@ export default function SecretVaultPage() {
                                 </div>
                               </td>
 
-                              <td className="py-4 px-4 text-[#334155] font-medium">
-                                <span className="inline-flex items-center gap-1 text-[#334155]">
-                                  <Lock className="w-3 h-3 text-[#d97706]" />
-                                  {res.category || 'Password'}
-                                </span>
-                              </td>
-
                               <td className="py-4 px-4">
                                 <div className="flex flex-col">
                                   <span className="text-emerald-600 font-extrabold flex items-center gap-1">
@@ -432,7 +426,7 @@ export default function SecretVaultPage() {
                                 </div>
                               </td>
 
-                              <td className="py-4 px-4 text-[#64748b] text-[11px]">{res.lastModified}</td>
+                              <td className="py-4 px-4 text-[#64748b] text-[11px]">{formatExactDateTime(res.lastModified)}</td>
 
                               {/* PASSWORD COLUMN */}
                               <td className="py-4 px-4 font-mono">
@@ -465,13 +459,15 @@ export default function SecretVaultPage() {
 
                               <td className="py-4 px-4 text-right">
                                 <div className="flex items-center justify-end gap-1">
-                                  <button
-                                    onClick={() => setShareResourceId(res.id)}
-                                    className="p-1.5 text-gray-500 hover:text-[#1fbbd2] hover:bg-[#e2e8f0] rounded-lg transition-all cursor-pointer"
-                                    title="Share private item with members, groups, or external users"
-                                  >
-                                    <Share2 className="w-4 h-4" />
-                                  </button>
+                                  {res.ownerId === user?.id && (
+                                    <button
+                                      onClick={() => setShareResourceId(res.id)}
+                                      className="p-1.5 text-gray-500 hover:text-[#1fbbd2] hover:bg-[#e2e8f0] rounded-lg transition-all cursor-pointer"
+                                      title="Share private item with members, groups, or external users"
+                                    >
+                                      <Share2 className="w-4 h-4" />
+                                    </button>
+                                  )}
 
                                   <button
                                     onClick={() => {

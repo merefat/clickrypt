@@ -40,7 +40,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   res.folderId = body.folderId !== undefined ? body.folderId : res.folderId;
   res.isPrivateOnly = body.isPrivateOnly !== undefined ? body.isPrivateOnly : res.isPrivateOnly;
   res.strength = body.strength || res.strength;
-  res.lastModified = 'Just now';
+  res.lastModified = new Date().toISOString();
 
   if (body.encryptedSecret) {
     const ownerSecret = res.secrets.find((s) => s.userId === authUser.id);

@@ -18,6 +18,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No account found with this email.' }, { status: 404 });
     }
 
+    if (user.status === 'Suspended') {
+      db.auditLogsFor((user.accountMode || 'personal') as 'personal' | 'organization').unshift({
+        id: `al-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        action: 'LOGIN_BLOCKED_SUSPENDED',
+        userId: user.id,
+        details: `2FA login blocked for suspended account ${user.email}`,
+      });
+      return NextResponse.json(
+        { error: 'Account suspended. You are blocked from accessing Clickrypt vault.' },
+        { status: 403 }
+      );
+    }
+
     if (!user.twoFactorEnabled || !user.twoFactorSecret) {
       return NextResponse.json({ error: '2FA is not enabled for this account.' }, { status: 400 });
     }

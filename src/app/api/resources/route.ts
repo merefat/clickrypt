@@ -86,7 +86,48 @@ export async function GET(request: Request) {
     );
   }
 
-  return NextResponse.json(result);
+  const usersById = new Map<string, string>(db.users.map((u) => [u.id, u.name]));
+  const usersByEmail = new Map<string, string>(db.users.map((u) => [u.email.toLowerCase(), u.name]));
+
+  const enriched = result.map((r) => {
+    const ownerName = usersById.get(r.ownerId) || 'Vault Owner';
+    let lastModified = r.lastModified;
+    if (!lastModified || Number.isNaN(new Date(lastModified).getTime())) {
+      const idTs = typeof r.id === 'string' && r.id.startsWith('r-') ? Number(r.id.slice(2)) : NaN;
+      lastModified = Number.isNaN(idTs) ? new Date().toISOString() : new Date(idTs).toISOString();
+    }
+
+    const seen = new Set<string>();
+    const recipients: { id: string; name: string; email?: string; external?: boolean }[] = [];
+
+    (r.secrets || []).forEach((s: any) => {
+      if (s.userId === r.ownerId) return;
+      if (seen.has(s.userId)) return;
+      seen.add(s.userId);
+      const name = usersById.get(s.userId) || s.userId;
+      recipients.push({ id: s.userId, name });
+    });
+
+    (r.sharedWith || []).forEach((value: string) => {
+      const key = value.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      const name = usersById.get(value) || usersByEmail.get(key) || value;
+      recipients.push({ id: value, name });
+    });
+
+    if (r.isExternalShared && r.externalShareEmail) {
+      const key = r.externalShareEmail.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        recipients.push({ id: r.externalShareEmail, name: r.externalShareEmail, email: r.externalShareEmail, external: true });
+      }
+    }
+
+    return { ...r, ownerName, lastModified, recipients };
+  });
+
+  return NextResponse.json(enriched);
 }
 
 export async function POST(request: Request) {
@@ -123,7 +164,7 @@ export async function POST(request: Request) {
       isPrivateOnly: !!body.isPrivateOnly,
       mode: userMode,
       strength: body.strength || 'Strong',
-      lastModified: 'Just now',
+      lastModified: new Date().toISOString(),
       secrets: [
         {
           userId: authUser.id,

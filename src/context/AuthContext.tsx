@@ -1,10 +1,10 @@
-/* eslint-disable react-hooks/immutability, react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/immutability, react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import api from '@/lib/api';
-import { generateKeyPair, reencryptPrivateKey, protectPrivateKey } from '@/lib/crypto';
-import { savePrivateKey, getPrivateKey, clearKeys } from '@/lib/secureStorage';
+import { generateKeyPair, reencryptPrivateKey, protectPrivateKey, unprotectPrivateKey, canUnlockPrivateKey } from '@/lib/crypto';
+import { savePrivateKey, getPrivateKey, clearKeys, saveUnlockedPrivateKey, getUnlockedPrivateKey } from '@/lib/secureStorage';
 import { useRouter } from 'next/navigation';
 
 export interface UserProfile {
@@ -50,6 +50,7 @@ interface AuthContextType {
   refreshUser: () => Promise<void>;
   getEncryptedPrivateKey: () => Promise<string | null>;
   setUnlockedPgpKey: (key: string | null) => void;
+  unlockVault: (password: string) => Promise<string | null>;
   isLoading: boolean;
   isHydrating: boolean;
 }
@@ -64,6 +65,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [appModeState, setAppModeState] = useState<'personal' | 'organization'>('personal');
   const [isLoading, setIsLoading] = useState(true);
   const [isHydrating, setIsHydrating] = useState(false);
+
+  const loadUnlockedPrivateKey = async (mode: 'personal' | 'organization') => {
+    try {
+      if (typeof window === 'undefined') return;
+      const cached = await getUnlockedPrivateKey(mode);
+      if (cached) setUnlockedPgpKey(cached);
+    } catch (e) {
+      console.warn('Failed to load unlocked private key:', e);
+    }
+  };
+
+  const unlockAndCachePrivateKey = async (
+    passphrase: string,
+    mode: 'personal' | 'organization',
+    encryptedKeyArmored?: string
+  ): Promise<boolean> => {
+    try {
+      const encryptedKey = encryptedKeyArmored || user?.encryptedPrivateKey || await getPrivateKey();
+      if (!encryptedKey) return false;
+      const unlocked = await unprotectPrivateKey(encryptedKey, passphrase);
+      setUnlockedPgpKey(unlocked);
+      if (typeof window !== 'undefined') {
+        await saveUnlockedPrivateKey(unlocked, mode);
+      }
+      return true;
+    } catch (e) {
+      console.warn('Failed to unlock PGP key:', e);
+      return false;
+    }
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -116,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (typeof window !== 'undefined') {
           localStorage.setItem(`clickrypt_user_profile_${currentMode}`, JSON.stringify(res.data.user));
         }
+        await loadUnlockedPrivateKey(currentMode);
         if (
           res.data.user.accountMode === 'organization' &&
           res.data.user.organization?.verificationStatus === 'pending' &&
@@ -126,12 +158,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setUser(null);
         if (typeof window !== 'undefined') {
-          localStorage.removeItem(`clickrypt_user_profile_${currentMode}`);
-          localStorage.removeItem('clickrypt_user_profile_personal');
-          localStorage.removeItem('clickrypt_user_profile_organization');
-          sessionStorage.removeItem('access_token');
-          localStorage.removeItem('access_token');
-          delete api.defaults.headers.common['Authorization'];
+          const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
+          if (hasToken) {
+            // Token is no longer valid (suspended/invalid) — force lock out
+            sessionStorage.removeItem('access_token');
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('clickrypt_user_profile_personal');
+            localStorage.removeItem('clickrypt_user_profile_organization');
+            localStorage.removeItem(`clickrypt_user_profile_${currentMode}`);
+            delete api.defaults.headers.common['Authorization'];
+            clearKeys().catch(() => {});
+            if (window.location.pathname !== '/login') {
+              window.location.replace('/login');
+            }
+          }
         }
       }
     } catch {
@@ -140,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (savedUser) {
           try {
             setUser(JSON.parse(savedUser));
+            await loadUnlockedPrivateKey(currentMode);
           } catch {
             setUser(null);
           }
@@ -149,12 +190,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setUser(null);
         if (typeof window !== 'undefined') {
-          localStorage.removeItem(`clickrypt_user_profile_${currentMode}`);
-          localStorage.removeItem('clickrypt_user_profile_personal');
-          localStorage.removeItem('clickrypt_user_profile_organization');
-          sessionStorage.removeItem('access_token');
-          localStorage.removeItem('access_token');
-          delete api.defaults.headers.common['Authorization'];
+          const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
+          if (hasToken) {
+            sessionStorage.removeItem('access_token');
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('clickrypt_user_profile_personal');
+            localStorage.removeItem('clickrypt_user_profile_organization');
+            localStorage.removeItem(`clickrypt_user_profile_${currentMode}`);
+            delete api.defaults.headers.common['Authorization'];
+            clearKeys().catch(() => {});
+            if (window.location.pathname !== '/login') {
+              window.location.replace('/login');
+            }
+          }
         }
       }
     } finally {
@@ -184,6 +232,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       if (unlocked !== undefined) {
         setUnlockedPgpKey(unlocked);
+        if (unlocked && typeof window !== 'undefined') {
+          await saveUnlockedPrivateKey(unlocked, serverMode);
+        }
+      } else if (masterPass) {
+        await unlockAndCachePrivateKey(masterPass, serverMode, userObj.encryptedPrivateKey);
       }
 
       if (typeof window !== 'undefined') {
@@ -298,7 +351,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role?: 'Owner' | 'Admin' | 'User' | 'External',
     organizationDomain?: string
   ): Promise<{ success: boolean; requiresVerification?: boolean; email?: string; user?: UserProfile }> => {
-    const currentMode = typeof window !== 'undefined' ? localStorage.getItem('clickrypt_app_mode') || 'personal' : 'personal';
+    const currentMode = (typeof window !== 'undefined' ? localStorage.getItem('clickrypt_app_mode') || 'personal' : 'personal') as 'personal' | 'organization';
     try {
       const { privateKey, publicKey } = await generateKeyPair(email, masterPass);
       const res = await api.post('/auth/register', {
@@ -327,6 +380,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(res.data.user);
         setMasterPassword(masterPass);
         await savePrivateKey(privateKey);
+        await unlockAndCachePrivateKey(masterPass, currentMode, privateKey);
         return { success: true, user: res.data.user };
       }
       throw new Error(res.data?.error || 'Registration failed');
@@ -378,7 +432,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           : await protectPrivateKey(sourceKey, newMasterPass);
 
       setMasterPassword(newMasterPass);
-      setUnlockedPgpKey(null);
       const updated = { ...user, encryptedPrivateKey: reencrypted };
       setUser(updated);
       if (typeof window !== 'undefined') {
@@ -389,6 +442,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
       await savePrivateKey(reencrypted);
+      await unlockAndCachePrivateKey(newMasterPass, appModeState, reencrypted);
     } catch (e) {
       console.warn('Key re-encryption error:', e);
     }
@@ -442,6 +496,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const unlockVault = async (password: string): Promise<string | null> => {
+    const encryptedKey = user?.encryptedPrivateKey || (await getPrivateKey());
+    if (!encryptedKey) return null;
+    const ok = await canUnlockPrivateKey(encryptedKey, password);
+    if (!ok) return null;
+    try {
+      const unlocked = await unprotectPrivateKey(encryptedKey, password);
+      setMasterPassword(password);
+      setUnlockedPgpKey(unlocked);
+      if (typeof window !== 'undefined') {
+        await saveUnlockedPrivateKey(unlocked, appModeState);
+      }
+      return unlocked;
+    } catch {
+      return null;
+    }
+  };
+
   const getEncryptedPrivateKey = async () => {
     if (unlockedPgpKey) return unlockedPgpKey;
     if (user?.encryptedPrivateKey) return user.encryptedPrivateKey;
@@ -469,6 +541,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         refreshUser: () => fetchSession(),
         getEncryptedPrivateKey,
+        unlockVault,
         isLoading,
         isHydrating,
       }}

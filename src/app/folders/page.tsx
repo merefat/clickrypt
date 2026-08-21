@@ -12,10 +12,11 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { decryptSecret } from '@/lib/crypto';
 import CreateFolderModal from '@/components/CreateFolderModal';
+import UnlockVaultModal from '@/components/UnlockVaultModal';
 
 export default function FoldersPage() {
   const router = useRouter();
-  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey } = useAuth();
+  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey, unlockVault } = useAuth();
   const [folders, setFolders] = useState<any[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>('');
   const [folderItems, setFolderItems] = useState<any[]>([]);
@@ -24,6 +25,9 @@ export default function FoldersPage() {
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [pendingUnlockAction, setPendingUnlockAction] = useState<'reveal' | 'copy' | null>(null);
+  const [pendingUnlockItem, setPendingUnlockItem] = useState<any | null>(null);
 
   useEffect(() => {
     if (user?.role === 'External') {
@@ -97,6 +101,16 @@ export default function FoldersPage() {
 
   const selectedFolder = folders.find((f) => f.id === selectedFolderId) || folders[0];
 
+  const performReveal = async (item: any, privateKeyOverride?: string) => {
+    const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
+    const encryptedBlob = userSecret?.encryptedData || '';
+    const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
+    if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+
+    const plainText = await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
+    setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
+  };
+
   const handleToggleRevealPassword = async (item: any) => {
     if (revealedPasswords[item.id]) {
       setRevealedPasswords((prev) => {
@@ -107,37 +121,78 @@ export default function FoldersPage() {
       return;
     }
 
-    try {
-      const encryptedBlob = item.secrets?.[0]?.encryptedData || '';
-      const privateKey = await getEncryptedPrivateKey();
-      let plainText = 'AcmeSecret123!';
-      if (privateKey && (masterPassword || unlockedPgpKey) && encryptedBlob) {
-        plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword || undefined);
-      }
-      setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
-    } catch {
-      setRevealedPasswords((prev) => ({ ...prev, [item.id]: 'AcmeSecret123!' }));
+    if (!unlockedPgpKey && !masterPassword) {
+      setPendingUnlockAction('reveal');
+      setPendingUnlockItem(item);
+      setShowUnlockModal(true);
+      return;
     }
+
+    try {
+      await performReveal(item);
+    } catch {
+      alert('Failed to decrypt.');
+    }
+  };
+
+  const performCopy = async (item: any, privateKeyOverride?: string) => {
+    const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
+    const encryptedBlob = userSecret?.encryptedData || '';
+    const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
+    if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+
+    return await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
   };
 
   const handleCopyPassword = async (item: any) => {
     let plainText = revealedPasswords[item.id];
-    if (!plainText) {
-      try {
-        const encryptedBlob = item.secrets?.[0]?.encryptedData || '';
-        const privateKey = await getEncryptedPrivateKey();
-        if (privateKey && (masterPassword || unlockedPgpKey) && encryptedBlob) {
-          plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword || undefined);
-        } else {
-          plainText = 'AcmeSecret123!';
-        }
-      } catch {
-        plainText = 'AcmeSecret123!';
-      }
+    if (plainText) {
+      await navigator.clipboard.writeText(plainText);
+      setCopiedId(item.id);
+      setTimeout(() => setCopiedId(null), 2000);
+      return;
     }
+
+    if (!unlockedPgpKey && !masterPassword) {
+      setPendingUnlockAction('copy');
+      setPendingUnlockItem(item);
+      setShowUnlockModal(true);
+      return;
+    }
+
+    try {
+      plainText = await performCopy(item);
+    } catch {
+      alert('Failed to decrypt.');
+      return;
+    }
+
     await navigator.clipboard.writeText(plainText);
     setCopiedId(item.id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleUnlockSubmit = async (password: string) => {
+    const privateKey = await unlockVault(password);
+    if (!privateKey) return false;
+    setShowUnlockModal(false);
+
+    try {
+      if (pendingUnlockAction === 'reveal' && pendingUnlockItem) {
+        await performReveal(pendingUnlockItem, privateKey);
+      } else if (pendingUnlockAction === 'copy' && pendingUnlockItem) {
+        const plainText = await performCopy(pendingUnlockItem, privateKey);
+        await navigator.clipboard.writeText(plainText);
+        setCopiedId(pendingUnlockItem.id);
+        setTimeout(() => setCopiedId(null), 2000);
+      }
+    } catch {
+      alert('Failed to decrypt.');
+    }
+
+    setPendingUnlockAction(null);
+    setPendingUnlockItem(null);
+    return true;
   };
 
   return (
@@ -201,13 +256,13 @@ export default function FoldersPage() {
                             <Folder className={`w-5 h-5 shrink-0 ${isSelected ? 'text-[#1fbbd2]' : 'text-[#64748b]'}`} />
                             <div className="truncate">
                               <h3 className="text-sm font-extrabold text-[#0f172a] truncate">{f.name}</h3>
-                              <p className="text-[11px] text-[#64748b] line-clamp-1">{f.description}</p>
+                              <p className="text-[11px] text-[#64748b] line-clamp-1">{f.creatorName}</p>
                             </div>
                           </div>
 
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                              {f.itemCount} items
+                              {f.itemCount || 0} items
                             </span>
 
                             <button
@@ -236,7 +291,7 @@ export default function FoldersPage() {
                   <div className="p-6 border-b border-[#cbd5e1] flex items-center justify-between">
                     <div>
                       <h2 className="text-xl font-extrabold text-[#0f172a]">{selectedFolder.name}</h2>
-                      <p className="text-xs text-[#64748b] mt-0.5">{selectedFolder.description}</p>
+                      <p className="text-xs text-[#64748b] mt-0.5">{selectedFolder.creatorName}</p>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -267,14 +322,13 @@ export default function FoldersPage() {
                           <th className="py-3 px-6">Resource Name</th>
                           <th className="py-3 px-4">Username</th>
                           <th className="py-3 px-4">Password</th>
-                          <th className="py-3 px-4">Category</th>
                           <th className="py-3 px-4 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#e2e8f0]">
                         {folderItems.length === 0 ? (
                           <tr>
-                            <td colSpan={5} className="py-12 text-center text-[#64748b] text-xs">
+                            <td colSpan={4} className="py-12 text-center text-[#64748b] text-xs">
                               No password items stored inside this folder yet.
                             </td>
                           </tr>
@@ -299,7 +353,6 @@ export default function FoldersPage() {
                                     </span>
                                   </div>
                                 </td>
-                                <td className="py-4 px-4 text-[#64748b]">{item.category || 'General'}</td>
                                 <td className="py-4 px-4 text-right">
                                   <div className="flex items-center justify-end gap-2">
                                     <button
@@ -347,6 +400,16 @@ export default function FoldersPage() {
         isOpen={isFolderModalOpen}
         onClose={() => setIsFolderModalOpen(false)}
         onCreated={fetchFolders}
+      />
+
+      <UnlockVaultModal
+        isOpen={showUnlockModal}
+        onClose={() => {
+          setShowUnlockModal(false);
+          setPendingUnlockAction(null);
+          setPendingUnlockItem(null);
+        }}
+        onSubmit={handleUnlockSubmit}
       />
     </div>
   );

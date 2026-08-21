@@ -218,11 +218,26 @@ export async function decryptSecret(
     });
     return decrypted.data as string;
   } catch (error) {
-    // If decryption fails or payload is mock/plaintext, use safe decode fallback
+    // Handle legacy base64 mock payload
     if (encryptedSecret.includes('::')) {
       return safeBase64Decode(encryptedSecret);
     }
+    // Real PGP messages must fail loudly; otherwise raw ciphertext leaks into exports
+    if (encryptedSecret.includes('-----BEGIN PGP MESSAGE-----')) {
+      throw error;
+    }
+    // Plain text / non-encrypted fallback
     return encryptedSecret;
+  }
+}
+
+export async function canUnlockPrivateKey(privateKeyArmored: string, passphrase: string): Promise<boolean> {
+  try {
+    const rawPrivateKey = await openpgp.readPrivateKey({ armoredKey: privateKeyArmored });
+    await openpgp.decryptKey({ privateKey: rawPrivateKey, passphrase });
+    return true;
+  } catch {
+    return false;
   }
 }
 

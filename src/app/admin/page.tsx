@@ -27,6 +27,7 @@ import {
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { reEncryptPgpMessage } from '@/lib/crypto';
+import FilterDropdown from '@/components/FilterDropdown';
 
 import { useRouter } from 'next/navigation';
 
@@ -59,6 +60,7 @@ export default function AdminPage() {
     }
     return false;
   };
+  const canInvite = user?.role === 'Owner' || user?.role === 'Admin';
   const [roleFilter, setRoleFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [inviteEmail, setInviteEmail] = useState('');
@@ -362,18 +364,20 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setInviteLink('');
-                  setInviteEmail('');
-                  setShowInviteModal(true);
-                }}
-                className="gold-cyan-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow-md cursor-pointer whitespace-nowrap shrink-0"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>Invite Member</span>
-              </button>
+              {canInvite && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInviteLink('');
+                    setInviteEmail('');
+                    setShowInviteModal(true);
+                  }}
+                  className="gold-cyan-gradient-btn px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 text-white shadow-md cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Invite Member</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -521,32 +525,27 @@ export default function AdminPage() {
 
                 {/* Filters */}
                 <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <div className="flex items-center gap-2 bg-[#ffffff] border border-[#cbd5e1] px-3 py-2 rounded-xl text-xs shadow-sm">
-                    <Filter className="w-3.5 h-3.5 text-[#f39c12]" />
-                    <select
-                      value={roleFilter}
-                      onChange={(e) => setRoleFilter(e.target.value)}
-                      className="bg-[#ffffff] text-[#0f172a] font-bold focus:outline-none cursor-pointer"
-                    >
-                      <option value="All" className="bg-[#ffffff] text-[#0f172a]">All Roles</option>
-                      <option value="Owner" className="bg-[#ffffff] text-[#0f172a]">Owner</option>
-                      <option value="Admin" className="bg-[#ffffff] text-[#0f172a]">Admin</option>
-                      <option value="User" className="bg-[#ffffff] text-[#0f172a]">User</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-center gap-2 bg-[#ffffff] border border-[#cbd5e1] px-3 py-2 rounded-xl text-xs shadow-sm">
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      className="bg-[#ffffff] text-[#0f172a] font-bold focus:outline-none cursor-pointer"
-                    >
-                      <option value="All" className="bg-[#ffffff] text-[#0f172a]">All Status</option>
-                      <option value="Active" className="bg-[#ffffff] text-[#0f172a]">Active</option>
-                      <option value="Invited" className="bg-[#ffffff] text-[#0f172a]">Invited</option>
-                      <option value="Suspended" className="bg-[#ffffff] text-[#0f172a]">Suspended</option>
-                    </select>
-                  </div>
+                  <FilterDropdown
+                    value={roleFilter}
+                    onChange={setRoleFilter}
+                    icon={Filter}
+                    options={[
+                      { value: 'All', label: 'All Roles' },
+                      { value: 'Owner', label: 'Owner' },
+                      { value: 'Admin', label: 'Admin' },
+                      { value: 'User', label: 'User' },
+                    ]}
+                  />
+                  <FilterDropdown
+                    value={statusFilter}
+                    onChange={setStatusFilter}
+                    options={[
+                      { value: 'All', label: 'All Status' },
+                      { value: 'Active', label: 'Active' },
+                      { value: 'Invited', label: 'Invited' },
+                      { value: 'Suspended', label: 'Suspended' },
+                    ]}
+                  />
                 </div>
               </div>
 

@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
+import ExportFormatDropdown from '@/components/ExportFormatDropdown';
 import {
   Users,
   Plus,
@@ -29,10 +30,16 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { decryptSecret, encryptSecret } from '@/lib/crypto';
 import { useAuth } from '@/context/AuthContext';
+import {
+  buildDecryptedExportData,
+  exportPasswords,
+  addImportExportHistory,
+} from '@/lib/exportVault';
+import UnlockVaultModal from '@/components/UnlockVaultModal';
 
 export default function GroupsPage() {
   const router = useRouter();
-  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey } = useAuth();
+  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey, unlockVault } = useAuth();
   const [groups, setGroups] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
@@ -42,6 +49,10 @@ export default function GroupsPage() {
   const [activeTab, setActiveTab] = useState<'members' | 'folders' | 'passwords' | 'activity'>('members');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const [bulkSelectMode, setBulkSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [exportFormat, setExportFormat] = useState<'csv' | 'json' | 'pdf' | 'xlsx' | 'xls' | 'kdbx'>('csv');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -77,6 +88,9 @@ export default function GroupsPage() {
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showAssignFolderModal, setShowAssignFolderModal] = useState(false);
   const [showSharePasswordModal, setShowSharePasswordModal] = useState(false);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [pendingUnlockAction, setPendingUnlockAction] = useState<'reveal' | 'copy' | 'share' | null>(null);
+  const [pendingUnlockItem, setPendingUnlockItem] = useState<any | null>(null);
 
   // Form states
   const [newGroupName, setNewGroupName] = useState('');
@@ -104,8 +118,13 @@ export default function GroupsPage() {
     fetchUsers();
     fetchFolders();
     fetchResources();
-    fetchAuditLogs();
   }, []);
+
+  useEffect(() => {
+    if (selectedGroupId) {
+      fetchAuditLogs(selectedGroupId);
+    }
+  }, [selectedGroupId]);
 
   const fetchGroups = async () => {
     setLoading(true);
@@ -155,9 +174,13 @@ export default function GroupsPage() {
     }
   };
 
-  const fetchAuditLogs = async () => {
+  const fetchAuditLogs = async (groupId: string) => {
     try {
-      const res = await api.get('/admin/audit-logs');
+      const params: any = {};
+      if (groupId) {
+        params.groupId = groupId;
+      }
+      const res = await api.get('/admin/audit-logs', { params });
       setAuditLogs(res.data);
     } catch (err) {
       console.error(err);
@@ -258,48 +281,56 @@ export default function GroupsPage() {
     }
   };
 
+  const performShare = async (privateKeyOverride?: string) => {
+    if (!selectedResourceToShare || !selectedGroup) return;
+
+    const targetUserIds = selectedGroup.members.map((m: any) => m.userId);
+    const resResource = await api.get(`/resources/${selectedResourceToShare}`);
+    const resourceData = resResource.data;
+    const userSecret = resourceData.secrets?.find((s: any) => s.userId === user?.id) || resourceData.secrets?.[0];
+    const encryptedBlob = userSecret?.encryptedData || '';
+
+    const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
+    if (!privateKey) throw new Error('No private key available');
+    const plainText = await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
+
+    const targetSecrets = [];
+    for (const tId of targetUserIds) {
+      const uObj = users.find((u) => u.id === tId);
+      const pubKey = uObj?.publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...==\n-----END PGP PUBLIC KEY BLOCK-----';
+      const reEncrypted = await encryptSecret(plainText, pubKey);
+      targetSecrets.push({ userId: tId, encryptedData: reEncrypted });
+    }
+
+    await api.post(`/resources/${selectedResourceToShare}/share`, {
+      targetUserIds,
+      secrets: targetSecrets,
+    });
+
+    setGroupResourceIds((prev) => {
+      const current = prev[selectedGroup.id] || [];
+      if (current.includes(selectedResourceToShare)) return prev;
+      return { ...prev, [selectedGroup.id]: [...current, selectedResourceToShare] };
+    });
+
+    setSelectedResourceToShare('');
+    setShowSharePasswordModal(false);
+    alert(`Successfully re-encrypted & shared secret with group "${selectedGroup.name}"!`);
+  };
+
   const handleSharePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedResourceToShare || !selectedGroup) return;
 
+    if (!unlockedPgpKey && !masterPassword) {
+      setPendingUnlockAction('share');
+      setPendingUnlockItem(null);
+      setShowUnlockModal(true);
+      return;
+    }
+
     try {
-      const targetUserIds = selectedGroup.members.map((m: any) => m.userId);
-      const resResource = await api.get(`/resources/${selectedResourceToShare}`);
-      const resourceData = resResource.data;
-      const encryptedBlob = resourceData.secrets?.[0]?.encryptedData || '';
-
-      const privateKey = await getEncryptedPrivateKey();
-      let plainText = 'AcmeSecret123!';
-      if (privateKey && (masterPassword || unlockedPgpKey)) {
-        try {
-          plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword || undefined);
-        } catch (e) {
-          plainText = 'AcmeSecret123!';
-        }
-      }
-
-      const targetSecrets = [];
-      for (const tId of targetUserIds) {
-        const uObj = users.find((u) => u.id === tId);
-        const pubKey = uObj?.publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...==\n-----END PGP PUBLIC KEY BLOCK-----';
-        const reEncrypted = await encryptSecret(plainText, pubKey);
-        targetSecrets.push({ userId: tId, encryptedData: reEncrypted });
-      }
-
-      await api.post(`/resources/${selectedResourceToShare}/share`, {
-        targetUserIds,
-        secrets: targetSecrets,
-      });
-
-      setGroupResourceIds((prev) => {
-        const current = prev[selectedGroup.id] || [];
-        if (current.includes(selectedResourceToShare)) return prev;
-        return { ...prev, [selectedGroup.id]: [...current, selectedResourceToShare] };
-      });
-
-      setSelectedResourceToShare('');
-      setShowSharePasswordModal(false);
-      alert(`Successfully re-encrypted & shared secret with group "${selectedGroup.name}"!`);
+      await performShare();
     } catch (err) {
       alert('Failed to share password with group');
     }
@@ -324,22 +355,32 @@ export default function GroupsPage() {
     }
 
     try {
-      const encryptedBlob = item.secrets?.[0]?.encryptedData || '';
+      const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
+      const encryptedBlob = userSecret?.encryptedData || '';
       const privateKey = await getEncryptedPrivateKey();
+      if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
 
-      let plainText = 'GroupSecret123!';
-      if (privateKey && (masterPassword || unlockedPgpKey)) {
-        plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword || undefined);
-      }
-
+      const plainText = await decryptSecret(encryptedBlob, privateKey, unlockedPgpKey ? undefined : masterPassword || undefined);
       setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
     } catch (err) {
       alert('Failed to decrypt secret.');
     }
   };
 
-  const handleCopyPass = (item: any) => {
-    const pass = revealedPasswords[item.id] || 'GroupSecret123!';
+  const handleCopyPass = async (item: any) => {
+    let pass = revealedPasswords[item.id];
+    if (!pass) {
+      try {
+        const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
+        const encryptedBlob = userSecret?.encryptedData || '';
+        const privateKey = await getEncryptedPrivateKey();
+        if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+        pass = await decryptSecret(encryptedBlob, privateKey, unlockedPgpKey ? undefined : masterPassword || undefined);
+      } catch {
+        alert('Failed to decrypt.');
+        return;
+      }
+    }
     navigator.clipboard.writeText(pass);
     alert(`Copied password for ${item.name} to clipboard!`);
   };
@@ -396,6 +437,61 @@ export default function GroupsPage() {
   const availableUsersForGroup = selectedGroup
     ? users.filter((u) => !selectedGroup.members.some((m: any) => m.userId === u.id))
     : [];
+
+  const toggleResourceSelection = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const toggleSelectAllAssigned = () => {
+    const ids = assignedResourcesForGroup.map((r) => r.id);
+    const allSelected = ids.every((id) => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...ids])));
+    }
+  };
+
+  const handleBulkExport = async () => {
+    if (!['Owner', 'Admin'].includes(user?.role as string)) {
+      alert('Export is restricted to Organization Owners or Admins.');
+      return;
+    }
+
+    const target = selectedIds.length > 0
+      ? assignedResourcesForGroup.filter((r) => selectedIds.includes(r.id))
+      : assignedResourcesForGroup;
+
+    if (target.length === 0) {
+      alert('No passwords selected to export.');
+      return;
+    }
+
+    try {
+      const data = await buildDecryptedExportData(
+        target,
+        user,
+        masterPassword,
+        unlockedPgpKey,
+        getEncryptedPrivateKey
+      );
+      const { filename, count } = await exportPasswords(data, exportFormat, user);
+      addImportExportHistory({
+        type: 'export',
+        fileName: filename,
+        format: exportFormat,
+        count,
+        by: user?.name || user?.email || 'Unknown',
+        passwordNames: target.map((r) => r.name),
+      });
+      setSelectedIds([]);
+      setBulkSelectMode(false);
+      alert(`Exported ${count} group passwords to ${filename}`);
+    } catch (err: any) {
+      console.error(err);
+      alert('Export failed: ' + (err.message || 'Unknown error'));
+    }
+  };
 
   return (
     <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
@@ -667,6 +763,44 @@ export default function GroupsPage() {
                         </button>
                       </div>
 
+                      <div className="flex flex-wrap items-center gap-3 bg-[#ffffff] border border-[#d0dbe5] rounded-2xl p-3 shadow-sm">
+                        <button
+                          onClick={() => {
+                            setBulkSelectMode((prev) => !prev);
+                            if (bulkSelectMode) setSelectedIds([]);
+                          }}
+                          className="px-3.5 py-2 bg-[#f8fafc] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-xs font-extrabold text-[#0f172a] transition-all cursor-pointer"
+                        >
+                          {bulkSelectMode ? 'Cancel Bulk Select' : 'Bulk Select'}
+                        </button>
+
+                        {bulkSelectMode && (
+                          <>
+                            <button
+                              onClick={toggleSelectAllAssigned}
+                              className="px-3.5 py-2 bg-[#f8fafc] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-xs font-extrabold text-[#0f172a] transition-all cursor-pointer"
+                            >
+                              Select All
+                            </button>
+
+                            <ExportFormatDropdown value={exportFormat} onChange={(value) => setExportFormat(value)} />
+
+                            <button
+                              onClick={handleBulkExport}
+                              className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold text-white shadow-md cursor-pointer"
+                            >
+                              Export {selectedIds.length > 0 ? `Selected (${selectedIds.length})` : 'All'}
+                            </button>
+                          </>
+                        )}
+
+                        {selectedIds.length > 0 && (
+                          <span className="text-xs font-bold text-[#0284c7]">
+                            {selectedIds.length} selected
+                          </span>
+                        )}
+                      </div>
+
                       {assignedResourcesForGroup.length === 0 ? (
                         <div className="p-8 text-center text-[#64748b] text-xs bg-[#f8fafc] rounded-xl border border-[#cbd5e1]">
                           <Lock className="w-8 h-8 text-[#0284c7] mx-auto mb-2 opacity-80" />
@@ -677,6 +811,19 @@ export default function GroupsPage() {
                           <table className="w-full text-left text-xs">
                             <thead className="bg-[#e6eff7] text-[#334155] font-extrabold border-b border-[#cbd5e1]">
                               <tr>
+                                {bulkSelectMode && (
+                                  <th className="py-2.5 px-3 w-10">
+                                    <input
+                                      type="checkbox"
+                                      checked={
+                                        assignedResourcesForGroup.length > 0 &&
+                                        assignedResourcesForGroup.every((r) => selectedIds.includes(r.id))
+                                      }
+                                      onChange={toggleSelectAllAssigned}
+                                      className="accent-[#f39c12] w-4 h-4"
+                                    />
+                                  </th>
+                                )}
                                 <th className="py-2.5 px-3">Item Name</th>
                                 <th className="py-2.5 px-3">Username</th>
                                 <th className="py-2.5 px-3">Password</th>
@@ -688,6 +835,16 @@ export default function GroupsPage() {
                                 const isRev = !!revealedPasswords[res.id];
                                 return (
                                   <tr key={res.id} className="hover:bg-[#f1f6fb]">
+                                    {bulkSelectMode && (
+                                      <td className="py-3 px-3 w-10">
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedIds.includes(res.id)}
+                                          onChange={() => toggleResourceSelection(res.id)}
+                                          className="accent-[#f39c12] w-4 h-4"
+                                        />
+                                      </td>
+                                    )}
                                     <td className="py-3 px-3 font-extrabold text-[#0f172a] flex items-center gap-2">
                                       <Lock className="w-3.5 h-3.5 text-[#0284c7]" />
                                       <span>{res.name}</span>

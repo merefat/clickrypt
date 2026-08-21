@@ -17,7 +17,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-  const [activeGroupFilter, setActiveGroupFilter] = useState<string>('all');
+  const [activeGroupFilter, setActiveGroupFilter] = useState<string>('');
   const [shareMode, setShareMode] = useState<'members' | 'external'>('members');
   const [externalShareLink, setExternalShareLink] = useState<string>('');
   const [externalEmail, setExternalEmail] = useState<string>('');
@@ -39,7 +39,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
       }
       setSharingSuccess(false);
       setSelectedUserIds([]);
-      setActiveGroupFilter('all');
+      setActiveGroupFilter('');
       setShareMode(appMode === 'personal' ? 'external' : 'members');
       setExternalShareLink('');
       setCopiedExternalLink(false);
@@ -117,20 +117,31 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
     }
     setLoading(true);
     try {
-      await api.post(`/resources/${resourceId}/share`, {
+      const res = await api.post(`/resources/${resourceId}/share`, {
         isExternalShared: true,
         externalShareEmail: trimmed,
+        externalShareLink,
       });
       await navigator.clipboard.writeText(externalShareLink);
       setCopiedExternalLink(true);
       setSharingSuccess(true);
+      if (res.data?.emailError) {
+        alert(`Link copied, but email not sent: ${res.data.emailError}`);
+      } else if (res.data?.emailSent) {
+        alert(`Invitation email sent to ${trimmed} and link copied to clipboard.`);
+      }
       setTimeout(() => {
         setCopiedExternalLink(false);
         onClose();
       }, 1800);
     } catch (err: any) {
-      console.error(err);
-      alert(err.response?.data?.error || 'Failed to copy sharing link.');
+      console.warn('External share failed:', err.response?.data?.error || err.message);
+      const serverError = err.response?.data?.error;
+      if (serverError === 'Forbidden') {
+        alert('You are not the owner of this resource.');
+      } else {
+        alert(serverError || 'Failed to share externally. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -390,7 +401,11 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
         {sharingSuccess && (
           <div className="p-3 bg-emerald-50 border border-emerald-300 text-xs text-emerald-800 rounded-xl flex items-center gap-2 shadow-sm font-extrabold">
             <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Shared with {selectedUserIds.length} recipient member(s)!</span>
+            <span>
+              {shareMode === 'external'
+                ? 'Secure external share link generated and copied!'
+                : `Shared with ${selectedUserIds.length} recipient member(s)!`}
+            </span>
           </div>
         )}
 

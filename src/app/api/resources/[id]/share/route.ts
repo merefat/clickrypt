@@ -1,20 +1,21 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
-import { getAuthUserFromRequest } from '@/lib/authHelper';
+import { getAuthContextFromRequest } from '@/lib/authHelper';
+import { isEmailConfigured, sendEmail } from '@/lib/email';
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authUser = await getAuthUserFromRequest(req);
+    const { user: authUser, source } = await getAuthContextFromRequest(req);
     if (!authUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await params;
     const body = await req.json();
-    const { action, revokeUserId, targetUserId, targetUserIds, encryptedData, secrets, isExternalShared, externalShareEmail } = body;
+    const { action, revokeUserId, targetUserId, targetUserIds, encryptedData, secrets, isExternalShared, externalShareEmail, externalShareLink } = body;
 
     const userMode = (authUser.accountMode || 'personal') as 'personal' | 'organization';
     const resource = db.resourcesFor(userMode).find((r) => r.id === id);
@@ -24,6 +25,15 @@ export async function POST(
 
     // Only the resource owner can share or revoke it
     if (resource.ownerId !== authUser.id) {
+      console.error('[SHARE 403]', {
+        resourceId: id,
+        resourceName: resource.name,
+        ownerId: resource.ownerId,
+        authUserId: authUser.id,
+        authUserEmail: authUser.email,
+        tokenSource: source,
+        userMode,
+      });
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -55,12 +65,35 @@ export async function POST(
         details: `Revoked share permission for resource ${resource.name} (Recipient: ${targetToRevoke || 'External'})`,
       });
 
+      resource.lastModified = new Date().toISOString();
       return NextResponse.json({ success: true, resource, message: 'Share permission revoked cleanly.' });
     }
+
+    let emailSent = false;
+    let emailError: string | undefined;
 
     if (isExternalShared !== undefined) {
       resource.isExternalShared = isExternalShared;
       if (externalShareEmail) resource.externalShareEmail = externalShareEmail;
+
+      // Attempt to email the external recipient the secure registration link
+      if (isExternalShared && externalShareEmail && externalShareLink) {
+        if (!isEmailConfigured()) {
+          emailError = 'Email delivery is not configured on this server. Please copy the link and send it manually.';
+        } else {
+          try {
+            await sendEmail({
+              to: externalShareEmail,
+              subject: `You've been invited to access a secure item on Clickrypt`,
+              text: `A secure item has been shared with you on Clickrypt. Register or log in using this unique link: ${externalShareLink}`,
+              html: `<p>A secure item has been shared with you on <strong>Clickrypt</strong>.</p><p>Click the link below to register or log in and view it in your <em>Shared with Me</em> panel:</p><p><a href="${externalShareLink}">${externalShareLink}</a></p>`,
+            });
+            emailSent = true;
+          } catch (err: any) {
+            emailError = err.message || 'Failed to send invitation email. Please copy the link and send it manually.';
+          }
+        }
+      }
     }
 
     // Handle batch targetUserIds and secrets
@@ -105,7 +138,13 @@ export async function POST(
       details: `Shared password item "${resource.name}" with ${recipientDesc} via OpenPGP re-encryption`,
     });
 
-    return NextResponse.json({ success: true, resource });
+    resource.lastModified = new Date().toISOString();
+    const response: any = { success: true, resource };
+    if (isExternalShared !== undefined) {
+      response.emailSent = emailSent;
+      if (emailError) response.emailError = emailError;
+    }
+    return NextResponse.json(response);
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 });
   }

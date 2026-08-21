@@ -56,8 +56,15 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Organization Owner account cannot be modified this way' }, { status: 403 });
     }
 
-    if (caller.role !== 'Owner' && (caller.role !== 'Admin' || targetUser.role !== 'User')) {
+    const canModifyStatus =
+      caller.role === 'Owner' ||
+      (caller.role === 'Admin' && targetUser.role === 'User');
+    if (!canModifyStatus) {
       return NextResponse.json({ error: 'Not allowed to modify this user' }, { status: 403 });
+    }
+
+    if (status && !['Active', 'Suspended'].includes(status)) {
+      return NextResponse.json({ error: 'Invalid status value' }, { status: 400 });
     }
 
     if (role) targetUser.role = role;

@@ -9,12 +9,11 @@ export async function GET(request: Request) {
       return NextResponse.json([]);
     }
 
-    // Owner and Admin roles see all groups to manage them
-    if (authUser.role === 'Owner' || authUser.role === 'Admin') {
+    // Organization Owners see all groups; Admins and Users only see groups they are members of
+    if (authUser.role === 'Owner') {
       return NextResponse.json(db.groups);
     }
 
-    // Standard Users ONLY see groups where they are an explicit member
     const userGroups = db.groups.filter((g) =>
       g.members.some((m) => m.userId === authUser.id)
     );
@@ -32,6 +31,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    if (authUser.role !== 'Owner' && authUser.role !== 'Admin') {
+      return NextResponse.json({ error: 'Only Owners or Admins can create groups' }, { status: 403 });
+    }
+
     const { name, description, memberIds } = await request.json();
 
     const newGroup = {
@@ -44,7 +47,7 @@ export async function POST(request: Request) {
           .filter((id: string) => id !== authUser.id)
           .map((userId: string) => ({ userId, role: 'User' as const })),
       ],
-      lastActive: 'Just now',
+      lastActive: new Date().toISOString(),
     };
 
     db.groups.push(newGroup);
@@ -55,6 +58,7 @@ export async function POST(request: Request) {
       timestamp: new Date().toISOString(),
       action: 'CREATE_GROUP',
       userId: authUser.id,
+      groupId: newGroup.id,
       details: `Created team group ${name}`,
     });
 

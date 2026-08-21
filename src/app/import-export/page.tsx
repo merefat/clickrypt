@@ -17,14 +17,24 @@ import {
   Users,
   Folder,
   ChevronDown,
-  Check
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  Copy,
+  Clock
 } from 'lucide-react';
 import api from '@/lib/api';
-import { encryptSecret, decryptSecret } from '@/lib/crypto';
+import { encryptSecret, canUnlockPrivateKey } from '@/lib/crypto';
+import UnlockVaultModal from '@/components/UnlockVaultModal';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import {
+  buildDecryptedExportData,
+  exportPasswords,
+  addImportExportHistory,
+  getImportExportHistory,
+  ImportExportRecord,
+} from '@/lib/exportVault';
 
 export default function ImportExportPage() {
   const router = useRouter();
@@ -39,7 +49,12 @@ export default function ImportExportPage() {
 
   const [selectedFormat, setSelectedFormat] = useState<'csv' | 'json' | '1password' | 'lastpass' | 'bitwarden' | 'kdbx'>('csv');
   const [exportOption, setExportOption] = useState<'all' | 'group' | 'selected'>('all');
-  const [exportType, setExportType] = useState<'csv' | 'json' | 'pdf'>('csv');
+  const [exportType, setExportType] = useState<'csv' | 'json' | 'pdf' | 'xlsx' | 'xls' | 'kdbx'>('csv');
+  const [history, setHistory] = useState<ImportExportRecord[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const HISTORY_PER_PAGE = 10;
+  const totalHistoryPages = Math.ceil(history.length / HISTORY_PER_PAGE) || 1;
   const [groups, setGroups] = useState<any[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
@@ -65,7 +80,12 @@ export default function ImportExportPage() {
 
   React.useEffect(() => {
     fetchGroupsAndFolders();
+    setHistory(getImportExportHistory());
   }, []);
+
+  React.useEffect(() => {
+    setHistoryPage(1);
+  }, [history.length]);
 
   const fetchGroupsAndFolders = async () => {
     try {
@@ -95,6 +115,9 @@ export default function ImportExportPage() {
   const [exportSuccessMessage, setExportSuccessMessage] = useState<string | null>(null);
   const [importedFileName, setImportedFileName] = useState<string | null>(null);
   const [kdbxPassword, setKdbxPassword] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [pendingExportResources, setPendingExportResources] = useState<any[] | null>(null);
 
   const handleOpenFileDialog = () => {
     fileInputRef.current?.click();
@@ -125,14 +148,69 @@ export default function ImportExportPage() {
   };
 
   const parseCSV = (csvText: string) => {
-    const lines = csvText.split(/\r\n|\n/).filter((l) => l.trim().length > 0);
-    if (lines.length === 0) return [];
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    let currentField = '';
+    let inQuotes = false;
+    let i = 0;
 
-    const headers = lines[0].split(',').map((h) => h.trim().replace(/^["']|["']$/g, '').toLowerCase());
+    while (i < csvText.length) {
+      const c = csvText[i];
+      const next = csvText[i + 1];
+
+      if (c === '"') {
+        if (inQuotes && next === '"') {
+          currentField += '"';
+          i += 2;
+          continue;
+        }
+        inQuotes = !inQuotes;
+        i++;
+        continue;
+      }
+
+      if (!inQuotes) {
+        if (c === ',') {
+          currentRow.push(currentField);
+          currentField = '';
+          i++;
+          continue;
+        }
+        if (c === '\n') {
+          currentRow.push(currentField);
+          if (currentRow.some((f) => f.trim().length > 0)) rows.push(currentRow);
+          currentRow = [];
+          currentField = '';
+          i++;
+          continue;
+        }
+        if (c === '\r') {
+          currentRow.push(currentField);
+          if (currentRow.some((f) => f.trim().length > 0)) rows.push(currentRow);
+          currentRow = [];
+          currentField = '';
+          i += next === '\n' ? 2 : 1;
+          continue;
+        }
+      }
+
+      currentField += c;
+      i++;
+    }
+
+    // Push final row if it isn’t empty and didn’t end with a newline
+    if (currentField.length > 0 || currentRow.length > 0) {
+      currentRow.push(currentField);
+      if (currentRow.some((f) => f.trim().length > 0)) rows.push(currentRow);
+    }
+
+    if (rows.length === 0) return [];
+
+    const headers = rows[0].map((h) => h.trim().replace(/^["']|["']$/g, '').toLowerCase());
     const items: any[] = [];
 
-    for (let i = 1; i < lines.length; i++) {
-      const currentLine = lines[i].split(',').map((val) => val.trim().replace(/^["']|["']$/g, ''));
+    for (let r = 1; r < rows.length; r++) {
+      const currentLine = rows[r].map((val) => val.trim().replace(/^["']|["']$/g, ''));
       if (currentLine.length === 0 || (currentLine.length === 1 && !currentLine[0])) continue;
 
       const itemObj: any = { name: '', username: '', password: '', url: 'example.com', category: 'Imported' };
@@ -145,7 +223,7 @@ export default function ImportExportPage() {
         else if (h.includes('cat') || h.includes('folder') || h.includes('group')) itemObj.category = val;
       });
 
-      if (!itemObj.name) itemObj.name = currentLine[0] || `Imported Item ${i}`;
+      if (!itemObj.name) itemObj.name = currentLine[0] || `Imported Item ${r}`;
       if (!itemObj.password) itemObj.password = currentLine[1] || 'DefaultPass123!';
       items.push(itemObj);
     }
@@ -261,6 +339,14 @@ export default function ImportExportPage() {
       }
 
       setImportedCount(count);
+      addImportExportHistory({
+        type: 'import',
+        fileName: file.name,
+        format: selectedFormat,
+        count,
+        by: user?.name || user?.email || 'Unknown',
+      });
+      setHistory(getImportExportHistory());
     } catch (err: any) {
       console.error(err);
       alert('Failed to process file: ' + (err.message || 'Unknown error'));
@@ -269,7 +355,51 @@ export default function ImportExportPage() {
     }
   };
 
+  const executeExport = async (allResources: any[], overridePassword?: string) => {
+    setLoadingExport(true);
+    setExportSuccessMessage(null);
+    try {
+      const decryptedExportData = await buildDecryptedExportData(
+        allResources,
+        user,
+        overridePassword || masterPassword,
+        unlockedPgpKey,
+        getEncryptedPrivateKey
+      );
+      const { filename, count, filePassword } = await exportPasswords(decryptedExportData, exportType, user);
+      console.log('[debug] exportPasswords returned filePassword:', filePassword);
+
+      const newRecord = addImportExportHistory({
+        type: 'export',
+        fileName: filename,
+        format: exportType,
+        count,
+        by: user?.name || user?.email || 'Unknown',
+        filePassword,
+        passwordNames: allResources.map((r: any) => r.name),
+      });
+      console.log('[debug] newRecord:', newRecord);
+      if (newRecord) {
+        const updatedHistory = [newRecord, ...getImportExportHistory().filter((h) => h.id !== newRecord.id)];
+        console.log('[debug] updatedHistory:', updatedHistory);
+        setHistory(updatedHistory);
+      }
+
+      const failedDecryptionCount = decryptedExportData.filter((d) => d.Password === '[Decryption Required]').length;
+      const failedNote = failedDecryptionCount > 0
+        ? ` Note: ${failedDecryptionCount} password${failedDecryptionCount > 1 ? 's' : ''} could not be decrypted and will show "[Decryption Required]".`
+        : '';
+      setExportSuccessMessage(`Exported ${count} passwords to ${filename}. The export password is recorded in the history below.${failedNote}`);
+    } catch (err: any) {
+      console.error(err);
+      alert('Export failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setLoadingExport(false);
+    }
+  };
+
   const handleExportVault = async () => {
+    console.log('[debug] handleExportVault entered');
     if (localStorage.getItem('clickrypt_app_mode') !== 'personal' && !['Owner', 'Admin'].includes(user?.role as string)) {
       alert('🔒 Export Restricted: Password export is only available for Organization Owners/Admins or in Personal mode.');
       return;
@@ -279,7 +409,6 @@ export default function ImportExportPage() {
     setExportSuccessMessage(null);
 
     try {
-      // Exclude Secret Vault private items from standard vault export
       const res = await api.get('/resources', { params: { secretVault: false } });
       let allResources = (res.data || []).filter((r: any) => !r.isPrivateOnly);
 
@@ -299,151 +428,31 @@ export default function ImportExportPage() {
         return;
       }
 
-      let encryptedPrivateKey = '';
-      if (getEncryptedPrivateKey) {
-        encryptedPrivateKey = (await getEncryptedPrivateKey()) || '';
+      if (!masterPassword && !unlockedPgpKey) {
+        setPendingExportResources(allResources);
+        setShowUnlockModal(true);
+        setLoadingExport(false);
+        return;
       }
 
-      // Decrypt passwords client-side
-      const decryptedExportData: any[] = [];
-      for (const r of allResources) {
-        let plainPass = '••••••••';
-        const userSecret = r.secrets?.find((s: any) => s.userId === user?.id) || r.secrets?.[0];
-
-        if (userSecret?.encryptedData) {
-          if ((masterPassword || unlockedPgpKey) && encryptedPrivateKey && userSecret.encryptedData.includes('-----BEGIN PGP MESSAGE-----')) {
-            try {
-              plainPass = await decryptSecret(userSecret.encryptedData, encryptedPrivateKey, masterPassword || undefined);
-            } catch {
-              plainPass = '[Decryption Required]';
-            }
-          } else if (userSecret.encryptedData.startsWith('[PGP-ENCRYPTED-BLOB::')) {
-            const b64 = userSecret.encryptedData.replace('[PGP-ENCRYPTED-BLOB::', '').replace(']', '');
-            plainPass = Buffer.from(b64, 'base64').toString('utf-8');
-          }
-        }
-
-        decryptedExportData.push({
-          Title: r.name,
-          Username: r.username || '',
-          Password: plainPass,
-          URL: r.url || '',
-          Category: r.category || 'General',
-          LastModified: r.lastModified || 'N/A',
-        });
-      }
-
-      const timestampStr = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `clickrypt_vault_export_${timestampStr}`;
-
-      if (exportType === 'pdf') {
-        // GENERATE PDF REPORT USING jsPDF & AUTO-TABLE
-        const doc = new jsPDF('landscape', 'mm', 'a4');
-
-        // Header Background Bar
-        doc.setFillColor(31, 187, 210);
-        doc.rect(0, 0, 297, 24, 'F');
-
-        // White Title
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.text('CLICKRYPT OPENPGP ZERO-KNOWLEDGE VAULT EXPORT', 14, 15);
-
-        // Subtitle
-        doc.setTextColor(240, 248, 255);
-        doc.setFontSize(9);
-        doc.text(`Generated for ${user?.name || 'Alex Morgan'} (${user?.email || 'alex.morgan@acme.com'}) • Total Items: ${decryptedExportData.length} • Date: ${new Date().toLocaleString()}`, 14, 21);
-
-        // Table Rows
-        const head = [['Title', 'Username', 'Decrypted Password', 'URL', 'Category', 'Last Modified']];
-        const body = decryptedExportData.map((d) => [
-          d.Title,
-          d.Username,
-          d.Password,
-          d.URL,
-          d.Category,
-          d.LastModified,
-        ]);
-
-        autoTable(doc, {
-          startY: 28,
-          head: head,
-          body: body,
-          theme: 'grid',
-          headStyles: {
-            fillColor: [31, 187, 210],
-            textColor: [255, 255, 255],
-            fontStyle: 'bold',
-            fontSize: 9,
-          },
-          bodyStyles: {
-            fillColor: [255, 255, 255],
-            textColor: [15, 23, 42],
-            fontSize: 8.5,
-          },
-          alternateRowStyles: {
-            fillColor: [245, 248, 251],
-          },
-          margin: { top: 28, left: 14, right: 14, bottom: 18 },
-        });
-
-        // Footer Notice
-        const pageCount = (doc as any).internal.getNumberOfPages();
-        for (let i = 1; i <= pageCount; i++) {
-          doc.setPage(i);
-          doc.setFontSize(8);
-          doc.setTextColor(100, 116, 139);
-          doc.text(`Page ${i} of ${pageCount} • Clickrypt OpenPGP Encrypted Export • Strictly Confidential`, 14, 202);
-        }
-
-        doc.save(`${filename}.pdf`);
-        setExportSuccessMessage(`Exported ${decryptedExportData.length} passwords to ${filename}.pdf!`);
-      } else if (exportType === 'json') {
-        const fileContent = JSON.stringify(decryptedExportData, null, 2);
-        const blob = new Blob([fileContent], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${filename}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        setExportSuccessMessage(`Exported ${decryptedExportData.length} passwords to ${filename}.json!`);
-      } else {
-        // CSV Export
-        const csvHeaders = ['Title', 'Username', 'Password', 'URL', 'Category', 'LastModified'];
-        const csvRows = [csvHeaders.join(',')];
-        decryptedExportData.forEach((d) => {
-          const row = [
-            `"${d.Title.replace(/"/g, '""')}"`,
-            `"${d.Username.replace(/"/g, '""')}"`,
-            `"${d.Password.replace(/"/g, '""')}"`,
-            `"${d.URL.replace(/"/g, '""')}"`,
-            `"${d.Category.replace(/"/g, '""')}"`,
-            `"${d.LastModified.replace(/"/g, '""')}"`,
-          ];
-          csvRows.push(row.join(','));
-        });
-
-        const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${filename}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        setExportSuccessMessage(`Exported ${decryptedExportData.length} passwords to ${filename}.csv!`);
-      }
+      await executeExport(allResources);
     } catch (err: any) {
       console.error(err);
       alert('Export failed: ' + (err.message || 'Unknown error'));
-    } finally {
       setLoadingExport(false);
     }
+  };
+
+  const handleUnlockSubmit = async (password: string) => {
+    if (!pendingExportResources) return false;
+    const privateKey = await getEncryptedPrivateKey();
+    if (!privateKey) return false;
+    const ok = await canUnlockPrivateKey(privateKey, password);
+    if (!ok) return false;
+    setShowUnlockModal(false);
+    await executeExport(pendingExportResources, password);
+    setPendingExportResources(null);
+    return true;
   };
 
   const [isPersonalMode, setIsPersonalMode] = useState(true);
@@ -631,44 +640,38 @@ export default function ImportExportPage() {
                     </div>
                     <div>
                       <h2 className="text-lg font-extrabold text-[#0f172a]">Export Vault</h2>
-                      <p className="text-xs text-[#64748b]">Export your passwords to CSV, JSON, or PDF Report.</p>
+                      <p className="text-xs text-[#64748b]">Export your passwords to CSV, JSON, PDF, Excel, or KeePass formats.</p>
                     </div>
                   </div>
 
                 <div className="space-y-3">
                   <label className="text-xs font-extrabold text-[#334155]">File Export Format</label>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setExportType('csv')}
-                      className={`flex-1 py-2.5 rounded-xl border text-xs font-extrabold transition-all cursor-pointer ${
-                        exportType === 'csv'
-                          ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
-                          : 'border-[#cbd5e1] bg-[#f8fafc] text-[#334155] hover:bg-[#e0f2fe]/40'
-                      }`}
-                    >
-                      CSV (.csv)
-                    </button>
-                    <button
-                      onClick={() => setExportType('json')}
-                      className={`flex-1 py-2.5 rounded-xl border text-xs font-extrabold transition-all cursor-pointer ${
-                        exportType === 'json'
-                          ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
-                          : 'border-[#cbd5e1] bg-[#f8fafc] text-[#334155] hover:bg-[#e0f2fe]/40'
-                      }`}
-                    >
-                      JSON (.json)
-                    </button>
-                    <button
-                      onClick={() => setExportType('pdf')}
-                      className={`flex-1 py-2.5 rounded-xl border text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                        exportType === 'pdf'
-                          ? 'border-2 border-[#f39c12] bg-[#fffbeb] text-[#d97706] shadow-sm'
-                          : 'border-[#cbd5e1] bg-[#f8fafc] text-[#334155] hover:bg-[#e0f2fe]/40'
-                      }`}
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      <span>PDF (.pdf)</span>
-                    </button>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {[
+                      { id: 'csv', label: 'CSV (.csv)' },
+                      { id: 'json', label: 'JSON (.json)' },
+                      { id: 'pdf', label: 'PDF (.pdf)', icon: FileText },
+                      { id: 'xlsx', label: 'Excel (.xlsx)' },
+                      { id: 'xls', label: 'Excel (.xls)' },
+                      { id: 'kdbx', label: 'KeePass (.kdbx)' },
+                    ].map((fmt: any) => {
+                      const isSel = exportType === fmt.id;
+                      const Icon = fmt.icon;
+                      return (
+                        <button
+                          key={fmt.id}
+                          onClick={() => setExportType(fmt.id as any)}
+                          className={`py-2.5 rounded-xl border text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                            isSel
+                              ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
+                              : 'border-[#cbd5e1] bg-[#f8fafc] text-[#334155] hover:bg-[#e0f2fe]/40'
+                          }`}
+                        >
+                          {Icon && <Icon className="w-3.5 h-3.5" />}
+                          <span>{fmt.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -819,14 +822,17 @@ export default function ImportExportPage() {
                 )}
 
                 <button
-                  onClick={handleExportVault}
+                  onClick={() => {
+                    console.log('[debug] export button clicked');
+                    handleExportVault();
+                  }}
                   disabled={loadingExport}
                   className="w-full gold-cyan-gradient-btn py-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 text-white shadow-md disabled:opacity-50 cursor-pointer"
                 >
                   {loadingExport ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   <span>
                     {loadingExport
-                      ? 'Generating PDF Document...'
+                      ? 'Generating Export...'
                       : `Download Export Vault File (${exportType.toUpperCase()})`}
                   </span>
                 </button>
@@ -835,11 +841,172 @@ export default function ImportExportPage() {
           )}
           </div>
 
+          {/* Import / Export History */}
+          <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-4 shadow-xl">
+            <div
+              className="flex items-center justify-between cursor-pointer"
+              onClick={() => setShowHistory((prev) => !prev)}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#fffbeb] border border-[#f39c12]/40 flex items-center justify-center text-[#d97706]">
+                  <Clock className="w-5 h-5 text-[#d97706]" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-extrabold text-[#0f172a]">Import / Export History</h2>
+                  <p className="text-xs text-[#64748b]">{history.length} recorded transfers</p>
+                </div>
+              </div>
+              <ChevronDown className={`w-5 h-5 text-[#64748b] transition-transform ${showHistory ? 'rotate-180' : ''}`} />
+            </div>
+
+            {showHistory && (
+              <div className="space-y-3">
+                {history.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-[#64748b] bg-[#f8fafc] rounded-xl border border-[#cbd5e1]">
+                    No imports or exports recorded yet.
+                  </div>
+                ) : (
+                  <><div className="overflow-x-auto border border-[#cbd5e1] rounded-xl">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#e6eff7] text-[#334155] font-extrabold border-b border-[#cbd5e1]">
+                        <tr>
+                          <th className="py-2.5 px-3">Type</th>
+                          <th className="py-2.5 px-3">Date & Time</th>
+                          <th className="py-2.5 px-3">Format</th>
+                          <th className="py-2.5 px-3">Password</th>
+                          <th className="py-2.5 px-3">File</th>
+                          <th className="py-2.5 px-3">Count</th>
+                          <th className="py-2.5 px-3">By</th>
+                          <th className="py-2.5 px-3">Items</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#e2e8f0]">
+                        {history
+                          .slice(
+                            (historyPage - 1) * HISTORY_PER_PAGE,
+                            historyPage * HISTORY_PER_PAGE
+                          )
+                          .map((h) => {
+                          console.log('[debug] table row:', h);
+                          return (
+                          <tr key={h.id} className="hover:bg-[#f1f6fb]">
+                            <td className="py-2.5 px-3">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                                h.type === 'import'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30'
+                              }`}>
+                                {h.type.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-[#334155]">{new Date(h.timestamp).toLocaleString()}</td>
+                            <td className="py-2.5 px-3 text-[#334155]">{h.format.toUpperCase()}</td>
+                            <td className="py-2.5 px-3 text-[#0f172a] font-mono max-w-[120px]" title={h.filePassword}>
+                              <div className="flex items-center gap-2">
+                                <span className="truncate">{h.filePassword || '—'}</span>
+                                {h.filePassword && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(h.filePassword || '');
+                                      setCopiedId(h.id);
+                                      setTimeout(() => setCopiedId(null), 1500);
+                                    }}
+                                    className="shrink-0 text-[#0284c7] hover:text-[#0369a1] focus:outline-none"
+                                    title="Copy password"
+                                  >
+                                    {copiedId === h.id ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-[#0f172a] font-bold truncate max-w-[140px]">{h.fileName}</td>
+                            <td className="py-2.5 px-3 text-[#334155]">{h.count}</td>
+                            <td className="py-2.5 px-3 text-[#334155]">{h.by}</td>
+                            <td className="py-2.5 px-3 text-[#334155] truncate max-w-[160px]" title={h.passwordNames?.join(', ')}>
+                              {h.passwordNames && h.passwordNames.length > 0
+                                ? `${h.passwordNames.length} item${h.passwordNames.length > 1 ? 's' : ''}`
+                                : '—'}
+                            </td>
+                          </tr>
+                        )})}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {history.length > HISTORY_PER_PAGE && (
+                    <div className="pt-4 border-t border-[#cbd5e1] flex items-center justify-between text-xs text-[#64748b]">
+                      <span>
+                        Showing {(historyPage - 1) * HISTORY_PER_PAGE + 1} to{' '}
+                        {Math.min(historyPage * HISTORY_PER_PAGE, history.length)} of {history.length} transfers
+                      </span>
+
+                      <div className="flex items-center gap-1.5 font-sora">
+                        <button
+                          type="button"
+                          onClick={() => setHistoryPage((prev) => Math.max(prev - 1, 1))}
+                          disabled={historyPage === 1}
+                          className="p-1.5 bg-[#ffffff] border border-[#cbd5e1] text-[#334155] rounded-lg hover:bg-[#f1f5f9] disabled:opacity-40 cursor-pointer shadow-xs"
+                          title="Previous Page"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+
+                        {Array.from({ length: totalHistoryPages }, (_, i) => i + 1)
+                          .slice(
+                            Math.max(0, historyPage - 3),
+                            Math.min(totalHistoryPages, historyPage + 2)
+                          )
+                          .map((pageNum) => (
+                            <button
+                              key={pageNum}
+                              type="button"
+                              onClick={() => setHistoryPage(pageNum)}
+                              className={`w-7 h-7 rounded-lg text-xs font-extrabold flex items-center justify-center cursor-pointer transition-all ${
+                                historyPage === pageNum
+                                  ? 'gold-cyan-gradient-btn text-white shadow-xs'
+                                  : 'bg-[#ffffff] border border-[#cbd5e1] text-[#334155] hover:bg-[#f1f5f9]'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          ))}
+
+                        <button
+                          type="button"
+                          onClick={() => setHistoryPage((prev) => Math.min(prev + 1, totalHistoryPages))}
+                          disabled={historyPage === totalHistoryPages}
+                          className="p-1.5 bg-[#ffffff] border border-[#cbd5e1] text-[#334155] rounded-lg hover:bg-[#f1f5f9] disabled:opacity-40 cursor-pointer shadow-xs"
+                          title="Next Page"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Bottom Security Note */}
           <div className="p-4 bg-[#ffffff] border border-[#d0dbe5] rounded-xl text-xs text-[#334155] flex items-center gap-3 shadow-sm">
             <ShieldCheck className="w-4 h-4 text-[#0284c7] shrink-0" />
             <span className="font-medium">Your data is encrypted and secure. We never store unencrypted exported files on remote servers.</span>
           </div>
+
+          <UnlockVaultModal
+            isOpen={showUnlockModal}
+            onClose={() => {
+              setShowUnlockModal(false);
+              setPendingExportResources(null);
+            }}
+            onSubmit={handleUnlockSubmit}
+          />
         </main>
       </div>
     </div>

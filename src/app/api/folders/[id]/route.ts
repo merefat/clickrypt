@@ -19,7 +19,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
   if (body.name) folder.name = body.name;
   if (body.description) folder.description = body.description;
-  folder.lastModified = 'Just now';
+  folder.lastModified = new Date().toISOString();
 
   return NextResponse.json(folder);
 }

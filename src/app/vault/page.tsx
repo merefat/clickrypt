@@ -30,17 +30,26 @@ import {
   Globe,
   ShieldCheck,
   ShieldAlert,
-  Clock
+  Clock,
+  Users
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { ENABLE_PAY_BILL } from '@/lib/config';
 import { decryptSecret } from '@/lib/crypto';
+import UnlockVaultModal from '@/components/UnlockVaultModal';
+import ExportFormatDropdown from '@/components/ExportFormatDropdown';
 import { useAuth } from '@/context/AuthContext';
+import {
+  buildDecryptedExportData,
+  exportPasswords,
+  addImportExportHistory,
+} from '@/lib/exportVault';
+import { formatExactDateTime } from '@/lib/dateUtils';
 
 export default function VaultPage() {
   const router = useRouter();
-  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey } = useAuth();
+  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey, unlockVault } = useAuth();
   const [resources, setResources] = useState<any[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
   const [subscription, setSubscription] = useState<any | null>(null);
@@ -56,6 +65,13 @@ export default function VaultPage() {
   const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
   const [isOldFilter, setIsOldFilter] = useState(false);
   const [activeFilterMode, setActiveFilterMode] = useState<'all' | 'leaked' | 'outdated'>('all');
+  const [bulkSelectMode, setBulkSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [exportFormat, setExportFormat] = useState<'csv' | 'json' | 'pdf' | 'xlsx' | 'xls' | 'kdbx'>('csv');
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [pendingExportTarget, setPendingExportTarget] = useState<any[] | null>(null);
+  const [pendingUnlockAction, setPendingUnlockAction] = useState<'reveal' | 'copy' | 'export' | null>(null);
+  const [pendingUnlockItem, setPendingUnlockItem] = useState<any | null>(null);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -119,7 +135,11 @@ export default function VaultPage() {
 
   const fetchFolders = async () => {
     try {
-      const res = await api.get('/folders');
+      const params: any = { secretVault: false };
+      if (user?.role === 'Owner' || user?.role === 'Admin') {
+        params.scope = 'manage';
+      }
+      const res = await api.get('/folders', { params });
       setFolders(res.data);
     } catch (err) {
       console.error(err);
@@ -151,6 +171,16 @@ export default function VaultPage() {
     }
   };
 
+  const performReveal = async (item: any, privateKeyOverride?: string) => {
+    const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
+    const encryptedBlob = userSecret?.encryptedData || '';
+    const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
+    if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+
+    const plainText = await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
+    setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
+  };
+
   const handleRevealToggle = async (item: any) => {
     if (revealedPasswords[item.id]) {
       setRevealedPasswords((prev) => {
@@ -161,31 +191,49 @@ export default function VaultPage() {
       return;
     }
 
+    if (!unlockedPgpKey && !masterPassword) {
+      setPendingUnlockAction('reveal');
+      setPendingUnlockItem(item);
+      setShowUnlockModal(true);
+      return;
+    }
+
     try {
-      const encryptedBlob = item.secrets[0]?.encryptedData || '';
-      const privateKey = await getEncryptedPrivateKey();
-
-      let plainText = 'AcmeSecret123!';
-      if (privateKey && (masterPassword || unlockedPgpKey)) {
-        plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword || undefined);
-      }
-
-      setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
+      await performReveal(item);
     } catch (err) {
       alert('Failed to decrypt.');
     }
   };
 
+  const performCopy = async (item: any, privateKeyOverride?: string) => {
+    const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
+    const encryptedBlob = userSecret?.encryptedData || '';
+    const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
+    if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+
+    return await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
+  };
+
   const handleCopy = async (item: any) => {
     let plainText = revealedPasswords[item.id];
-    if (!plainText) {
-      const encryptedBlob = item.secrets[0]?.encryptedData || '';
-      const privateKey = await getEncryptedPrivateKey();
-      if (privateKey && (masterPassword || unlockedPgpKey)) {
-        plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword || undefined);
-      } else {
-        plainText = 'AcmeSecret123!';
-      }
+    if (plainText) {
+      navigator.clipboard.writeText(plainText);
+      alert(`Copied password for ${item.name} to clipboard!`);
+      return;
+    }
+
+    if (!unlockedPgpKey && !masterPassword) {
+      setPendingUnlockAction('copy');
+      setPendingUnlockItem(item);
+      setShowUnlockModal(true);
+      return;
+    }
+
+    try {
+      plainText = await performCopy(item);
+    } catch {
+      alert('Failed to decrypt.');
+      return;
     }
 
     navigator.clipboard.writeText(plainText);
@@ -226,6 +274,103 @@ export default function VaultPage() {
     }
     return true;
   });
+
+  const toggleResourceSelection = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const toggleSelectAllDisplayed = () => {
+    const displayedIds = displayedResources.map((r) => r.id);
+    const allSelected = displayedIds.every((id) => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !displayedIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...displayedIds])));
+    }
+  };
+
+  const executeExport = async (target: any[], overridePassword?: string) => {
+    try {
+      const data = await buildDecryptedExportData(
+        target,
+        user,
+        overridePassword || masterPassword,
+        unlockedPgpKey,
+        getEncryptedPrivateKey
+      );
+      const { filename, count, filePassword } = await exportPasswords(data, exportFormat, user);
+      addImportExportHistory({
+        type: 'export',
+        fileName: filename,
+        format: exportFormat,
+        count,
+        by: user?.name || user?.email || 'Unknown',
+        filePassword,
+        passwordNames: target.map((r) => r.name),
+      });
+      const failedDecryptionCount = data.filter((d) => d.Password === '[Decryption Required]').length;
+      const failedNote = failedDecryptionCount > 0
+        ? `\n\nNote: ${failedDecryptionCount} password${failedDecryptionCount > 1 ? 's' : ''} could not be decrypted and will show "[Decryption Required]".`
+        : '';
+      setSelectedIds([]);
+      setBulkSelectMode(false);
+      alert(`Exported ${count} passwords to ${filename}.${failedNote}`);
+    } catch (err: any) {
+      console.error(err);
+      alert('Export failed: ' + (err.message || 'Unknown error'));
+    }
+  };
+
+  const handleBulkExport = async () => {
+    const mode = typeof window !== 'undefined' ? localStorage.getItem('clickrypt_app_mode') || 'personal' : 'personal';
+    if (mode !== 'personal' && !['Owner', 'Admin'].includes(user?.role as string)) {
+      alert('Export is restricted to Organization Owners/Admins or Personal mode.');
+      return;
+    }
+
+    const target = selectedIds.length > 0
+      ? displayedResources.filter((r) => selectedIds.includes(r.id))
+      : displayedResources;
+
+    if (target.length === 0) {
+      alert('No passwords selected to export.');
+      return;
+    }
+
+    if (!masterPassword && !unlockedPgpKey) {
+      setPendingExportTarget(target);
+      setPendingUnlockAction('export');
+      setShowUnlockModal(true);
+      return;
+    }
+
+    await executeExport(target);
+  };
+
+  const handleUnlockSubmit = async (password: string) => {
+    const privateKey = await unlockVault(password);
+    if (!privateKey) return false;
+    setShowUnlockModal(false);
+
+    try {
+      if (pendingUnlockAction === 'reveal' && pendingUnlockItem) {
+        await performReveal(pendingUnlockItem, privateKey);
+      } else if (pendingUnlockAction === 'copy' && pendingUnlockItem) {
+        const plainText = await performCopy(pendingUnlockItem, privateKey);
+        navigator.clipboard.writeText(plainText);
+        alert(`Copied password for ${pendingUnlockItem.name} to clipboard!`);
+      } else if (pendingUnlockAction === 'export' && pendingExportTarget) {
+        await executeExport(pendingExportTarget, password);
+        setPendingExportTarget(null);
+      }
+    } catch {
+      alert('Failed to decrypt.');
+    }
+
+    setPendingUnlockAction(null);
+    setPendingUnlockItem(null);
+    return true;
+  };
 
   return (
     <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
@@ -570,11 +715,63 @@ export default function VaultPage() {
                   </div>
                 )}
 
+                {/* Bulk Select & Export Bar */}
+                <div className="flex flex-wrap items-center gap-3 bg-[#ffffff] border border-[#d0dbe5] rounded-2xl p-3 shadow-sm">
+                  <button
+                    onClick={() => {
+                      setBulkSelectMode((prev) => !prev);
+                      if (bulkSelectMode) setSelectedIds([]);
+                    }}
+                    className="px-3.5 py-2 bg-[#f8fafc] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-xs font-extrabold text-[#0f172a] transition-all cursor-pointer flex items-center gap-2"
+                  >
+                    {bulkSelectMode ? 'Cancel Bulk Select' : 'Bulk Select'}
+                  </button>
+
+                  {bulkSelectMode && (
+                    <>
+                      <button
+                        onClick={toggleSelectAllDisplayed}
+                        className="px-3.5 py-2 bg-[#f8fafc] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl text-xs font-extrabold text-[#0f172a] transition-all cursor-pointer"
+                      >
+                        Select All
+                      </button>
+
+                      <ExportFormatDropdown value={exportFormat} onChange={(value) => setExportFormat(value)} />
+
+                      <button
+                        onClick={handleBulkExport}
+                        className="gold-cyan-gradient-btn px-4 py-2 rounded-xl text-xs font-extrabold text-white shadow-md cursor-pointer"
+                      >
+                        Export {selectedIds.length > 0 ? `Selected (${selectedIds.length})` : 'All'}
+                      </button>
+                    </>
+                  )}
+
+                  {selectedIds.length > 0 && (
+                    <span className="text-xs font-bold text-[#0284c7]">
+                      {selectedIds.length} selected
+                    </span>
+                  )}
+                </div>
+
                 <div className="glass-panel rounded-2xl border border-[#d0dbe5] overflow-hidden shadow-xl bg-[#ffffff]">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#e6eff7] text-[#334155] font-extrabold uppercase tracking-wider border-b border-[#cbd5e1]">
                     <tr>
+                      {bulkSelectMode && (
+                        <th className="py-3.5 px-4 w-10">
+                          <input
+                            type="checkbox"
+                            checked={
+                              displayedResources.length > 0 &&
+                              displayedResources.every((r) => selectedIds.includes(r.id))
+                            }
+                            onChange={toggleSelectAllDisplayed}
+                            className="accent-[#f39c12] w-4 h-4"
+                          />
+                        </th>
+                      )}
                       <th className="py-3.5 px-6 font-extrabold uppercase tracking-wider">Name</th>
                       <th className="py-3.5 px-4 font-extrabold uppercase tracking-wider">Username</th>
                       <th className="py-3.5 px-4 font-extrabold uppercase tracking-wider">URL</th>
@@ -589,23 +786,34 @@ export default function VaultPage() {
                       const isRevealed = !!revealedPasswords[res.id];
                       const displayedPass = isRevealed ? revealedPasswords[res.id] : '••••••••';
                       const isTeamShared = (res.secrets && res.secrets.length > 1) || (res.sharedWith && res.sharedWith.length > 0);
-                      const isSharedAny = isTeamShared || res.isExternalShared;
 
                       return (
                         <tr
                           key={res.id}
                           className="hover:bg-[#f1f6fb] transition-all group border-b border-gray-100"
                         >
+                          {bulkSelectMode && (
+                            <td className="py-4 px-4 w-10">
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.includes(res.id)}
+                                onChange={() => toggleResourceSelection(res.id)}
+                                className="accent-[#f39c12] w-4 h-4"
+                              />
+                            </td>
+                          )}
                           <td className="py-4 px-6">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
                               <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold text-xs shadow">
                                 {res.name.slice(0, 2).toUpperCase()}
                               </div>
-                              <div className="flex items-center gap-2.5 flex-wrap">
-                                <p className="font-bold text-[#0f172a] text-sm group-hover:text-[#1fbbd2] transition-colors whitespace-nowrap">
+                              <div className="flex flex-col gap-1 min-w-0">
+                                <p className="font-bold text-[#0f172a] text-sm group-hover:text-[#1fbbd2] transition-colors truncate min-w-0" title={res.name}>
                                   {res.name}
                                 </p>
-                                {(res.strength === 'Weak' || res.isOld || isOldFilter || res.name.toLowerCase().includes('old')) && (
+                                {(res.strength === 'Weak' || res.isOld || isOldFilter || res.name.toLowerCase().includes('old') || isTeamShared || res.isExternalShared) && (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {(res.strength === 'Weak' || res.isOld || isOldFilter || res.name.toLowerCase().includes('old')) && (
                                   <span
                                     className="px-2 py-0.5 rounded-full bg-rose-50 border border-rose-300 text-rose-700 text-[10px] font-extrabold inline-flex items-center gap-1 shadow-xs shrink-0"
                                     title="This password is old and needs attention (Action Required)"
@@ -619,7 +827,7 @@ export default function VaultPage() {
                                     className="px-2.5 py-0.5 rounded-full bg-[#e0f2fe] border border-[#1fbbd2]/50 text-[#0284c7] text-[10px] font-extrabold inline-flex items-center gap-1 shadow-xs shrink-0"
                                     title="This password is shared with team members"
                                   >
-                                    <Share2 className="w-3 h-3 text-[#0284c7]" />
+                                    <Users className="w-3 h-3 text-[#0284c7]" />
                                     <span>Shared</span>
                                   </span>
                                 )}
@@ -631,6 +839,8 @@ export default function VaultPage() {
                                     <Globe className="w-3 h-3 text-[#d97706]" />
                                     <span>External Share</span>
                                   </span>
+                                )}
+                                </div>
                                 )}
                               </div>
                             </div>
@@ -672,19 +882,21 @@ export default function VaultPage() {
                             </div>
                           </td>
 
-                          <td className="py-4 px-4 text-[#64748b] text-[11px]">{res.lastModified}</td>
+                          <td className="py-4 px-4 text-[#64748b] text-[11px]">{formatExactDateTime(res.lastModified)}</td>
 
                           <td className="py-4 px-6 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => setShareResourceId(res.id)}
-                                className="px-2.5 py-1 bg-[#e0f2fe] hover:bg-[#bae6fd] border border-[#1fbbd2]/40 text-[#0284c7] rounded-lg text-xs font-extrabold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
-                                title="Share password with member or group"
-                              >
-                                <Share2 className="w-3.5 h-3.5 text-[#0284c7]" />
-                                <span>Share</span>
-                              </button>
+                              {res.ownerId === user?.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShareResourceId(res.id)}
+                                  className="px-2.5 py-1 bg-[#e0f2fe] hover:bg-[#bae6fd] border border-[#1fbbd2]/40 text-[#0284c7] rounded-lg text-xs font-extrabold flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                                  title="Share password with member or group"
+                                >
+                                  <Share2 className="w-3.5 h-3.5 text-[#0284c7]" />
+                                  <span>Share</span>
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => {
@@ -745,6 +957,17 @@ export default function VaultPage() {
       />
 
       <ShareModal resourceId={shareResourceId} onClose={() => setShareResourceId(null)} />
+
+      <UnlockVaultModal
+        isOpen={showUnlockModal}
+        onClose={() => {
+          setShowUnlockModal(false);
+          setPendingExportTarget(null);
+          setPendingUnlockAction(null);
+          setPendingUnlockItem(null);
+        }}
+        onSubmit={handleUnlockSubmit}
+      />
 
       <CreateFolderModal
         isOpen={isFolderModalOpen}

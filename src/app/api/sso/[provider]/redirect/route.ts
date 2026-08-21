@@ -58,6 +58,12 @@ export async function GET(
       return NextResponse.json({ error: 'IdP email claim resolved to non-existent user account' }, { status: 400 });
     }
 
+    if (targetUser.status === 'Suspended') {
+      return NextResponse.redirect(
+        new URL(`/login?suspended=true&email=${encodeURIComponent(targetUser.email)}`, req.url)
+      );
+    }
+
     // 4. CRITICAL IDENTITY-MATCH CHECK
     if (ssoState.userId && ssoState.userId !== targetUser.id) {
       return NextResponse.json(

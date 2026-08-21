@@ -18,6 +18,8 @@ export async function POST(request: Request) {
       );
     }
 
+    const effectiveMode = (mode as 'personal' | 'organization') || 'personal';
+
     const user = db.users.find(
       (u) => u.email.toLowerCase() === email.toLowerCase()
     );
@@ -28,7 +30,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const effectiveMode = (mode as 'personal' | 'organization') || 'personal';
+    if (user.status === 'Suspended') {
+      db.auditLogsFor(effectiveMode).unshift({
+        id: `al-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        action: 'LOGIN_BLOCKED_SUSPENDED',
+        userId: user.id,
+        details: `Passkey login blocked for suspended account ${user.email}`,
+      });
+      return NextResponse.json(
+        { error: 'Account suspended. You are blocked from accessing Clickrypt vault.' },
+        { status: 403 }
+      );
+    }
+
     const now = new Date().toISOString();
 
     const record = db.passkeyChallenges.find(

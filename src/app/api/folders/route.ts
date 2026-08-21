@@ -13,7 +13,6 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const secretVaultParam = searchParams.get('secretVault');
     const scope = searchParams.get('scope');
-    const includeGroupFolders = searchParams.get('includeGroupFolders') === 'true';
 
     const store = db.foldersFor(userMode);
     let folders = store;
@@ -28,7 +27,7 @@ export async function GET(req: Request) {
     const currentUserEmail = authUser.email.toLowerCase();
     const resourcesStore = db.resourcesFor(userMode);
 
-    const canManage = authUser.role === 'Owner' || authUser.role === 'Admin';
+    const canManage = authUser.role === 'Owner';
     const isManagerView = canManage && scope === 'manage';
 
     const userGroups = db.groups.filter((g) => g.members.some((m) => m.userId === currentUserId));
@@ -46,12 +45,6 @@ export async function GET(req: Request) {
       return false;
     };
 
-    const isResourceMineOrExplicitlyShared = (r: any) => {
-      if (r.isPrivateOnly) return false;
-      if (r.ownerId === currentUserId) return true;
-      return isExplicitlySharedWithMe(r);
-    };
-
     const isResourceVisibleToMe = (r: any) => {
       if (r.isPrivateOnly) return false;
       if (r.ownerId === currentUserId) return true;
@@ -59,6 +52,12 @@ export async function GET(req: Request) {
       if (r.folderId && groupFolderIds.has(r.folderId)) return true;
       return false;
     };
+
+    const userNameMap = new Map(db.users.map((u) => [u.id, u.name]));
+    folders = folders.map((f) => ({
+      ...f,
+      creatorName: userNameMap.get(f.creatorId || '') || 'Unknown',
+    }));
 
     // Secret Vault: keep existing Owner-only private view.
     if (secretVaultParam === 'true') {
@@ -78,35 +77,24 @@ export async function GET(req: Request) {
       return NextResponse.json(foldersWithCounts);
     }
 
-    // Organization management view: show all workplace folders with total counts.
+    // Organization management view: show all workplace folders with visible item counts.
     if (isManagerView) {
       const foldersWithCounts = folders.map((f) => ({
         ...f,
-        itemCount: resourcesStore.filter((r) => r.folderId === f.id && !r.isPrivateOnly).length,
+        itemCount: resourcesStore.filter((r) => r.folderId === f.id && isResourceVisibleToMe(r)).length,
       }));
       return NextResponse.json(foldersWithCounts);
     }
 
-    // Organization member view: default (Vault/Folders panels) OR include group folders for the Groups page.
-    const foldersWithCounts = folders.map((f) => {
-      const isCreator = f.creatorId === currentUserId;
-      const isGroupFolder = groupFolderIds.has(f.id);
-
-      if (includeGroupFolders && isGroupFolder) {
-        // Full access through group assignment; show total count.
-        return { ...f, itemCount: resourcesStore.filter((r) => r.folderId === f.id && !r.isPrivateOnly).length };
-      }
-
-      // Individual sharing: visible only if the user created it or has an explicitly shared password.
-      const visibleResources = resourcesStore.filter(
-        (r) => r.folderId === f.id && (isCreator ? isResourceMineOrExplicitlyShared(r) : isExplicitlySharedWithMe(r))
-      );
-      return { ...f, itemCount: visibleResources.length };
-    });
+    // Organization member view: show only folders the user owns, is explicitly shared, or is assigned through a group.
+    const foldersWithCounts = folders.map((f) => ({
+      ...f,
+      itemCount: resourcesStore.filter((r) => r.folderId === f.id && isResourceVisibleToMe(r)).length,
+    }));
 
     const visibleFolders = foldersWithCounts.filter((f) => {
       if (f.creatorId === currentUserId) return true;
-      if (includeGroupFolders && groupFolderIds.has(f.id)) return true;
+      if (groupFolderIds.has(f.id)) return true;
       return f.itemCount > 0;
     });
 
@@ -135,7 +123,7 @@ export async function POST(req: Request) {
       name,
       description: description || '',
       itemCount: 0,
-      lastModified: 'Just now',
+      lastModified: new Date().toISOString(),
       isPrivateOnly: !!isPrivateOnly,
       mode: userMode,
       creatorId: authUser.id,

@@ -27,7 +27,21 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => Promise.reject(error)
+  (error) => {
+    if (typeof window !== 'undefined' && error?.response?.status === 401) {
+      const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
+      if (hasToken) {
+        // Token is no longer valid (suspended or otherwise) — force the session back to login
+        sessionStorage.removeItem('access_token');
+        localStorage.removeItem('access_token');
+        delete api.defaults.headers.common['Authorization'];
+        if (window.location.pathname !== '/login') {
+          window.location.replace('/login');
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
 );
 
 export default api;

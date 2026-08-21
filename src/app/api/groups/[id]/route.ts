@@ -12,6 +12,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!group) {
     return NextResponse.json({ error: 'Group not found' }, { status: 404 });
   }
+  if (authUser.role !== 'Owner' && !group.members.some((m) => m.userId === authUser.id)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
   return NextResponse.json(group);
 }
 
@@ -19,6 +22,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   const authUser = await getAuthUserFromRequest(request);
   if (!authUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (authUser.role !== 'Owner' && authUser.role !== 'Admin') {
+    return NextResponse.json({ error: 'Only Owners or Admins can update groups' }, { status: 403 });
   }
   const userMode = (authUser.accountMode || 'organization') as 'personal' | 'organization';
   const { id } = await params;
@@ -59,13 +65,14 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     group.assignedFolderIds = group.assignedFolderIds.filter((fid) => fid !== body.removeFolderId);
   }
 
-  group.lastActive = 'Just now';
+  group.lastActive = new Date().toISOString();
 
   db.auditLogsFor(userMode).unshift({
     id: `al-${Date.now()}`,
     timestamp: new Date().toISOString(),
     action: 'UPDATE_GROUP',
     userId: authUser.id,
+    groupId: group.id,
     details: `Updated team group ${group.name}`,
   });
 
@@ -76,6 +83,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const authUser = await getAuthUserFromRequest(request);
   if (!authUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (authUser.role !== 'Owner' && authUser.role !== 'Admin') {
+    return NextResponse.json({ error: 'Only Owners or Admins can delete groups' }, { status: 403 });
   }
   const userMode = (authUser.accountMode || 'organization') as 'personal' | 'organization';
   const { id } = await params;
@@ -92,6 +102,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     timestamp: new Date().toISOString(),
     action: 'DELETE_GROUP',
     userId: authUser.id,
+    groupId: id,
     details: `Deleted team group ${deleted.name}`,
   });
 

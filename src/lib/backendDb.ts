@@ -91,6 +91,7 @@ export interface DbAuditLog {
   action: string;
   userId: string;
   resourceId?: string;
+  groupId?: string;
   details?: string;
 }
 

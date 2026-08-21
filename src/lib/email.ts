@@ -37,7 +37,7 @@ export async function sendEmail({ to, subject, text, html, from }: SendEmailOpti
   const transporter = getTransporter();
 
   return transporter.sendMail({
-    from: from || SMTP_FROM,
+    from: from || `ClicKrypt <${SMTP_FROM}>`,
     to,
     subject,
     text,

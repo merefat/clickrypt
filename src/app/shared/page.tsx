@@ -8,14 +8,19 @@ import { Share2, RefreshCw, Eye, EyeOff, Copy, User, Globe, Trash2, Check, UserM
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { decryptSecret } from '@/lib/crypto';
+import { formatExactDateTime } from '@/lib/dateUtils';
+import UnlockVaultModal from '@/components/UnlockVaultModal';
 
 export default function SharedPage() {
-  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey } = useAuth();
+  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey, unlockVault } = useAuth();
   const [activeTab, setActiveTab] = useState<'received' | 'outbound'>('outbound');
   const [resources, setResources] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [pendingUnlockAction, setPendingUnlockAction] = useState<'reveal' | 'copy' | null>(null);
+  const [pendingUnlockItem, setPendingUnlockItem] = useState<any | null>(null);
 
   // Bulk Revoke Selection State
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -92,6 +97,16 @@ export default function SharedPage() {
   const receivedResources = resources.filter((r) => r.ownerId !== user?.id);
   const outboundResources = resources.filter((r) => r.ownerId === user?.id);
 
+  const performReveal = async (item: any, privateKeyOverride?: string) => {
+    const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
+    const encryptedBlob = userSecret?.encryptedData || '';
+    const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
+    if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+
+    const plainText = await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
+    setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
+  };
+
   const handleToggleRevealPassword = async (item: any) => {
     if (revealedPasswords[item.id]) {
       setRevealedPasswords((prev) => {
@@ -102,35 +117,50 @@ export default function SharedPage() {
       return;
     }
 
-    try {
-      const encryptedBlob = item.secrets?.[0]?.encryptedData || '';
-      const privateKey = await getEncryptedPrivateKey();
-
-      let plainText = 'AcmeSecret123!';
-      if (privateKey && (masterPassword || unlockedPgpKey) && encryptedBlob) {
-        plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword || undefined);
-      }
-
-      setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
-    } catch (err) {
-      setRevealedPasswords((prev) => ({ ...prev, [item.id]: 'AcmeSecret123!' }));
+    if (!unlockedPgpKey && !masterPassword) {
+      setPendingUnlockAction('reveal');
+      setPendingUnlockItem(item);
+      setShowUnlockModal(true);
+      return;
     }
+
+    try {
+      await performReveal(item);
+    } catch (err) {
+      alert('Failed to decrypt.');
+    }
+  };
+
+  const performCopy = async (item: any, privateKeyOverride?: string) => {
+    const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
+    const encryptedBlob = userSecret?.encryptedData || '';
+    const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
+    if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+
+    return await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
   };
 
   const handleCopyPassword = async (item: any) => {
     let plainText = revealedPasswords[item.id];
-    if (!plainText) {
-      try {
-        const encryptedBlob = item.secrets?.[0]?.encryptedData || '';
-        const privateKey = await getEncryptedPrivateKey();
-        if (privateKey && (masterPassword || unlockedPgpKey) && encryptedBlob) {
-          plainText = await decryptSecret(encryptedBlob, privateKey, masterPassword || undefined);
-        } else {
-          plainText = 'AcmeSecret123!';
-        }
-      } catch (err) {
-        plainText = 'AcmeSecret123!';
-      }
+    if (plainText) {
+      await navigator.clipboard.writeText(plainText);
+      setCopiedId(item.id);
+      setTimeout(() => setCopiedId(null), 2000);
+      return;
+    }
+
+    if (!unlockedPgpKey && !masterPassword) {
+      setPendingUnlockAction('copy');
+      setPendingUnlockItem(item);
+      setShowUnlockModal(true);
+      return;
+    }
+
+    try {
+      plainText = await performCopy(item);
+    } catch (err) {
+      alert('Failed to decrypt.');
+      return;
     }
 
     await navigator.clipboard.writeText(plainText);
@@ -138,14 +168,37 @@ export default function SharedPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleRevokeSingleShare = async (item: any, targetUserId?: string) => {
-    if (!confirm(`Are you sure you want to revoke sharing for "${item.name}"? The password itself will not be deleted.`)) return;
+  const handleUnlockSubmit = async (password: string) => {
+    const privateKey = await unlockVault(password);
+    if (!privateKey) return false;
+    setShowUnlockModal(false);
 
     try {
-      await api.post(`/resources/${item.id}/share`, {
+      if (pendingUnlockAction === 'reveal' && pendingUnlockItem) {
+        await performReveal(pendingUnlockItem, privateKey);
+      } else if (pendingUnlockAction === 'copy' && pendingUnlockItem) {
+        const plainText = await performCopy(pendingUnlockItem, privateKey);
+        await navigator.clipboard.writeText(plainText);
+        setCopiedId(pendingUnlockItem.id);
+        setTimeout(() => setCopiedId(null), 2000);
+      }
+    } catch (err) {
+      alert('Failed to decrypt.');
+    }
+
+    setPendingUnlockAction(null);
+    setPendingUnlockItem(null);
+    return true;
+  };
+
+  const handleRevokeSingleShare = async (res: any, recipient: any) => {
+    if (!confirm(`Are you sure you want to revoke sharing for "${res.name}" with ${recipient.name}? The password itself will not be deleted.`)) return;
+
+    try {
+      await api.post(`/resources/${res.id}/share`, {
         action: 'revoke',
-        revokeUserId: targetUserId || item.secrets?.find((s: any) => s.userId !== user?.id)?.userId,
-        isExternalShared: false,
+        revokeUserId: recipient.external ? undefined : recipient.id,
+        isExternalShared: recipient.external ? false : undefined,
       });
       fetchSharedResources();
     } catch (err) {
@@ -153,16 +206,27 @@ export default function SharedPage() {
     }
   };
 
+  const handleDelete = async (item: any) => {
+    if (!confirm(`Are you sure you want to delete "${item.name}"? This cannot be undone.`)) return;
+
+    try {
+      await api.delete(`/resources/${item.id}`);
+      fetchSharedResources();
+    } catch (err) {
+      alert('Failed to delete item');
+    }
+  };
+
   const handleSelectAllOutbound = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      setSelectedIds(outboundResources.map((r) => r.id));
+      setSelectedIds(outboundRows.map((r) => r.rowKey));
     } else {
       setSelectedIds([]);
     }
   };
 
-  const handleSelectId = (id: string) => {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  const handleSelectRowKey = (rowKey: string) => {
+    setSelectedIds((prev) => (prev.includes(rowKey) ? prev.filter((item) => item !== rowKey) : [...prev, rowKey]));
   };
 
   const handleExecuteBulkRevoke = async () => {
@@ -170,13 +234,13 @@ export default function SharedPage() {
     setRevoking(true);
 
     try {
-      for (const id of selectedIds) {
-        const targetItem = outboundResources.find((r) => r.id === id);
-        const recipientUserId = targetItem?.secrets?.find((s: any) => s.userId !== user?.id)?.userId;
-        await api.post(`/resources/${id}/share`, {
+      for (const rowKey of selectedIds) {
+        const row = outboundRows.find((r) => r.rowKey === rowKey);
+        if (!row) continue;
+        await api.post(`/resources/${row.id}/share`, {
           action: 'revoke',
-          revokeUserId: recipientUserId,
-          isExternalShared: false,
+          revokeUserId: row.recipient?.external ? undefined : row.recipient?.id,
+          isExternalShared: row.recipient?.external ? false : undefined,
         });
       }
       setSelectedIds([]);
@@ -189,7 +253,23 @@ export default function SharedPage() {
     }
   };
 
-  const activeList = activeTab === 'received' ? receivedResources : outboundResources;
+  const outboundRows = outboundResources.flatMap((res: any) =>
+    (res.recipients && res.recipients.length > 0)
+      ? res.recipients.map((recipient: any) => ({
+          ...res,
+          recipient,
+          rowKey: `${res.id}::${recipient.id || 'na'}`,
+        }))
+      : [
+          {
+            ...res,
+            recipient: { id: undefined, name: res.isExternalShared ? res.externalShareEmail || 'External Recipient' : 'Unknown', external: res.isExternalShared },
+            rowKey: `${res.id}::na`,
+          },
+        ]
+  );
+
+  const activeList = activeTab === 'received' ? receivedResources : outboundRows;
 
   return (
     <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
@@ -302,7 +382,7 @@ export default function SharedPage() {
                         <input
                           type="checkbox"
                           onChange={handleSelectAllOutbound}
-                          checked={outboundResources.length > 0 && selectedIds.length === outboundResources.length}
+                          checked={outboundRows.length > 0 && selectedIds.length === outboundRows.length}
                           className="w-4 h-4 rounded border-gray-300 accent-[#0284c7] cursor-pointer"
                         />
                       </th>
@@ -327,30 +407,31 @@ export default function SharedPage() {
                     </tr>
                   ) : (
                     activeList.map((res) => {
-                      const isRevealed = !!revealedPasswords[res.id];
-                      const displayedPass = isRevealed ? revealedPasswords[res.id] : '••••••••';
-                      const isSelected = selectedIds.includes(res.id);
-                      const recipientCount = Math.max(1, (res.secrets?.length || 1) - 1);
+                      const isOutbound = activeTab === 'outbound';
+                      const row = res as any;
+                      const isRevealed = !!revealedPasswords[row.id];
+                      const displayedPass = isRevealed ? revealedPasswords[row.id] : '••••••••';
+                      const isSelected = selectedIds.includes(row.rowKey || row.id);
 
                       return (
-                        <tr key={res.id} className="hover:bg-[#f1f6fb] transition-all border-b border-gray-100">
-                          {activeTab === 'outbound' && (
+                        <tr key={row.rowKey || row.id} className="hover:bg-[#f1f6fb] transition-all border-b border-gray-100">
+                          {isOutbound && (
                             <td className="py-4 px-4">
                               <input
                                 type="checkbox"
                                 checked={isSelected}
-                                onChange={() => handleSelectId(res.id)}
+                                onChange={() => handleSelectRowKey(row.rowKey)}
                                 className="w-4 h-4 rounded border-gray-300 accent-[#0284c7] cursor-pointer"
                               />
                             </td>
                           )}
                           <td className="py-4 px-6 font-bold text-[#0f172a]">
-                            <div className="flex items-center gap-2">
-                              <span>{res.name}</span>
-                              {res.isExternalShared && (
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="truncate min-w-0" title={row.name}>{row.name}</span>
+                              {row.isExternalShared && (
                                 <span
-                                  className="p-1 rounded-lg bg-amber-50 border border-amber-300 text-[#d97706] inline-flex items-center justify-center shadow-sm"
-                                  title={`Shared externally with ${res.externalShareEmail || 'external member'}`}
+                                  className="p-1 rounded-lg bg-amber-50 border border-amber-300 text-[#d97706] inline-flex items-center justify-center shadow-sm shrink-0"
+                                  title={`Shared externally with ${row.externalShareEmail || 'external member'}`}
                                 >
                                   <Globe className="w-3.5 h-3.5 text-[#d97706]" />
                                 </span>
@@ -360,18 +441,19 @@ export default function SharedPage() {
                           <td className="py-4 px-4 text-[#334155]">
                             <div className="flex items-center gap-2 font-semibold">
                               <User className="w-3.5 h-3.5 text-[#d97706]" />
-                              <span>
-                                {activeTab === 'received'
-                                  ? res.ownerName || 'Vault Owner'
-                                  : res.isExternalShared
-                                  ? res.externalShareEmail || 'External Recipient'
-                                  : `Team Member + ${recipientCount} user(s)`}
+                              <span className="truncate min-w-0">
+                                {isOutbound
+                                  ? row.recipient?.name || 'Unknown'
+                                  : row.ownerName || 'Vault Owner'}
                               </span>
+                              {isOutbound && row.recipient?.external && (
+                                <Globe className="w-3.5 h-3.5 text-[#d97706] shrink-0" aria-label="External share" />
+                              )}
                             </div>
                           </td>
                           <td className="py-4 px-4">
                             <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30 px-2.5 py-0.5 rounded-full font-extrabold text-[10px]">
-                              {activeTab === 'received' ? 'Shared with You' : `Shared with ${recipientCount} person(s)`}
+                              {isOutbound ? 'Shared with 1 person' : 'Shared with You'}
                             </span>
                           </td>
                           <td className="py-4 px-4 font-mono">
@@ -381,7 +463,7 @@ export default function SharedPage() {
                               </span>
                               <button
                                 type="button"
-                                onClick={() => handleToggleRevealPassword(res)}
+                                onClick={() => handleToggleRevealPassword(row)}
                                 className="p-1.5 text-gray-500 hover:text-[#0284c7] hover:bg-[#e0f2fe] rounded-lg transition-all cursor-pointer"
                                 title={isRevealed ? 'Hide Password' : 'Reveal Password'}
                               >
@@ -389,26 +471,26 @@ export default function SharedPage() {
                               </button>
                             </div>
                           </td>
-                          <td className="py-4 px-4 text-[#64748b] font-medium">{res.lastModified}</td>
+                          <td className="py-4 px-4 text-[#64748b] font-medium">{formatExactDateTime(row.lastModified)}</td>
                           <td className="py-4 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
                                 type="button"
-                                onClick={() => handleCopyPassword(res)}
+                                onClick={() => handleCopyPassword(row)}
                                 className="p-1.5 text-gray-500 hover:text-[#0284c7] hover:bg-[#e0f2fe] rounded-lg transition-all cursor-pointer"
                                 title="Copy Password"
                               >
-                                {copiedId === res.id ? (
+                                {copiedId === row.id ? (
                                   <Check className="w-3.5 h-3.5 text-emerald-600 font-bold" />
                                 ) : (
                                   <Copy className="w-3.5 h-3.5" />
                                 )}
                               </button>
 
-                              {activeTab === 'outbound' && (
+                              {isOutbound && (
                                 <button
                                   type="button"
-                                  onClick={() => handleRevokeSingleShare(res)}
+                                  onClick={() => handleRevokeSingleShare(row, row.recipient)}
                                   className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-lg transition-all cursor-pointer text-[11px] font-extrabold flex items-center gap-1 shadow-xs"
                                   title="Revoke Share Access (Does not delete password)"
                                 >
@@ -416,6 +498,15 @@ export default function SharedPage() {
                                   <span>Revoke Share</span>
                                 </button>
                               )}
+
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(row)}
+                                className="p-1.5 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                                title="Delete password item"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -475,6 +566,16 @@ export default function SharedPage() {
           </div>
         </div>
       )}
+
+      <UnlockVaultModal
+        isOpen={showUnlockModal}
+        onClose={() => {
+          setShowUnlockModal(false);
+          setPendingUnlockAction(null);
+          setPendingUnlockItem(null);
+        }}
+        onSubmit={handleUnlockSubmit}
+      />
     </div>
   );
 }
