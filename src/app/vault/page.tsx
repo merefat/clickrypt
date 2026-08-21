@@ -68,7 +68,7 @@ export default function VaultPage() {
   const [activeFilterMode, setActiveFilterMode] = useState<'all' | 'leaked' | 'outdated'>('all');
   const [bulkSelectMode, setBulkSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [exportFormat, setExportFormat] = useState<'csv' | 'json' | 'pdf' | 'xlsx' | 'xls' | 'kdbx'>('csv');
+  const [exportFormat, setExportFormat] = useState<'csv' | 'json' | 'pdf' | 'xlsx' | 'kdbx'>('csv');
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [pendingExportTarget, setPendingExportTarget] = useState<any[] | null>(null);
   const [pendingUnlockAction, setPendingUnlockAction] = useState<'reveal' | 'copy' | 'export' | null>(null);

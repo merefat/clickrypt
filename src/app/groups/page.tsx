@@ -54,7 +54,7 @@ export default function GroupsPage() {
 
   const [bulkSelectMode, setBulkSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [exportFormat, setExportFormat] = useState<'csv' | 'json' | 'pdf' | 'xlsx' | 'xls' | 'kdbx'>('csv');
+  const [exportFormat, setExportFormat] = useState<'csv' | 'json' | 'pdf' | 'xlsx' | 'kdbx'>('csv');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {

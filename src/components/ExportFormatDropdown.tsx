@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Check, FileSpreadsheet, FileCode, FileText, Table, Table2, Lock } from 'lucide-react';
+import { ChevronDown, Check, FileSpreadsheet, FileCode, FileText, Table, Lock } from 'lucide-react';
 
-export type ExportFormat = 'csv' | 'json' | 'pdf' | 'xlsx' | 'xls' | 'kdbx';
+export type ExportFormat = 'csv' | 'json' | 'pdf' | 'xlsx' | 'kdbx';
 
 interface FormatOption {
   id: ExportFormat;
@@ -17,7 +17,6 @@ const FORMATS: FormatOption[] = [
   { id: 'json', label: 'JSON', sub: '(.json)', icon: FileCode },
   { id: 'pdf', label: 'PDF', sub: '(.pdf)', icon: FileText },
   { id: 'xlsx', label: 'Excel', sub: '(.xlsx)', icon: Table },
-  { id: 'xls', label: 'Excel 97-2003', sub: '(.xls)', icon: Table2 },
   { id: 'kdbx', label: 'KeePass', sub: '(.kdbx)', icon: Lock },
 ];
 

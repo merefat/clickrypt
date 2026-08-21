@@ -271,8 +271,6 @@ function getOriginalMime(format: string): string {
       return 'application/pdf';
     case 'xlsx':
       return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    case 'xls':
-      return 'application/vnd.ms-excel';
     case 'kdbx':
       return 'application/octet-stream';
     default:
@@ -282,7 +280,7 @@ function getOriginalMime(format: string): string {
 
 export async function exportPasswords(
   data: ExportRow[],
-  format: 'csv' | 'json' | 'pdf' | 'xlsx' | 'xls' | 'kdbx',
+  format: 'csv' | 'json' | 'pdf' | 'xlsx' | 'kdbx',
   user: any
 ): Promise<{ filename: string; count: number; filePassword: string; originalFormat: string }> {
   const timestampStr = new Date().toISOString().replace(/[:.]/g, '-');
@@ -374,26 +372,30 @@ export async function exportPasswords(
     return { filename: encryptedFileName, count, filePassword, originalFormat: format };
   }
 
-  if (format === 'xlsx' || format === 'xls') {
-    const xlsxModule = await import('xlsx');
-    const XLSX = xlsxModule.default || xlsxModule;
-    const sanitizedData = data.map((d) => ({
-      Title: neutralizeFormulaStart(d.Title),
-      Username: neutralizeFormulaStart(d.Username),
-      Password: neutralizeFormulaStart(d.Password),
-      URL: neutralizeFormulaStart(d.URL),
-      LastModified: neutralizeFormulaStart(d.LastModified),
-    }));
-    const ws = XLSX.utils.json_to_sheet(sanitizedData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Passwords');
-    const out = XLSX.write(wb, { bookType: format as any, type: 'array' });
-    const originalBytes = new Uint8Array(out as ArrayBuffer);
-    const originalFileName = `${baseName}.${format}`;
-    const html = await buildEncryptedHtmlExport(originalBytes, originalFileName, getOriginalMime(format), filePassword);
-    const encryptedFileName = `${baseName}.html`;
-    downloadBlob(new Blob([html], { type: 'text/html' }), encryptedFileName);
-    return { filename: encryptedFileName, count, filePassword, originalFormat: format };
+  if (format === 'xlsx') {
+    try {
+      const xlsxModule = await import('xlsx');
+      const XLSX = (xlsxModule as any).default || xlsxModule;
+      const sanitizedData = data.map((d) => ({
+        Title: neutralizeFormulaStart(d.Title),
+        Username: neutralizeFormulaStart(d.Username),
+        Password: neutralizeFormulaStart(d.Password),
+        URL: neutralizeFormulaStart(d.URL),
+        LastModified: neutralizeFormulaStart(d.LastModified),
+      }));
+      const ws = XLSX.utils.json_to_sheet(sanitizedData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Passwords');
+      const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const originalBytes = new Uint8Array(out as ArrayBuffer);
+      const originalFileName = `${baseName}.xlsx`;
+      const html = await buildEncryptedHtmlExport(originalBytes, originalFileName, getOriginalMime(format), filePassword);
+      const encryptedFileName = `${baseName}.html`;
+      downloadBlob(new Blob([html], { type: 'text/html' }), encryptedFileName);
+      return { filename: encryptedFileName, count, filePassword, originalFormat: format };
+    } catch (err: any) {
+      throw new Error('XLSX export failed: ' + (err?.message || 'unknown error'));
+    }
   }
 
   if (format === 'kdbx') {

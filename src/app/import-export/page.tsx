@@ -49,7 +49,7 @@ export default function ImportExportPage() {
 
   const [selectedFormat, setSelectedFormat] = useState<'csv' | 'json' | '1password' | 'lastpass' | 'bitwarden' | 'kdbx'>('csv');
   const [exportOption, setExportOption] = useState<'all' | 'group' | 'selected'>('all');
-  const [exportType, setExportType] = useState<'csv' | 'json' | 'pdf' | 'xlsx' | 'xls' | 'kdbx'>('csv');
+  const [exportType, setExportType] = useState<'csv' | 'json' | 'pdf' | 'xlsx' | 'kdbx'>('csv');
   const [history, setHistory] = useState<ImportExportRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
@@ -654,7 +654,6 @@ export default function ImportExportPage() {
                       { id: 'json', label: 'JSON (.json)' },
                       { id: 'pdf', label: 'PDF (.pdf)', icon: FileText },
                       { id: 'xlsx', label: 'Excel (.xlsx)' },
-                      { id: 'xls', label: 'Excel (.xls)' },
                       { id: 'kdbx', label: 'KeePass (.kdbx)' },
                     ].map((fmt: any) => {
                       const isSel = exportType === fmt.id;
