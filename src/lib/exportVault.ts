@@ -15,14 +15,7 @@ const HISTORY_KEY = 'clickrypt_import_export_history';
 const SALT_LEN = 16;
 const IV_LEN = 12;
 const PBKDF2_ITERATIONS = 100000;
-
-export function base64ToUtf8(str: string) {
-  try {
-    return decodeURIComponent(escape(atob(str)));
-  } catch {
-    return atob(str);
-  }
-}
+const EXPORT_COLUMNS: (keyof ExportRow)[] = ['Title', 'Username', 'Password', 'URL', 'LastModified'];
 
 export async function buildDecryptedExportData(
   resources: any[],
@@ -39,24 +32,14 @@ export async function buildDecryptedExportData(
     const userSecret = r.secrets?.find((s: any) => s.userId === user?.id) || r.secrets?.[0];
 
     if (userSecret?.encryptedData) {
-      if (userSecret.encryptedData.includes('-----BEGIN PGP MESSAGE-----')) {
-        if (privateKey && (masterPassword || unlockedPgpKey)) {
-          try {
-            plainPass = await decryptSecret(userSecret.encryptedData, privateKey, unlockedPgpKey ? undefined : masterPassword || undefined);
-            if (plainPass?.includes('-----BEGIN PGP MESSAGE-----')) {
-              plainPass = '[Decryption Required]';
-            }
-          } catch {
-            plainPass = '[Decryption Required]';
-          }
-        } else {
-          plainPass = '[Decryption Required]';
-        }
-      } else if (userSecret.encryptedData.startsWith('[PGP-ENCRYPTED-BLOB::')) {
-        const b64 = userSecret.encryptedData.replace('[PGP-ENCRYPTED-BLOB::', '').replace(']', '');
-        plainPass = base64ToUtf8(b64);
-      } else {
-        plainPass = userSecret.encryptedData;
+      try {
+        plainPass = await decryptSecret(
+          userSecret.encryptedData,
+          privateKey,
+          unlockedPgpKey ? undefined : masterPassword || undefined
+        );
+      } catch {
+        plainPass = '[Decryption Required]';
       }
     }
 
@@ -308,7 +291,11 @@ export async function exportPasswords(
   const filePassword = generateExportPassword();
 
   if (format === 'json') {
-    const fileContent = JSON.stringify(data, null, 2);
+    const fileContent = JSON.stringify(
+      data.map((d) => ({ Title: d.Title, Username: d.Username, Password: d.Password, URL: d.URL, LastModified: d.LastModified })),
+      null,
+      2
+    );
     const originalBytes = new TextEncoder().encode(fileContent);
     const originalFileName = `${baseName}.json`;
     const html = await buildEncryptedHtmlExport(originalBytes, originalFileName, getOriginalMime(format), filePassword);
@@ -318,7 +305,7 @@ export async function exportPasswords(
   }
 
   if (format === 'csv') {
-    const csvHeaders = ['Title', 'Username', 'Password', 'URL', 'LastModified'];
+    const csvHeaders = EXPORT_COLUMNS;
     const csvRows = [csvHeaders.join(',')];
     data.forEach((d) => {
       const row = [
@@ -391,7 +378,6 @@ export async function exportPasswords(
     const xlsxModule = await import('xlsx');
     const XLSX = xlsxModule.default || xlsxModule;
     const sanitizedData = data.map((d) => ({
-      ...d,
       Title: neutralizeFormulaStart(d.Title),
       Username: neutralizeFormulaStart(d.Username),
       Password: neutralizeFormulaStart(d.Password),
@@ -411,23 +397,29 @@ export async function exportPasswords(
   }
 
   if (format === 'kdbx') {
-    const kdbxweb = await import('kdbxweb');
-    const credentials = new kdbxweb.Credentials(kdbxweb.ProtectedValue.fromString(filePassword));
-    const db = kdbxweb.Kdbx.create(credentials, 'Clickrypt Export');
-    const group = db.getDefaultGroup();
-    data.forEach((d) => {
-      const entry = db.createEntry(group);
-      entry.fields.set('Title', d.Title);
-      entry.fields.set('UserName', d.Username);
-      entry.fields.set('Password', kdbxweb.ProtectedValue.fromString(d.Password));
-      entry.fields.set('URL', d.URL);
-      entry.times.update();
-    });
-    const saved = await db.save();
-    const blob = new Blob([saved], { type: 'application/octet-stream' });
-    const filename = `${baseName}.kdbx`;
-    downloadBlob(blob, filename);
-    return { filename, count, filePassword, originalFormat: format };
+    try {
+      const kdbxwebModule = await import('kdbxweb');
+      const kdbxweb = (kdbxwebModule as any).default || kdbxwebModule;
+      const credentials = new kdbxweb.Credentials(kdbxweb.ProtectedValue.fromString(filePassword));
+      const db = kdbxweb.Kdbx.create(credentials, 'Clickrypt Export');
+      db.setKdf(kdbxweb.Consts.KdfId.Aes);
+      const group = db.getDefaultGroup();
+      data.forEach((d) => {
+        const entry = db.createEntry(group);
+        entry.fields.set('Title', d.Title);
+        entry.fields.set('UserName', d.Username);
+        entry.fields.set('Password', kdbxweb.ProtectedValue.fromString(d.Password));
+        entry.fields.set('URL', d.URL);
+        entry.times.update();
+      });
+      const saved = await db.save();
+      const blob = new Blob([saved], { type: 'application/octet-stream' });
+      const filename = `${baseName}.kdbx`;
+      downloadBlob(blob, filename);
+      return { filename, count, filePassword, originalFormat: format };
+    } catch (err: any) {
+      throw new Error('KDBX export failed: ' + (err?.message || 'unknown error'));
+    }
   }
 
   return { filename: baseName, count, filePassword, originalFormat: format };

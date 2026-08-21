@@ -239,7 +239,8 @@ export default function ImportExportPage() {
   };
 
   const parseKdbx = async (file: File, password: string) => {
-    const kdbxweb = await import('kdbxweb');
+    const kdbxwebModule = await import('kdbxweb');
+    const kdbxweb = (kdbxwebModule as any).default || kdbxwebModule;
     const arrayBuffer = await file.arrayBuffer();
     const credentials = new kdbxweb.Credentials(kdbxweb.ProtectedValue.fromString(password));
     const db = await kdbxweb.Kdbx.load(arrayBuffer, credentials);
@@ -389,7 +390,8 @@ export default function ImportExportPage() {
       const failedNote = failedDecryptionCount > 0
         ? ` Note: ${failedDecryptionCount} password${failedDecryptionCount > 1 ? 's' : ''} could not be decrypted and will show "[Decryption Required]".`
         : '';
-      setExportSuccessMessage(`Exported ${count} passwords to ${filename}. The export password is recorded in the history below.${failedNote}`);
+      const kdbxNote = exportType === 'kdbx' ? ` The KDBX master password is: ${filePassword}.` : '';
+      setExportSuccessMessage(`Exported ${count} passwords to ${filename}.${kdbxNote} The export password is recorded in the history below.${failedNote}`);
     } catch (err: any) {
       console.error(err);
       alert('Export failed: ' + (err.message || 'Unknown error'));
