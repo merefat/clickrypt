@@ -56,6 +56,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   if (!group.assignedFolderIds) group.assignedFolderIds = [];
   if (!group.assignedResourceIds) group.assignedResourceIds = [];
 
+  if (Array.isArray(body.assignedFolderIds)) {
+    group.assignedFolderIds = body.assignedFolderIds;
+  }
+  if (Array.isArray(body.assignedResourceIds)) {
+    group.assignedResourceIds = body.assignedResourceIds;
+  }
+
   // Assign folder to group
   if (body.addFolderId && !group.assignedFolderIds.includes(body.addFolderId)) {
     group.assignedFolderIds.push(body.addFolderId);

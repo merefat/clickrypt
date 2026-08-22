@@ -53,6 +53,7 @@ import {
 import { provisionSecretsForFolder } from '@/lib/folderSharing';
 import UnlockVaultModal from '@/components/UnlockVaultModal';
 import PasswordDrawer from '@/components/PasswordDrawer';
+import { SortableTableRow } from '@/components/SortableItem';
 
 function SortableListItem({
   id,
@@ -660,22 +661,86 @@ export default function GroupsPage() {
 
   const handleGroupDragEnd = async (event: any) => {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    if (!['Owner', 'Admin'].includes(user?.role as string)) return;
+    if (!over) return;
 
-    const oldIndex = groups.findIndex((g) => g.id === active.id);
-    const newIndex = groups.findIndex((g) => g.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
+    const activeType = active.data.current?.type;
+    const overType = over.data.current?.type;
 
-    const previous = [...groups];
-    const reordered = arrayMove(previous, oldIndex, newIndex);
-    setGroups(reordered);
+    if (activeType === 'group' && overType === 'group') {
+      if (active.id === over.id) return;
+      if (!['Owner', 'Admin'].includes(user?.role as string)) return;
+      const oldIndex = groups.findIndex((g) => g.id === active.id);
+      const newIndex = groups.findIndex((g) => g.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const previous = [...groups];
+      const reordered = arrayMove(previous, oldIndex, newIndex);
+      setGroups(reordered);
+      try {
+        await api.put('/groups/reorder', { ids: reordered.map((g) => g.id) });
+      } catch (err) {
+        setGroups(previous);
+        alert('Failed to save group order');
+      }
+      return;
+    }
 
-    try {
-      await api.put('/groups/reorder', { ids: reordered.map((g) => g.id) });
-    } catch (err) {
-      setGroups(previous);
-      alert('Failed to save group order');
+    if (activeType === 'group-folder' && overType === 'group-folder' && selectedGroup) {
+      if (active.id === over.id) return;
+      const previousIds = [...(selectedGroup.assignedFolderIds || [])];
+      const oldIndex = previousIds.indexOf(active.id);
+      const newIndex = previousIds.indexOf(over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const reordered = arrayMove(previousIds, oldIndex, newIndex);
+
+      const previousGroups = [...groups];
+      setGroups((prev) =>
+        prev.map((g) => (g.id === selectedGroup.id ? { ...g, assignedFolderIds: reordered } : g))
+      );
+      try {
+        await api.put(`/groups/${selectedGroup.id}`, { assignedFolderIds: reordered });
+      } catch (err) {
+        setGroups(previousGroups);
+        alert('Failed to save folder order');
+      }
+      return;
+    }
+
+    if (activeType === 'group-resource' && overType === 'group-resource' && selectedGroup) {
+      if (active.id === over.id) return;
+      const activeView = active.data.current?.view;
+
+      if (activeView === '__direct__') {
+        const previousIds = [...groupResourceIdList];
+        const oldIndex = previousIds.indexOf(active.id);
+        const newIndex = previousIds.indexOf(over.id);
+        if (oldIndex === -1 || newIndex === -1) return;
+        const reordered = arrayMove(previousIds, oldIndex, newIndex);
+
+        const previousGroups = [...groups];
+        setGroups((prev) =>
+          prev.map((g) => (g.id === selectedGroup.id ? { ...g, assignedResourceIds: reordered } : g))
+        );
+        try {
+          await api.put(`/groups/${selectedGroup.id}`, { assignedResourceIds: reordered });
+        } catch (err) {
+          setGroups(previousGroups);
+          alert('Failed to save direct share order');
+        }
+        return;
+      }
+
+      const oldIndexRes = resources.findIndex((r) => r.id === active.id);
+      const newIndexRes = resources.findIndex((r) => r.id === over.id);
+      if (oldIndexRes === -1 || newIndexRes === -1) return;
+      const previous = [...resources];
+      const reordered = arrayMove(previous, oldIndexRes, newIndexRes);
+      setResources(reordered);
+      try {
+        await api.put('/resources/reorder', { ids: reordered.map((r) => r.id) });
+      } catch (err) {
+        setResources(previous);
+        alert('Failed to save resource order');
+      }
     }
   };
 
@@ -685,9 +750,13 @@ export default function GroupsPage() {
 
   const assignedFolderIds = assignedFoldersForGroup.map((f) => f.id);
 
+  const groupResourceIdList = selectedGroup
+    ? (selectedGroup.assignedResourceIds || groupResourceIds[selectedGroup.id] || [])
+    : [];
+
   const assignedResourcesForGroup = selectedGroup
     ? resources.filter((r) => {
-        const isDirectlyAssigned = (groupResourceIds[selectedGroup.id] || []).includes(r.id);
+        const isDirectlyAssigned = groupResourceIdList.includes(r.id);
         const isFromAssignedFolder = !!(r.folderId && assignedFolderIds.includes(r.folderId));
         return isDirectlyAssigned || isFromAssignedFolder;
       })
@@ -698,7 +767,7 @@ export default function GroupsPage() {
     : folders;
 
   const unassignedResourcesForGroup = selectedGroup
-    ? resources.filter((r) => !(groupResourceIds[selectedGroup.id] || []).includes(r.id))
+    ? resources.filter((r) => !groupResourceIdList.includes(r.id))
     : resources;
 
   const availableUsersForGroup = selectedGroup
@@ -711,9 +780,11 @@ export default function GroupsPage() {
       : assignedFoldersForGroup.find((f) => f.id === passwordsFolderView)?.name || 'Unknown Folder'
     : null;
 
-  const directSharedResources = assignedResourcesForGroup.filter(
-    (r) => !r.folderId || !assignedFolderIds.includes(r.folderId)
-  );
+  const directSharedResources = selectedGroup
+    ? groupResourceIdList
+        .map((id) => resources.find((r) => r.id === id))
+        .filter((r) => r && (!r.folderId || !assignedFolderIds.includes(r.folderId))) as any[]
+    : [];
 
   const currentPasswordsList = !passwordsFolderView
     ? []
@@ -808,6 +879,12 @@ export default function GroupsPage() {
           </div>
 
           {/* Main Grid */}
+          <DndContext
+            sensors={dndSensors}
+            collisionDetection={closestCenter}
+            onDragOver={handleDragOver}
+            onDragEnd={handleGroupDragEnd}
+          >
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left: Groups List */}
             <div className="glass-panel rounded-2xl p-5 border border-[#d0dbe5] bg-[#ffffff] space-y-4 shadow-xl">
@@ -829,18 +906,12 @@ export default function GroupsPage() {
                     <p>You are not a member of any team groups yet.</p>
                   </div>
                 ) : (
-                  <DndContext
-                    sensors={dndSensors}
-                    collisionDetection={closestCenter}
-                    onDragOver={handleDragOver}
-                    onDragEnd={handleGroupDragEnd}
+                  <SortableContext
+                    items={visibleGroups
+                      .filter((g) => g.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                      .map((g) => g.id)}
+                    strategy={verticalListSortingStrategy}
                   >
-                    <SortableContext
-                      items={visibleGroups
-                        .filter((g) => g.name.toLowerCase().includes(searchTerm.toLowerCase()))
-                        .map((g) => g.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
                       {visibleGroups
                         .filter((g) => g.name.toLowerCase().includes(searchTerm.toLowerCase()))
                         .map((g) => {
@@ -881,7 +952,6 @@ export default function GroupsPage() {
                           );
                         })}
                     </SortableContext>
-                  </DndContext>
                 )}
               </div>
             </div>
@@ -1017,12 +1087,15 @@ export default function GroupsPage() {
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {assignedFoldersForGroup.map((f) => (
-                            <div
-                              key={f.id}
-                              className="p-4 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl flex items-center justify-between shadow-sm transition-all"
-                            >
-                              <div className="flex items-center gap-3">
+                          <SortableContext items={assignedFoldersForGroup.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+                            {assignedFoldersForGroup.map((f) => (
+                              <SortableListItem
+                                key={f.id}
+                                id={f.id}
+                                data={{ type: 'group-folder' }}
+                                isOver={dragOver.id === f.id}
+                                className="p-4 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl shadow-sm transition-all">
+                                <div className="flex items-center gap-3">
                                 <Folder className="w-5 h-5 text-[#d97706]" />
                                 <div>
                                   <h4 className="text-xs font-extrabold text-[#0f172a]">{f.name}</h4>
@@ -1031,14 +1104,18 @@ export default function GroupsPage() {
                               </div>
 
                               <button
-                                onClick={() => handleUnassignFolder(f.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUnassignFolder(f.id);
+                                }}
                                 className="p-1 text-gray-400 hover:text-rose-600"
                                 title="Unassign folder"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
-                            </div>
+                            </SortableListItem>
                           ))}
+                          </SortableContext>
                         </div>
                       )}
                     </div>
@@ -1133,6 +1210,7 @@ export default function GroupsPage() {
                           <table className="w-full text-left text-xs">
                             <thead className="bg-[#e6eff7] text-[#334155] font-extrabold border-b border-[#cbd5e1]">
                               <tr>
+                                <th className="py-2.5 px-2 w-10" />
                                 {bulkSelectMode && (
                                   <th className="py-2.5 px-3 w-10">
                                     <input
@@ -1153,10 +1231,16 @@ export default function GroupsPage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-[#e2e8f0]">
-                              {currentPasswordsList.map((res) => {
-                                const isRev = !!revealedPasswords[res.id];
-                                return (
-                                  <tr key={res.id} className="hover:bg-[#f1f6fb]">
+                              <SortableContext items={currentPasswordsList.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+                                {currentPasswordsList.map((res) => {
+                                  const isRev = !!revealedPasswords[res.id];
+                                  return (
+                                    <SortableTableRow
+                                      key={res.id}
+                                      id={res.id}
+                                      data={{ type: 'group-resource', view: passwordsFolderView }}
+                                      className="hover:bg-[#f1f6fb]"
+                                    >
                                     {bulkSelectMode && (
                                       <td className="py-3 px-3 w-10">
                                         <input
@@ -1198,9 +1282,10 @@ export default function GroupsPage() {
                                         </button>
                                       </div>
                                     </td>
-                                  </tr>
+                                  </SortableTableRow>
                                 );
                               })}
+                              </SortableContext>
                             </tbody>
                           </table>
                         </div>
@@ -1369,6 +1454,7 @@ export default function GroupsPage() {
               </div>
             )}
           </div>
+          </DndContext>
         </main>
       </div>
 
