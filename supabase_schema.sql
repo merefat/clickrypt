@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS public.groups (
   name VARCHAR(255) NOT NULL,
   description TEXT,
   members_data JSONB NOT NULL DEFAULT '[]'::jsonb,
+  assigned_resource_ids TEXT[] DEFAULT '{}',
   last_active VARCHAR(64) DEFAULT 'Just now',
   sort_order INT DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

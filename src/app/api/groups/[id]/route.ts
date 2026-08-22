@@ -54,6 +54,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   }
 
   if (!group.assignedFolderIds) group.assignedFolderIds = [];
+  if (!group.assignedResourceIds) group.assignedResourceIds = [];
 
   // Assign folder to group
   if (body.addFolderId && !group.assignedFolderIds.includes(body.addFolderId)) {
@@ -63,6 +64,16 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   // Remove assigned folder from group
   if (body.removeFolderId) {
     group.assignedFolderIds = group.assignedFolderIds.filter((fid) => fid !== body.removeFolderId);
+  }
+
+  // Assign resource to group
+  if (body.addResourceId && !group.assignedResourceIds.includes(body.addResourceId)) {
+    group.assignedResourceIds.push(body.addResourceId);
+  }
+
+  // Remove assigned resource from group
+  if (body.removeResourceId) {
+    group.assignedResourceIds = group.assignedResourceIds.filter((rid) => rid !== body.removeResourceId);
   }
 
   group.lastActive = new Date().toISOString();

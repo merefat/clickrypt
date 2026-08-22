@@ -7,6 +7,7 @@ import Header from '@/components/Header';
 import PasswordDrawer from '@/components/PasswordDrawer';
 import ShareModal from '@/components/ShareModal';
 import CreateFolderModal from '@/components/CreateFolderModal';
+import { SortableListItem, SortableTableRow } from '@/components/SortableItem';
 import {
   Lock,
   Plus,
@@ -31,6 +32,18 @@ import api from '@/lib/api';
 import { decryptSecret } from '@/lib/crypto';
 import { formatExactDateTime } from '@/lib/dateUtils';
 import { useAuth } from '@/context/AuthContext';
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 
 export default function SecretVaultPage() {
   const router = useRouter();
@@ -146,6 +159,80 @@ export default function SecretVaultPage() {
     } catch (err) {
       alert('Failed to delete item');
     }
+  };
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const [dragOver, setDragOver] = useState<{ id: string | null; type: string | null }>({ id: null, type: null });
+
+  const handleDragEnd = async (event: any) => {
+    const { active, over } = event;
+    if (!over) return;
+    const activeType = active.data.current?.type;
+    const overType = over.data.current?.type;
+
+    if (activeType === 'folder' && overType === 'folder') {
+      if (active.id === over.id) return;
+      const oldIndex = folders.findIndex((f) => f.id === active.id);
+      const newIndex = folders.findIndex((f) => f.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const previous = [...folders];
+      const reordered = arrayMove(previous, oldIndex, newIndex);
+      setFolders(reordered);
+      try {
+        await api.put('/folders/reorder', { ids: reordered.map((f) => f.id) });
+      } catch (err) {
+        setFolders(previous);
+        alert('Failed to save private folder order');
+      }
+      return;
+    }
+
+    if (activeType === 'resource' && overType === 'resource') {
+      if (active.id === over.id) return;
+      const oldIndex = resources.findIndex((r) => r.id === active.id);
+      const newIndex = resources.findIndex((r) => r.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const previous = [...resources];
+      const reordered = arrayMove(previous, oldIndex, newIndex);
+      setResources(reordered);
+      try {
+        await api.put('/resources/reorder', { ids: reordered.map((r) => r.id) });
+      } catch (err) {
+        setResources(previous);
+        alert('Failed to save private item order');
+      }
+      return;
+    }
+
+    if (activeType === 'resource' && overType === 'folder') {
+      const resourceId = active.id as string;
+      const targetFolderId = over.id as string;
+      const item = resources.find((r) => r.id === resourceId);
+      if (!item || item.folderId === targetFolderId) return;
+
+      const previous = [...resources];
+      setResources(previous.map((r) => (r.id === resourceId ? { ...r, folderId: targetFolderId } : r)));
+      try {
+        await api.put(`/resources/${resourceId}`, { folderId: targetFolderId });
+        fetchResources();
+        fetchFolders();
+      } catch (err) {
+        setResources(previous);
+        alert('Failed to move private item');
+      }
+    }
+  };
+
+  const handleDragOver = (event: any) => {
+    const over = event.over;
+    setDragOver((prev) =>
+      prev.id === over?.id && prev.type === over?.data?.current?.type
+        ? prev
+        : { id: over?.id || null, type: over?.data?.current?.type || null }
+    );
   };
 
   return (
@@ -269,7 +356,13 @@ export default function SecretVaultPage() {
           </div>
 
           {/* 2-COLUMN SIDE-BY-SIDE LAYOUT: Folders on Left Side | Table on Right Side */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <DndContext
+            sensors={dndSensors}
+            collisionDetection={closestCenter}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* LEFT COLUMN: Folders Sidebar Panel */}
             <div className="lg:col-span-1 space-y-3">
               <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl p-4 shadow-xl space-y-4">
@@ -308,33 +401,40 @@ export default function SecretVaultPage() {
                   </div>
 
                   {/* Created Folders Items */}
-                  {folders.map((f) => {
-                    const isSelected = selectedFolderId === f.id;
-                    return (
-                      <div
-                        key={f.id}
-                        onClick={() => setSelectedFolderId(f.id)}
-                        className={`w-full flex items-center justify-between p-3 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
-                          isSelected
-                            ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
-                            : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] text-[#0f172a] hover:border-[#1fbbd2]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 truncate">
-                          <Folder className="w-4 h-4 text-[#f39c12] shrink-0" />
-                          <div className="truncate">
-                            <p className="truncate leading-tight">{f.name}</p>
-                            {f.description && (
-                              <p className="text-[10px] text-[#64748b] font-medium truncate mt-0.5">
-                                {f.description}
-                              </p>
-                            )}
+                  <SortableContext items={folders.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+                    {folders.map((f) => {
+                      const isSelected = selectedFolderId === f.id;
+                      return (
+                        <SortableListItem
+                          key={f.id}
+                          id={f.id}
+                          onClick={() => setSelectedFolderId(f.id)}
+                          data={{ type: 'folder' }}
+                          isOver={dragOver.id === f.id}
+                          className={`p-3 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
+                              : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] text-[#0f172a] hover:border-[#1fbbd2]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5 truncate">
+                              <Folder className="w-4 h-4 text-[#f39c12] shrink-0" />
+                              <div className="truncate">
+                                <p className="truncate leading-tight">{f.name}</p>
+                                {f.description && (
+                                  <p className="text-[10px] text-[#64748b] font-medium truncate mt-0.5">
+                                    {f.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
                           </div>
-                        </div>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
-                      </div>
-                    );
-                  })}
+                        </SortableListItem>
+                      );
+                    })}
+                  </SortableContext>
                 </div>
               </div>
             </div>
@@ -367,6 +467,7 @@ export default function SecretVaultPage() {
                   <table className="w-full text-left text-xs">
                     <thead className="bg-[#e6eff7] text-[#334155] font-extrabold uppercase tracking-wider border-b border-[#cbd5e1]">
                       <tr>
+                        <th className="py-3.5 px-2 w-10" />
                         <th className="py-3.5 px-6">Item</th>
                         <th className="py-3.5 px-4">Strength</th>
                         <th className="py-3.5 px-4">Last Accessed</th>
@@ -383,15 +484,18 @@ export default function SecretVaultPage() {
                           </td>
                         </tr>
                       ) : (
-                        resources.map((res) => {
-                          const isRevealed = !!revealedPasswords[res.id];
-                          const displayedPass = isRevealed ? revealedPasswords[res.id] : '••••••••';
+                        <SortableContext items={resources.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+                          {resources.map((res) => {
+                            const isRevealed = !!revealedPasswords[res.id];
+                            const displayedPass = isRevealed ? revealedPasswords[res.id] : '••••••••';
 
-                          return (
-                            <tr
-                              key={res.id}
-                              className="hover:bg-[#f1f6fb] transition-all group border-b border-gray-100"
-                            >
+                            return (
+                              <SortableTableRow
+                                key={res.id}
+                                id={res.id}
+                                data={{ type: 'resource' }}
+                                className="hover:bg-[#f1f6fb] transition-all group border-b border-gray-100"
+                              >
                               <td className="py-4 px-6">
                                 <div className="flex items-center gap-3">
                                   <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold text-xs shadow">
@@ -489,9 +593,10 @@ export default function SecretVaultPage() {
                                   </button>
                                 </div>
                               </td>
-                            </tr>
+                            </SortableTableRow>
                           );
-                        })
+                        })}
+                        </SortableContext>
                       )}
                     </tbody>
                   </table>
@@ -499,6 +604,7 @@ export default function SecretVaultPage() {
               </div>
             </div>
           </div>
+          </DndContext>
         </main>
       </div>
 

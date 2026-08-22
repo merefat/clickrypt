@@ -36,11 +36,27 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   res.name = body.name || res.name;
   res.username = body.username || res.username;
   res.url = body.url || res.url;
-  res.category = body.category || res.category;
   res.folderId = body.folderId !== undefined ? body.folderId : res.folderId;
   res.isPrivateOnly = body.isPrivateOnly !== undefined ? body.isPrivateOnly : res.isPrivateOnly;
   res.strength = body.strength || res.strength;
   res.lastModified = new Date().toISOString();
+
+  if (body.addGroupId) {
+    const group = db.groups.find((g) => g.id === body.addGroupId);
+    if (group) {
+      if (!group.assignedResourceIds) group.assignedResourceIds = [];
+      if (!group.assignedResourceIds.includes(id)) {
+        group.assignedResourceIds.push(id);
+      }
+    }
+  }
+
+  if (body.removeGroupId) {
+    const group = db.groups.find((g) => g.id === body.removeGroupId);
+    if (group && group.assignedResourceIds) {
+      group.assignedResourceIds = group.assignedResourceIds.filter((rid) => rid !== id);
+    }
+  }
 
   if (body.encryptedSecret) {
     const ownerSecret = res.secrets.find((s) => s.userId === authUser.id);

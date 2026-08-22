@@ -64,13 +64,20 @@ function SortableListItem({
   id: string;
   className?: string;
   disabled?: boolean;
+  data?: Record<string, unknown>;
+  isOver?: boolean;
   onClick?: () => void;
   children: React.ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id, disabled });
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id, disabled, data });
   const style = { transform: CSS.Translate.toString(transform), transition };
   return (
-    <div ref={setNodeRef} style={style} className={`${className || ''} flex items-center gap-2`} onClick={onClick}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`${className || ''} flex items-center gap-2 ${isOver ? 'ring-2 ring-[#1fbbd2] bg-cyan-50' : ''}`}
+      onClick={onClick}
+    >
       <button
         type="button"
         {...attributes}
@@ -106,6 +113,17 @@ export default function GroupsPage() {
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
+
+  const [dragOver, setDragOver] = useState<{ id: string | null; type: string | null }>({ id: null, type: null });
+
+  const handleDragOver = (event: any) => {
+    const over = event.over;
+    setDragOver((prev) =>
+      prev.id === over?.id && prev.type === over?.data?.current?.type
+        ? prev
+        : { id: over?.id || null, type: over?.data?.current?.type || null }
+    );
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -812,6 +830,7 @@ export default function GroupsPage() {
                   <DndContext
                     sensors={dndSensors}
                     collisionDetection={closestCenter}
+                    onDragOver={handleDragOver}
                     onDragEnd={handleGroupDragEnd}
                   >
                     <SortableContext
@@ -830,6 +849,8 @@ export default function GroupsPage() {
                               id={g.id}
                               onClick={() => setSelectedGroupId(g.id)}
                               disabled={!['Owner', 'Admin'].includes(user?.role as string) || !!searchTerm}
+                              data={{ type: 'group' }}
+                              isOver={dragOver.id === g.id}
                               className={`p-4 rounded-xl cursor-pointer transition-all border ${
                                 isSelected
                                   ? 'bg-[#f5f8fb] border-[#1fbbd2] shadow-md'

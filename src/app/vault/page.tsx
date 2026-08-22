@@ -67,22 +67,25 @@ function SortableTableRow({
   id,
   className,
   disabled,
+  data,
   children,
 }: {
   id: string;
   className?: string;
   disabled?: boolean;
+  data?: Record<string, unknown>;
   children: React.ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id, disabled });
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id, disabled, data });
   const style = { transform: CSS.Translate.toString(transform), transition };
   return (
     <tr ref={setNodeRef} style={style} className={className}>
-      <td className="py-4 px-2 w-10 text-center">
+      <td className="py-4 px-2 w-10">
         <button
           type="button"
           {...attributes}
           {...listeners}
+          onClick={(e) => e.stopPropagation()}
           className="p-1 text-gray-400 hover:text-[#0284c7] cursor-grab active:cursor-grabbing"
           title="Drag to reorder"
         >
@@ -98,19 +101,28 @@ function SortableListItem({
   id,
   className,
   disabled,
+  data,
+  isOver,
   onClick,
   children,
 }: {
   id: string;
   className?: string;
   disabled?: boolean;
+  data?: Record<string, unknown>;
+  isOver?: boolean;
   onClick?: () => void;
   children: React.ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id, disabled });
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id, disabled, data });
   const style = { transform: CSS.Translate.toString(transform), transition };
   return (
-    <div ref={setNodeRef} style={style} className={`${className || ''} flex items-center gap-2`} onClick={onClick}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`${className || ''} flex items-center gap-2 ${isOver ? 'ring-2 ring-[#1fbbd2] bg-cyan-50' : ''}`}
+      onClick={onClick}
+    >
       <button
         type="button"
         {...attributes}
@@ -402,44 +414,82 @@ export default function VaultPage() {
     fetchResources();
   };
 
-  const handleResourceDragEnd = async (event: any) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    if (searchTerm || activeFilterMode !== 'all') return;
+  const [dragOver, setDragOver] = useState<{ id: string | null; type: string | null }>({ id: null, type: null });
 
-    const oldIndex = displayedResources.findIndex((r) => r.id === active.id);
-    const newIndex = displayedResources.findIndex((r) => r.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    const previous = [...resources];
-    const reordered = arrayMove(displayedResources, oldIndex, newIndex);
-    setResources(reordered);
-
-    try {
-      await api.put('/resources/reorder', { ids: reordered.map((r) => r.id) });
-    } catch (err) {
-      setResources(previous);
-      alert('Failed to save resource order');
-    }
+  const handleDragOver = (event: any) => {
+    const over = event.over;
+    setDragOver((prev) =>
+      prev.id === over?.id && prev.type === over?.data?.current?.type
+        ? prev
+        : { id: over?.id || null, type: over?.data?.current?.type || null }
+    );
   };
 
-  const handleFolderDragEnd = async (event: any) => {
+  const handleDragEnd = async (event: any) => {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    if (!over) return;
 
-    const oldIndex = folders.findIndex((f) => f.id === active.id);
-    const newIndex = folders.findIndex((f) => f.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
+    const activeType = active.data.current?.type;
+    const overType = over.data.current?.type;
 
-    const previous = [...folders];
-    const reordered = arrayMove(previous, oldIndex, newIndex);
-    setFolders(reordered);
+    if (activeType === 'resource' && overType === 'resource') {
+      if (searchTerm || activeFilterMode !== 'all') return;
+      const oldIndex = displayedResources.findIndex((r) => r.id === active.id);
+      const newIndex = displayedResources.findIndex((r) => r.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const previous = [...resources];
+      const reordered = arrayMove(displayedResources, oldIndex, newIndex);
+      setResources(reordered);
+      try {
+        await api.put('/resources/reorder', { ids: reordered.map((r) => r.id) });
+      } catch (err) {
+        setResources(previous);
+        alert('Failed to save resource order');
+      }
+      return;
+    }
 
-    try {
-      await api.put('/folders/reorder', { ids: reordered.map((f) => f.id) });
-    } catch (err) {
-      setFolders(previous);
-      alert('Failed to save folder order');
+    if (activeType === 'folder' && overType === 'folder') {
+      const oldIndex = folders.findIndex((f) => f.id === active.id);
+      const newIndex = folders.findIndex((f) => f.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const previous = [...folders];
+      const reordered = arrayMove(previous, oldIndex, newIndex);
+      setFolders(reordered);
+      try {
+        await api.put('/folders/reorder', { ids: reordered.map((f) => f.id) });
+      } catch (err) {
+        setFolders(previous);
+        alert('Failed to save folder order');
+      }
+      return;
+    }
+
+    if (activeType === 'resource' && overType === 'folder') {
+      const resourceId = active.id as string;
+      const targetFolderId = over.id as string;
+      const item = resources.find((r) => r.id === resourceId);
+      if (!item || item.folderId === targetFolderId) return;
+
+      const previousResources = [...resources];
+      setResources(previousResources.map((r) => (r.id === resourceId ? { ...r, folderId: targetFolderId } : r)));
+      setFolders((prev) =>
+        prev.map((f) => {
+          if (f.id === targetFolderId) return { ...f, itemCount: (f.itemCount || 0) + 1 };
+          if (f.id === item.folderId) return { ...f, itemCount: Math.max((f.itemCount || 0) - 1, 0) };
+          return f;
+        })
+      );
+
+      try {
+        await api.put(`/resources/${resourceId}`, { folderId: targetFolderId });
+        fetchResources();
+        fetchFolders();
+      } catch (err) {
+        setResources(previousResources);
+        fetchFolders();
+        alert('Failed to move resource');
+      }
     }
   };
 
@@ -781,7 +831,8 @@ export default function VaultPage() {
                     <DndContext
                       sensors={dndSensors}
                       collisionDetection={closestCenter}
-                      onDragEnd={handleFolderDragEnd}
+                      onDragOver={handleDragOver}
+                      onDragEnd={handleDragEnd}
                     >
                       <SortableContext items={folders.map((f) => f.id)} strategy={verticalListSortingStrategy}>
                         {folders.map((f) => {
@@ -791,7 +842,9 @@ export default function VaultPage() {
                               key={f.id}
                               id={f.id}
                               onClick={() => setSelectedFolderId(f.id)}
-                              className={`w-full flex items-center p-3 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
+                              data={{ type: 'folder' }}
+                              isOver={dragOver.id === f.id}
+                              className={`w-full p-3 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
                                 isSelected
                                   ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
                                   : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] text-[#0f172a] hover:border-[#1fbbd2]'
@@ -967,7 +1020,7 @@ export default function VaultPage() {
                 <DndContext
                   sensors={dndSensors}
                   collisionDetection={closestCenter}
-                  onDragEnd={handleResourceDragEnd}
+                  onDragEnd={handleDragEnd}
                 >
                   <table className="w-full text-left text-xs">
                     <thead className="bg-[#e6eff7] text-[#334155] font-extrabold uppercase tracking-wider border-b border-[#cbd5e1]">
@@ -1007,6 +1060,7 @@ export default function VaultPage() {
                           key={res.id}
                           id={res.id}
                           disabled={!!searchTerm || activeFilterMode !== 'all'}
+                          data={{ type: 'resource' }}
                           className="hover:bg-[#f1f6fb] transition-all group border-b border-gray-100"
                         >
                           {bulkSelectMode && (

@@ -5,8 +5,22 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import PasswordDrawer from '@/components/PasswordDrawer';
+import { SortableListItem, SortableTableRow } from '@/components/SortableItem';
 import { Folder, Plus, FolderPlus, Trash2, Eye, EyeOff, Copy, Check } from 'lucide-react';
 import api from '@/lib/api';
+
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -76,6 +90,92 @@ export default function FoldersPage() {
     if (selectedFolderId) {
       fetchFolderItems(selectedFolderId);
     }
+  };
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const [dragOver, setDragOver] = useState<{ id: string | null; type: string | null }>({ id: null, type: null });
+
+  const handleDragEnd = async (event: any) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeType = active.data.current?.type;
+    const overType = over.data.current?.type;
+
+    // Reorder folders
+    if (activeType === 'folder' && overType === 'folder') {
+      if (active.id === over.id) return;
+      const oldIndex = folders.findIndex((f) => f.id === active.id);
+      const newIndex = folders.findIndex((f) => f.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const previous = [...folders];
+      const reordered = arrayMove(previous, oldIndex, newIndex);
+      setFolders(reordered);
+      try {
+        await api.put('/folders/reorder', { ids: reordered.map((f) => f.id) });
+      } catch (err) {
+        setFolders(previous);
+        alert('Failed to save folder order');
+      }
+      return;
+    }
+
+    // Reorder resources inside the current folder
+    if (activeType === 'resource' && overType === 'resource') {
+      if (active.id === over.id) return;
+      const oldIndex = folderItems.findIndex((r) => r.id === active.id);
+      const newIndex = folderItems.findIndex((r) => r.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const previous = [...folderItems];
+      const reordered = arrayMove(previous, oldIndex, newIndex);
+      setFolderItems(reordered);
+      try {
+        await api.put('/resources/reorder', { ids: reordered.map((r) => r.id) });
+      } catch (err) {
+        setFolderItems(previous);
+        alert('Failed to save resource order');
+      }
+      return;
+    }
+
+    // Move resource into another folder
+    if (activeType === 'resource' && overType === 'folder') {
+      const resourceId = active.id as string;
+      const targetFolderId = over.id as string;
+      const item = folderItems.find((r) => r.id === resourceId);
+      if (!item || item.folderId === targetFolderId) return;
+
+      const previousItems = [...folderItems];
+      setFolderItems(previousItems.filter((r) => r.id !== resourceId));
+
+      setFolders((prev) =>
+        prev.map((f) => {
+          if (f.id === targetFolderId) return { ...f, itemCount: (f.itemCount || 0) + 1 };
+          if (f.id === item.folderId) return { ...f, itemCount: Math.max((f.itemCount || 0) - 1, 0) };
+          return f;
+        })
+      );
+
+      try {
+        await api.put(`/resources/${resourceId}`, { folderId: targetFolderId });
+        if (selectedFolderId) fetchFolderItems(selectedFolderId);
+        fetchFolders();
+      } catch (err) {
+        setFolderItems(previousItems);
+        fetchFolders();
+        alert('Failed to move resource');
+      }
+    }
+  };
+
+  const handleDragOver = (event: any) => {
+    const over = event.over;
+    const id = over?.id || null;
+    const type = over?.data?.current?.type || null;
+    setDragOver((prev) => (prev.id === id && prev.type === type ? prev : { id, type }));
   };
 
   const handleDeleteFolder = async (folderId?: string) => {
@@ -224,6 +324,12 @@ export default function FoldersPage() {
             </button>
           </div>
 
+          <DndContext
+            sensors={dndSensors}
+            collisionDetection={closestCenter}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left: Folder List Panel */}
             <div className="lg:col-span-1 glass-panel rounded-2xl p-4 border border-[#d0dbe5] bg-[#ffffff] space-y-4 shadow-xl">
@@ -239,47 +345,52 @@ export default function FoldersPage() {
                 ) : folders.length === 0 ? (
                   <p className="text-xs text-[#64748b] text-center py-4">No folders created yet.</p>
                 ) : (
-                  folders.map((f) => {
-                    const isSelected = f.id === selectedFolderId;
-                    return (
-                      <div
-                        key={f.id}
-                        onClick={() => setSelectedFolderId(f.id)}
-                        className={`p-4 rounded-xl cursor-pointer transition-all border ${
-                          isSelected
-                            ? 'bg-[#f5f8fb] border-[#1fbbd2] shadow-md'
-                            : 'bg-[#ffffff] border-[#cbd5e1] hover:border-[#1fbbd2]'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 truncate pr-2">
-                            <Folder className={`w-5 h-5 shrink-0 ${isSelected ? 'text-[#1fbbd2]' : 'text-[#64748b]'}`} />
-                            <div className="truncate">
-                              <h3 className="text-sm font-extrabold text-[#0f172a] truncate">{f.name}</h3>
-                              <p className="text-[11px] text-[#64748b] line-clamp-1">{f.creatorName}</p>
+                  <SortableContext items={folders.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+                    {folders.map((f) => {
+                      const isSelected = f.id === selectedFolderId;
+                      return (
+                        <SortableListItem
+                          key={f.id}
+                          id={f.id}
+                          onClick={() => setSelectedFolderId(f.id)}
+                          data={{ type: 'folder' }}
+                          isOver={dragOver.id === f.id}
+                          className={`p-4 rounded-xl cursor-pointer transition-all border ${
+                            isSelected
+                              ? 'bg-[#f5f8fb] border-[#1fbbd2] shadow-md'
+                              : 'bg-[#ffffff] border-[#cbd5e1] hover:border-[#1fbbd2]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 truncate pr-2">
+                              <Folder className={`w-5 h-5 shrink-0 ${isSelected ? 'text-[#1fbbd2]' : 'text-[#64748b]'}`} />
+                              <div className="truncate">
+                                <h3 className="text-sm font-extrabold text-[#0f172a] truncate">{f.name}</h3>
+                                <p className="text-[11px] text-[#64748b] line-clamp-1">{f.creatorName}</p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                                {f.itemCount || 0} items
+                              </span>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteFolder(f.id);
+                                }}
+                                className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Delete Folder"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           </div>
-
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                              {f.itemCount || 0} items
-                            </span>
-
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteFolder(f.id);
-                              }}
-                              className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                              title="Delete Folder"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
+                        </SortableListItem>
+                      );
+                    })}
+                  </SortableContext>
                 )}
               </div>
             </div>
@@ -319,6 +430,7 @@ export default function FoldersPage() {
                     <table className="w-full text-left text-xs">
                       <thead className="bg-[#e6eff7] text-[#334155] font-extrabold uppercase tracking-wider border-b border-[#cbd5e1]">
                         <tr>
+                          <th className="py-3 px-2 w-10" />
                           <th className="py-3 px-6">Resource Name</th>
                           <th className="py-3 px-4">Username</th>
                           <th className="py-3 px-4">Password</th>
@@ -333,11 +445,17 @@ export default function FoldersPage() {
                             </td>
                           </tr>
                         ) : (
-                          folderItems.map((item) => {
-                            const revealed = revealedPasswords[item.id];
-                            return (
-                              <tr key={item.id} className="hover:bg-[#f1f6fb] transition-all border-b border-gray-100">
-                                <td className="py-4 px-6 font-bold text-[#0f172a]">
+                          <SortableContext items={folderItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                            {folderItems.map((item) => {
+                              const revealed = revealedPasswords[item.id];
+                              return (
+                                <SortableTableRow
+                                  key={item.id}
+                                  id={item.id}
+                                  data={{ type: 'resource' }}
+                                  className="hover:bg-[#f1f6fb] transition-all border-b border-gray-100"
+                                >
+                                  <td className="py-4 px-6 font-bold text-[#0f172a]">
                                   <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold text-xs shadow-sm">
                                       {item.name.slice(0, 2).toUpperCase()}
@@ -371,9 +489,10 @@ export default function FoldersPage() {
                                     </button>
                                   </div>
                                 </td>
-                              </tr>
+                              </SortableTableRow>
                             );
-                          })
+                          })}
+                        </SortableContext>
                         )}
                       </tbody>
                     </table>
@@ -386,6 +505,7 @@ export default function FoldersPage() {
               )}
             </div>
           </div>
+          </DndContext>
         </main>
       </div>
 

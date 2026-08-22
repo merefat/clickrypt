@@ -83,6 +83,7 @@ export interface DbGroup {
   description: string;
   members: DbGroupMember[];
   assignedFolderIds?: string[];
+  assignedResourceIds?: string[];
   lastActive: string;
   sortOrder?: number;
 }
