@@ -58,6 +58,8 @@ function SortableListItem({
   id,
   className,
   disabled,
+  data,
+  isOver,
   onClick,
   children,
 }: {
