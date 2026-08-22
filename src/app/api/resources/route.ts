@@ -81,10 +81,16 @@ export async function GET(request: Request) {
       (r) =>
         r.name.toLowerCase().includes(search) ||
         r.username.toLowerCase().includes(search) ||
-        r.url.toLowerCase().includes(search) ||
-        r.category.toLowerCase().includes(search)
+        r.url.toLowerCase().includes(search)
     );
   }
+
+  result.sort((a, b) => {
+    const soA = a.sortOrder ?? 0;
+    const soB = b.sortOrder ?? 0;
+    if (soA !== soB) return soA - soB;
+    return a.id.localeCompare(b.id);
+  });
 
   const usersById = new Map<string, string>(db.users.map((u) => [u.id, u.name]));
   const usersByEmail = new Map<string, string>(db.users.map((u) => [u.email.toLowerCase(), u.name]));
@@ -153,18 +159,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Password or encrypted data is required' }, { status: 400 });
     }
 
+    const existing = db.resourcesFor(userMode);
+    const maxSort = existing.reduce((m, it) => Math.max(m, it.sortOrder ?? 0), 0);
+
     const newResource = {
       id: `r-${Date.now()}`,
       name: body.name,
       username: body.username || '',
       url: body.url || '',
-      category: body.category || 'General',
       ownerId: authUser.id,
       folderId: body.folderId || null,
       isPrivateOnly: !!body.isPrivateOnly,
       mode: userMode,
       strength: body.strength || 'Strong',
       lastModified: new Date().toISOString(),
+      sortOrder: maxSort + 1,
       secrets: [
         {
           userId: authUser.id,

@@ -24,8 +24,23 @@ import {
   EyeOff,
   Copy,
   Clock,
-  Share2
+  Share2,
+  GripVertical
 } from 'lucide-react';
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { decryptSecret, encryptSecret } from '@/lib/crypto';
@@ -38,6 +53,38 @@ import {
 import { provisionSecretsForFolder } from '@/lib/folderSharing';
 import UnlockVaultModal from '@/components/UnlockVaultModal';
 import PasswordDrawer from '@/components/PasswordDrawer';
+
+function SortableListItem({
+  id,
+  className,
+  disabled,
+  onClick,
+  children,
+}: {
+  id: string;
+  className?: string;
+  disabled?: boolean;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id, disabled });
+  const style = { transform: CSS.Translate.toString(transform), transition };
+  return (
+    <div ref={setNodeRef} style={style} className={`${className || ''} flex items-center gap-2`} onClick={onClick}>
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        onClick={(e) => e.stopPropagation()}
+        className="p-1 text-gray-400 hover:text-[#0284c7] cursor-grab active:cursor-grabbing shrink-0"
+        title="Drag to reorder"
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
+      <div className="flex-1 min-w-0">{children}</div>
+    </div>
+  );
+}
 
 export default function GroupsPage() {
   const router = useRouter();
@@ -55,6 +102,10 @@ export default function GroupsPage() {
   const [bulkSelectMode, setBulkSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [exportFormat, setExportFormat] = useState<'csv' | 'json' | 'pdf' | 'xlsx' | 'kdbx'>('csv');
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -587,6 +638,27 @@ export default function GroupsPage() {
     }
   };
 
+  const handleGroupDragEnd = async (event: any) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    if (!['Owner', 'Admin'].includes(user?.role as string)) return;
+
+    const oldIndex = groups.findIndex((g) => g.id === active.id);
+    const newIndex = groups.findIndex((g) => g.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const previous = [...groups];
+    const reordered = arrayMove(previous, oldIndex, newIndex);
+    setGroups(reordered);
+
+    try {
+      await api.put('/groups/reorder', { ids: reordered.map((g) => g.id) });
+    } catch (err) {
+      setGroups(previous);
+      alert('Failed to save group order');
+    }
+  };
+
   const assignedFoldersForGroup = selectedGroup
     ? folders.filter((f) => (selectedGroup.assignedFolderIds || groupFolderIds[selectedGroup.id] || []).includes(f.id))
     : [];
@@ -737,41 +809,56 @@ export default function GroupsPage() {
                     <p>You are not a member of any team groups yet.</p>
                   </div>
                 ) : (
-                  visibleGroups
-                    .filter((g) => g.name.toLowerCase().includes(searchTerm.toLowerCase()))
-                    .map((g) => {
-                    const isSelected = g.id === selectedGroupId;
-                    return (
-                      <div
-                        key={g.id}
-                        onClick={() => setSelectedGroupId(g.id)}
-                        className={`p-4 rounded-xl cursor-pointer transition-all border ${
-                          isSelected
-                            ? 'bg-[#f5f8fb] border-[#1fbbd2] shadow-md'
-                            : 'bg-[#ffffff] border-[#cbd5e1] hover:border-[#1fbbd2]'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
-                              isSelected ? 'bg-[#1fbbd2] text-white' : 'bg-[#f1f5f9] border border-[#cbd5e1] text-[#0284c7]'
-                            }`}>
-                              <Users className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <h3 className="text-sm font-extrabold text-[#0f172a]">{g.name}</h3>
-                              <p className="text-[11px] text-[#64748b] line-clamp-1">{g.description}</p>
-                            </div>
-                          </div>
-                          <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-[#1fbbd2]' : 'text-gray-400'}`} />
-                        </div>
-                        <div className="mt-3 flex items-center justify-between text-[10px] text-[#64748b]">
-                          <span>{g.members.length} members</span>
-                          <span>Active {g.lastActive}</span>
-                        </div>
-                      </div>
-                    );
-                  })
+                  <DndContext
+                    sensors={dndSensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleGroupDragEnd}
+                  >
+                    <SortableContext
+                      items={visibleGroups
+                        .filter((g) => g.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                        .map((g) => g.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {visibleGroups
+                        .filter((g) => g.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                        .map((g) => {
+                          const isSelected = g.id === selectedGroupId;
+                          return (
+                            <SortableListItem
+                              key={g.id}
+                              id={g.id}
+                              onClick={() => setSelectedGroupId(g.id)}
+                              disabled={!['Owner', 'Admin'].includes(user?.role as string) || !!searchTerm}
+                              className={`p-4 rounded-xl cursor-pointer transition-all border ${
+                                isSelected
+                                  ? 'bg-[#f5f8fb] border-[#1fbbd2] shadow-md'
+                                  : 'bg-[#ffffff] border-[#cbd5e1] hover:border-[#1fbbd2]'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+                                    isSelected ? 'bg-[#1fbbd2] text-white' : 'bg-[#f1f5f9] border border-[#cbd5e1] text-[#0284c7]'
+                                  }`}>
+                                    <Users className="w-4 h-4" />
+                                  </div>
+                                  <div>
+                                    <h3 className="text-sm font-extrabold text-[#0f172a]">{g.name}</h3>
+                                    <p className="text-[11px] text-[#64748b] line-clamp-1">{g.description}</p>
+                                  </div>
+                                </div>
+                                <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-[#1fbbd2]' : 'text-gray-400'}`} />
+                              </div>
+                              <div className="mt-3 flex items-center justify-between text-[10px] text-[#64748b]">
+                                <span>{g.members.length} members</span>
+                                <span>Active {g.lastActive}</span>
+                              </div>
+                            </SortableListItem>
+                          );
+                        })}
+                    </SortableContext>
+                  </DndContext>
                 )}
               </div>
             </div>

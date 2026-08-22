@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS public.folders (
   description TEXT,
   item_count INT DEFAULT 0,
   last_modified VARCHAR(64) DEFAULT 'Just now',
+  sort_order INT DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -29,7 +30,6 @@ CREATE TABLE IF NOT EXISTS public.resources (
   name VARCHAR(255) NOT NULL,
   username VARCHAR(255),
   url VARCHAR(512),
-  category VARCHAR(128) DEFAULT 'General',
   owner_id VARCHAR(64) REFERENCES public.users(id) ON DELETE CASCADE,
   folder_id VARCHAR(64) REFERENCES public.folders(id) ON DELETE SET NULL,
   is_private_only BOOLEAN DEFAULT FALSE,
@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS public.resources (
   secrets_data JSONB NOT NULL DEFAULT '[]'::jsonb,
   tags TEXT[] DEFAULT '{}',
   last_modified VARCHAR(64) DEFAULT 'Just now',
+  sort_order INT DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -48,6 +49,7 @@ CREATE TABLE IF NOT EXISTS public.groups (
   description TEXT,
   members_data JSONB NOT NULL DEFAULT '[]'::jsonb,
   last_active VARCHAR(64) DEFAULT 'Just now',
+  sort_order INT DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

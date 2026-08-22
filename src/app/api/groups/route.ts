@@ -9,15 +9,23 @@ export async function GET(request: Request) {
       return NextResponse.json([]);
     }
 
+    const sortByOrder = (a: any, b: any) => {
+      const soA = a.sortOrder ?? 0;
+      const soB = b.sortOrder ?? 0;
+      if (soA !== soB) return soA - soB;
+      return a.id.localeCompare(b.id);
+    };
+
     // Organization Owners see all groups; Admins and Users only see groups they are members of
     if (authUser.role === 'Owner') {
-      return NextResponse.json(db.groups);
+      return NextResponse.json([...db.groups].sort(sortByOrder));
     }
 
     const userGroups = db.groups.filter((g) =>
       g.members.some((m) => m.userId === authUser.id)
     );
 
+    userGroups.sort(sortByOrder);
     return NextResponse.json(userGroups);
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch groups' }, { status: 500 });
@@ -37,6 +45,8 @@ export async function POST(request: Request) {
 
     const { name, description, memberIds } = await request.json();
 
+    const maxSort = db.groups.reduce((m, it) => Math.max(m, it.sortOrder ?? 0), 0);
+
     const newGroup = {
       id: `g-${Date.now()}`,
       name,
@@ -48,6 +58,7 @@ export async function POST(request: Request) {
           .map((userId: string) => ({ userId, role: 'User' as const })),
       ],
       lastActive: new Date().toISOString(),
+      sortOrder: maxSort + 1,
     };
 
     db.groups.push(newGroup);

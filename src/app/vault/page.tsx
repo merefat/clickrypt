@@ -31,8 +31,23 @@ import {
   ShieldCheck,
   ShieldAlert,
   Clock,
-  Users
+  Users,
+  GripVertical
 } from 'lucide-react';
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { ENABLE_PAY_BILL } from '@/lib/config';
@@ -47,6 +62,69 @@ import {
 } from '@/lib/exportVault';
 import { provisionSecretsForFolder } from '@/lib/folderSharing';
 import { formatExactDateTime } from '@/lib/dateUtils';
+
+function SortableTableRow({
+  id,
+  className,
+  disabled,
+  children,
+}: {
+  id: string;
+  className?: string;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id, disabled });
+  const style = { transform: CSS.Translate.toString(transform), transition };
+  return (
+    <tr ref={setNodeRef} style={style} className={className}>
+      <td className="py-4 px-2 w-10 text-center">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="p-1 text-gray-400 hover:text-[#0284c7] cursor-grab active:cursor-grabbing"
+          title="Drag to reorder"
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
+      </td>
+      {children}
+    </tr>
+  );
+}
+
+function SortableListItem({
+  id,
+  className,
+  disabled,
+  onClick,
+  children,
+}: {
+  id: string;
+  className?: string;
+  disabled?: boolean;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id, disabled });
+  const style = { transform: CSS.Translate.toString(transform), transition };
+  return (
+    <div ref={setNodeRef} style={style} className={`${className || ''} flex items-center gap-2`} onClick={onClick}>
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        onClick={(e) => e.stopPropagation()}
+        className="p-1 text-gray-400 hover:text-[#0284c7] cursor-grab active:cursor-grabbing shrink-0"
+        title="Drag to reorder"
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
+      <div className="flex-1 min-w-0">{children}</div>
+    </div>
+  );
+}
 
 export default function VaultPage() {
   const router = useRouter();
@@ -77,6 +155,10 @@ export default function VaultPage() {
   const [groups, setGroups] = useState<any[]>([]);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const syncInProgress = React.useRef(false);
+
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -318,6 +400,47 @@ export default function VaultPage() {
     if (!confirm('Are you sure you want to delete this password?')) return;
     await api.delete(`/resources/${id}`);
     fetchResources();
+  };
+
+  const handleResourceDragEnd = async (event: any) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    if (searchTerm || activeFilterMode !== 'all') return;
+
+    const oldIndex = displayedResources.findIndex((r) => r.id === active.id);
+    const newIndex = displayedResources.findIndex((r) => r.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const previous = [...resources];
+    const reordered = arrayMove(displayedResources, oldIndex, newIndex);
+    setResources(reordered);
+
+    try {
+      await api.put('/resources/reorder', { ids: reordered.map((r) => r.id) });
+    } catch (err) {
+      setResources(previous);
+      alert('Failed to save resource order');
+    }
+  };
+
+  const handleFolderDragEnd = async (event: any) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = folders.findIndex((f) => f.id === active.id);
+    const newIndex = folders.findIndex((f) => f.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const previous = [...folders];
+    const reordered = arrayMove(previous, oldIndex, newIndex);
+    setFolders(reordered);
+
+    try {
+      await api.put('/folders/reorder', { ids: reordered.map((f) => f.id) });
+    } catch (err) {
+      setFolders(previous);
+      alert('Failed to save folder order');
+    }
   };
 
   const isExpired = ENABLE_PAY_BILL && subscription && (subscription.status === 'Expired' || subscription.daysRemaining <= 0);
@@ -655,38 +778,49 @@ export default function VaultPage() {
                     </div>
 
                     {/* Created Folders Items */}
-                    {folders.map((f) => {
-                      const isSelected = selectedFolderId === f.id;
-                      return (
-                        <div
-                          key={f.id}
-                          onClick={() => setSelectedFolderId(f.id)}
-                          className={`w-full flex items-center justify-between p-3 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
-                            isSelected
-                              ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
-                              : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] text-[#0f172a] hover:border-[#1fbbd2]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 truncate">
-                            <Folder className="w-4 h-4 text-[#f39c12] shrink-0" />
-                            <div className="truncate">
-                              <p className="truncate leading-tight">{f.name}</p>
-                              {f.description && (
-                                <p className="text-[10px] text-[#64748b] font-medium truncate mt-0.5">
-                                  {f.description}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                              {f.itemCount || 0}
-                            </span>
-                            {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    <DndContext
+                      sensors={dndSensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleFolderDragEnd}
+                    >
+                      <SortableContext items={folders.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+                        {folders.map((f) => {
+                          const isSelected = selectedFolderId === f.id;
+                          return (
+                            <SortableListItem
+                              key={f.id}
+                              id={f.id}
+                              onClick={() => setSelectedFolderId(f.id)}
+                              className={`w-full flex items-center p-3 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
+                                isSelected
+                                  ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
+                                  : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] text-[#0f172a] hover:border-[#1fbbd2]'
+                              }`}
+                            >
+                              <div className="flex-1 flex items-center justify-between">
+                                <div className="flex items-center gap-2.5 truncate">
+                                  <Folder className="w-4 h-4 text-[#f39c12] shrink-0" />
+                                  <div className="truncate">
+                                    <p className="truncate leading-tight">{f.name}</p>
+                                    {f.description && (
+                                      <p className="text-[10px] text-[#64748b] font-medium truncate mt-0.5">
+                                        {f.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                                    {f.itemCount || 0}
+                                  </span>
+                                  {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
+                                </div>
+                              </div>
+                            </SortableListItem>
+                          );
+                        })}
+                      </SortableContext>
+                    </DndContext>
                   </div>
                 </div>
               </div>
@@ -830,9 +964,15 @@ export default function VaultPage() {
 
                 <div className="glass-panel rounded-2xl border border-[#d0dbe5] overflow-hidden shadow-xl bg-[#ffffff]">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#e6eff7] text-[#334155] font-extrabold uppercase tracking-wider border-b border-[#cbd5e1]">
+                <DndContext
+                  sensors={dndSensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleResourceDragEnd}
+                >
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#e6eff7] text-[#334155] font-extrabold uppercase tracking-wider border-b border-[#cbd5e1]">
                     <tr>
+                      <th className="py-3.5 px-2 w-10" />
                       {bulkSelectMode && (
                         <th className="py-3.5 px-4 w-10">
                           <input
@@ -856,14 +996,17 @@ export default function VaultPage() {
                   </thead>
 
                   <tbody className="divide-y divide-[#e2e8f0]">
+                    <SortableContext items={displayedResources.map((r) => r.id)} strategy={verticalListSortingStrategy}>
                     {displayedResources.map((res) => {
                       const isRevealed = !!revealedPasswords[res.id];
                       const displayedPass = isRevealed ? revealedPasswords[res.id] : '••••••••';
                       const isTeamShared = (res.secrets && res.secrets.length > 1) || (res.sharedWith && res.sharedWith.length > 0);
 
                       return (
-                        <tr
+                        <SortableTableRow
                           key={res.id}
+                          id={res.id}
+                          disabled={!!searchTerm || activeFilterMode !== 'all'}
                           className="hover:bg-[#f1f6fb] transition-all group border-b border-gray-100"
                         >
                           {bulkSelectMode && (
@@ -994,11 +1137,13 @@ export default function VaultPage() {
                               </button>
                             </div>
                           </td>
-                        </tr>
+                        </SortableTableRow>
                       );
                     })}
+                    </SortableContext>
                   </tbody>
                 </table>
+                </DndContext>
               </div>
 
               <div className="p-4 bg-[#f8fafc] border-t border-[#cbd5e1] flex items-center justify-between text-xs text-[#64748b]">

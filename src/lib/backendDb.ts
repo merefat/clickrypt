@@ -44,7 +44,6 @@ export interface DbResource {
   name: string;
   username: string;
   url: string;
-  category: string;
   ownerId: string;
   folderId?: string | null;
   isPrivateOnly?: boolean;
@@ -58,6 +57,7 @@ export interface DbResource {
   tags?: string[];
   sharedWith?: string[];
   mode?: 'personal' | 'organization';
+  sortOrder?: number;
 }
 
 export interface DbFolder {
@@ -69,6 +69,7 @@ export interface DbFolder {
   isPrivateOnly?: boolean;
   mode?: 'personal' | 'organization';
   creatorId?: string;
+  sortOrder?: number;
 }
 
 export interface DbGroupMember {
@@ -83,6 +84,7 @@ export interface DbGroup {
   members: DbGroupMember[];
   assignedFolderIds?: string[];
   lastActive: string;
+  sortOrder?: number;
 }
 
 export interface DbAuditLog {

@@ -23,6 +23,13 @@ export async function GET(req: Request) {
       folders = folders.filter((f) => !f.isPrivateOnly);
     }
 
+    folders.sort((a, b) => {
+      const soA = a.sortOrder ?? 0;
+      const soB = b.sortOrder ?? 0;
+      if (soA !== soB) return soA - soB;
+      return a.id.localeCompare(b.id);
+    });
+
     const currentUserId = authUser.id;
     const currentUserEmail = authUser.email.toLowerCase();
     const resourcesStore = db.resourcesFor(userMode);
@@ -118,6 +125,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
 
+    const existing = db.foldersFor(userMode);
+    const maxSort = existing.reduce((m, it) => Math.max(m, it.sortOrder ?? 0), 0);
+
     const newFolder = {
       id: `f-${Date.now()}`,
       name,
@@ -127,6 +137,7 @@ export async function POST(req: Request) {
       isPrivateOnly: !!isPrivateOnly,
       mode: userMode,
       creatorId: authUser.id,
+      sortOrder: maxSort + 1,
     };
 
     db.foldersFor(userMode).unshift(newFolder);
