@@ -53,35 +53,38 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     group.members = group.members.filter((m) => m.userId !== body.removeUserId);
   }
 
-  if (!group.assignedFolderIds) group.assignedFolderIds = [];
-  if (!group.assignedResourceIds) group.assignedResourceIds = [];
+  let assignedFolderIds: string[] = group.assignedFolderIds || [];
+  let assignedResourceIds: string[] = group.assignedResourceIds || [];
 
   if (Array.isArray(body.assignedFolderIds)) {
-    group.assignedFolderIds = body.assignedFolderIds;
+    assignedFolderIds = body.assignedFolderIds;
   }
   if (Array.isArray(body.assignedResourceIds)) {
-    group.assignedResourceIds = body.assignedResourceIds;
+    assignedResourceIds = body.assignedResourceIds;
   }
 
   // Assign folder to group
-  if (body.addFolderId && !group.assignedFolderIds.includes(body.addFolderId)) {
-    group.assignedFolderIds.push(body.addFolderId);
+  if (body.addFolderId && !assignedFolderIds.includes(body.addFolderId)) {
+    assignedFolderIds.push(body.addFolderId);
   }
 
   // Remove assigned folder from group
   if (body.removeFolderId) {
-    group.assignedFolderIds = group.assignedFolderIds.filter((fid) => fid !== body.removeFolderId);
+    assignedFolderIds = assignedFolderIds.filter((fid) => fid !== body.removeFolderId);
   }
 
   // Assign resource to group
-  if (body.addResourceId && !group.assignedResourceIds.includes(body.addResourceId)) {
-    group.assignedResourceIds.push(body.addResourceId);
+  if (body.addResourceId && !assignedResourceIds.includes(body.addResourceId)) {
+    assignedResourceIds.push(body.addResourceId);
   }
 
   // Remove assigned resource from group
   if (body.removeResourceId) {
-    group.assignedResourceIds = group.assignedResourceIds.filter((rid) => rid !== body.removeResourceId);
+    assignedResourceIds = assignedResourceIds.filter((rid) => rid !== body.removeResourceId);
   }
+
+  group.assignedFolderIds = assignedFolderIds;
+  group.assignedResourceIds = assignedResourceIds;
 
   group.lastActive = new Date().toISOString();
 

@@ -750,7 +750,7 @@ export default function GroupsPage() {
 
   const assignedFolderIds = assignedFoldersForGroup.map((f) => f.id);
 
-  const groupResourceIdList = selectedGroup
+  const groupResourceIdList: string[] = selectedGroup
     ? (selectedGroup.assignedResourceIds || groupResourceIds[selectedGroup.id] || [])
     : [];
 
@@ -782,8 +782,8 @@ export default function GroupsPage() {
 
   const directSharedResources = selectedGroup
     ? groupResourceIdList
-        .map((id) => resources.find((r) => r.id === id))
-        .filter((r) => r && (!r.folderId || !assignedFolderIds.includes(r.folderId))) as any[]
+        .map((id: string) => resources.find((r: any) => r.id === id))
+        .filter((r: any) => r && (!r.folderId || !assignedFolderIds.includes(r.folderId))) as any[]
     : [];
 
   const currentPasswordsList = !passwordsFolderView
