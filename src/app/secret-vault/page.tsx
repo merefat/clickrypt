@@ -21,7 +21,8 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
-import { decryptSecret } from '@/lib/crypto';
+import { decryptBestSecret } from '@/lib/crypto';
+import { resolveBestSecret } from '@/lib/secretResolver';
 import { useAuth } from '@/context/AuthContext';
 import {
   DndContext,
@@ -110,23 +111,25 @@ export default function SecretVaultPage() {
       }
 
       const privateKey = await getEncryptedPrivateKey();
-      const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
-      const encryptedBlob = userSecret?.encryptedData || '';
+      const userSecret = resolveBestSecret(item, user?.id, user?.role);
 
-      if (!privateKey || !encryptedBlob) {
+      if (!privateKey || !userSecret) {
         alert('Key or encrypted data missing.');
         return;
       }
 
-      const plainText = await decryptSecret(
-        encryptedBlob,
+      const plainText = await decryptBestSecret(
+        userSecret,
+        item.secrets,
+        user?.role,
         privateKey,
         unlockedPgpKey ? undefined : masterPassword || undefined
       );
 
       setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
     } catch (err) {
-      alert('Failed to decrypt card details.');
+      console.error('Reveal failed:', err);
+      alert(err instanceof Error ? err.message : 'Failed to decrypt card details.');
     }
   };
 

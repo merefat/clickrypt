@@ -24,7 +24,8 @@ import {
 
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { decryptSecret } from '@/lib/crypto';
+import { decryptBestSecret } from '@/lib/crypto';
+import { resolveBestSecret } from '@/lib/secretResolver';
 import CreateFolderModal from '@/components/CreateFolderModal';
 import UnlockVaultModal from '@/components/UnlockVaultModal';
 
@@ -202,12 +203,13 @@ export default function FoldersPage() {
   const selectedFolder = folders.find((f) => f.id === selectedFolderId) || folders[0];
 
   const performReveal = async (item: any, privateKeyOverride?: string) => {
-    const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
-    const encryptedBlob = userSecret?.encryptedData || '';
     const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
-    if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+    if (!privateKey) throw new Error('Key or encrypted data missing');
 
-    const plainText = await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
+    const userSecret = resolveBestSecret(item, user?.id, user?.role);
+    if (!userSecret) throw new Error('No usable secret for this user');
+
+    const plainText = await decryptBestSecret(userSecret, item.secrets, user?.role, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
     setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
   };
 
@@ -230,18 +232,20 @@ export default function FoldersPage() {
 
     try {
       await performReveal(item);
-    } catch {
-      alert('Failed to decrypt.');
+    } catch (err) {
+      console.error('Reveal failed:', err);
+      alert(err instanceof Error ? err.message : 'Failed to decrypt.');
     }
   };
 
   const performCopy = async (item: any, privateKeyOverride?: string) => {
-    const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
-    const encryptedBlob = userSecret?.encryptedData || '';
     const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
-    if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+    if (!privateKey) throw new Error('Key or encrypted data missing');
 
-    return await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
+    const userSecret = resolveBestSecret(item, user?.id, user?.role);
+    if (!userSecret) throw new Error('No usable secret for this user');
+
+    return await decryptBestSecret(userSecret, item.secrets, user?.role, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
   };
 
   const handleCopyPassword = async (item: any) => {
@@ -262,8 +266,9 @@ export default function FoldersPage() {
 
     try {
       plainText = await performCopy(item);
-    } catch {
-      alert('Failed to decrypt.');
+    } catch (err) {
+      console.error('Copy failed:', err);
+      alert(err instanceof Error ? err.message : 'Failed to decrypt.');
       return;
     }
 

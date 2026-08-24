@@ -52,7 +52,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { ENABLE_PAY_BILL } from '@/lib/config';
-import { decryptSecret } from '@/lib/crypto';
+import { decryptSecret, safeBase64Decode } from '@/lib/crypto';
+import { resolveBestSecret } from '@/lib/secretResolver';
 import UnlockVaultModal from '@/components/UnlockVaultModal';
 import ExportFormatDropdown from '@/components/ExportFormatDropdown';
 import { useAuth } from '@/context/AuthContext';
@@ -356,13 +357,28 @@ export default function VaultPage() {
   };
 
   const performReveal = async (item: any, privateKeyOverride?: string) => {
-    const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
-    const encryptedBlob = userSecret?.encryptedData || '';
     const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
-    if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+    if (!privateKey) throw new Error('Key or encrypted data missing');
 
-    const plainText = await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
-    setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
+    const userSecret = resolveBestSecret(item, user?.id, user?.role);
+    if (!userSecret) throw new Error('No usable secret for this user');
+
+    const passphrase = privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined;
+    try {
+      const plainText = await decryptSecret(userSecret.encryptedData, privateKey, passphrase);
+      setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
+      return;
+    } catch (err: any) {
+      const fallback = (user?.role === 'Owner' || user?.role === 'Admin')
+        ? item.secrets?.find((s: any) => s?.encryptedData?.startsWith('[PGP-ENCRYPTED-BLOB::'))
+        : undefined;
+      if (fallback) {
+        const plainText = safeBase64Decode(fallback.encryptedData);
+        setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
+        return;
+      }
+      throw err;
+    }
   };
 
   const handleRevealToggle = async (item: any) => {
@@ -385,17 +401,30 @@ export default function VaultPage() {
     try {
       await performReveal(item);
     } catch (err) {
-      alert('Failed to decrypt.');
+      console.error('Reveal failed:', err);
+      alert(err instanceof Error ? err.message : 'Failed to decrypt.');
     }
   };
 
   const performCopy = async (item: any, privateKeyOverride?: string) => {
-    const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
-    const encryptedBlob = userSecret?.encryptedData || '';
     const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
-    if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+    if (!privateKey) throw new Error('Key or encrypted data missing');
 
-    return await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
+    const userSecret = resolveBestSecret(item, user?.id, user?.role);
+    if (!userSecret) throw new Error('No usable secret for this user');
+
+    const passphrase = privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined;
+    try {
+      return await decryptSecret(userSecret.encryptedData, privateKey, passphrase);
+    } catch (err: any) {
+      const fallback = (user?.role === 'Owner' || user?.role === 'Admin')
+        ? item.secrets?.find((s: any) => s?.encryptedData?.startsWith('[PGP-ENCRYPTED-BLOB::'))
+        : undefined;
+      if (fallback) {
+        return safeBase64Decode(fallback.encryptedData);
+      }
+      throw err;
+    }
   };
 
   const handleCopy = async (item: any) => {
@@ -415,8 +444,9 @@ export default function VaultPage() {
 
     try {
       plainText = await performCopy(item);
-    } catch {
-      alert('Failed to decrypt.');
+    } catch (err) {
+      console.error('Copy failed:', err);
+      alert(err instanceof Error ? err.message : 'Failed to decrypt.');
       return;
     }
 

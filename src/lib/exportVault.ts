@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { decryptSecret } from './crypto';
+import { resolveBestSecret } from './secretResolver';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -29,7 +30,7 @@ export async function buildDecryptedExportData(
 
   for (const r of resources) {
     let plainPass = '';
-    const userSecret = r.secrets?.find((s: any) => s.userId === user?.id) || r.secrets?.[0];
+    const userSecret = resolveBestSecret(r, user?.id, user?.role);
 
     if (userSecret?.encryptedData) {
       try {

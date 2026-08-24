@@ -1,7 +1,18 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 import { getAuthContextFromRequest } from '@/lib/authHelper';
+import { encryptSecret, safeBase64Decode } from '@/lib/crypto';
 import { isEmailConfigured, sendEmail } from '@/lib/email';
+
+function decodeBase64Fallback(secrets: any[]): string | null {
+  const fallback = secrets.find((s) => s?.encryptedData?.startsWith('[PGP-ENCRYPTED-BLOB::'));
+  if (!fallback) return null;
+  const decoded = safeBase64Decode(fallback.encryptedData);
+  if (!decoded || decoded.startsWith('[PGP-ENCRYPTED-BLOB::') || decoded.includes('-----BEGIN PGP MESSAGE-----')) {
+    return null;
+  }
+  return decoded;
+}
 
 export async function POST(
   req: Request,
@@ -105,6 +116,38 @@ export async function POST(
           sharedWithArr.push(uid);
         }
       });
+    }
+
+    // Ensure the resource owner always has a usable secret after sharing
+    const plainText = body.password || decodeBase64Fallback(resource.secrets || []);
+    if (plainText) {
+      const resourceOwner = db.users.find((u) => u.id === resource.ownerId);
+      if (resourceOwner?.publicKey) {
+        const hasOwnerSecret = resource.secrets.some((s) => s.userId === resource.ownerId);
+        const ownerEncryptedData = await encryptSecret(plainText, resourceOwner.publicKey);
+        if (hasOwnerSecret) {
+          const existing = resource.secrets.find((s) => s.userId === resource.ownerId);
+          if (existing) existing.encryptedData = ownerEncryptedData;
+        } else {
+          resource.secrets.push({ userId: resource.ownerId, encryptedData: ownerEncryptedData });
+        }
+      }
+
+      if (userMode === 'organization' && authUser.organizationId) {
+        const orgOwner = db.users.find(
+          (u) => u.organizationId === authUser.organizationId && u.role === 'Owner'
+        );
+        if (orgOwner && orgOwner.id !== resource.ownerId) {
+          const hasOrgOwnerSecret = resource.secrets.some((s) => s.userId === orgOwner.id);
+          const orgOwnerEncryptedData = await encryptSecret(plainText, orgOwner.publicKey);
+          if (hasOrgOwnerSecret) {
+            const existing = resource.secrets.find((s) => s.userId === orgOwner.id);
+            if (existing) existing.encryptedData = orgOwnerEncryptedData;
+          } else {
+            resource.secrets.push({ userId: orgOwner.id, encryptedData: orgOwnerEncryptedData });
+          }
+        }
+      }
     }
 
     if (secrets && Array.isArray(secrets)) {

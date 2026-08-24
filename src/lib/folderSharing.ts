@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import api from './api';
-import { decryptSecret, encryptSecret } from './crypto';
+import { decryptBestSecret, encryptSecret } from './crypto';
+import { resolveBestSecret } from './secretResolver';
 
 export interface ProvisionOptions {
   folderId: string;
@@ -42,14 +43,12 @@ export async function provisionSecretsForFolder({
   for (let i = 0; i < myResources.length; i++) {
     const r = myResources[i];
     try {
-      const userSecret = r.secrets?.find((s: any) => s.userId === ownerId) || r.secrets?.[0];
-      const encryptedBlob = userSecret?.encryptedData || '';
-      if (!encryptedBlob) {
+      const userSecret = resolveBestSecret(r, ownerId, 'Owner');
+      if (!userSecret) {
         skipped++;
         continue;
       }
-
-      const plainText = await decryptSecret(encryptedBlob, privateKey, passphrase);
+      const plainText = await decryptBestSecret(userSecret, r.secrets, 'Owner', privateKey, passphrase);
 
       const targetSecrets: any[] = [];
       for (const tId of targetUserIds) {
@@ -68,6 +67,7 @@ export async function provisionSecretsForFolder({
       await api.post(`/resources/${r.id}/share`, {
         targetUserIds,
         secrets: targetSecrets,
+        password: plainText,
       });
       provisioned++;
     } catch (err) {

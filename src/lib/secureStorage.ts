@@ -37,23 +37,34 @@ export async function getPrivateKey(): Promise<string | null> {
   }
 }
 
-/**
- * Save the unprotected (unlocked) private key to IndexedDB for the given account mode
- */
-export async function saveUnlockedPrivateKey(unlockedPrivateKey: string, mode: 'personal' | 'organization'): Promise<void> {
-  if (typeof window === 'undefined') return;
-  const db = await getDB();
-  await db.put(STORE_NAME, unlockedPrivateKey, `unlocked_private_key_${mode}`);
+function unlockedKeyName(mode: 'personal' | 'organization', userId?: string) {
+  return userId ? `unlocked_private_key_${mode}_${userId}` : `unlocked_private_key_${mode}`;
 }
 
 /**
- * Retrieve the unprotected (unlocked) private key for the given account mode
+ * Save the unprotected (unlocked) private key to IndexedDB for the given account mode and user
  */
-export async function getUnlockedPrivateKey(mode: 'personal' | 'organization'): Promise<string | null> {
+export async function saveUnlockedPrivateKey(
+  unlockedPrivateKey: string,
+  mode: 'personal' | 'organization',
+  userId?: string
+): Promise<void> {
+  if (typeof window === 'undefined') return;
+  const db = await getDB();
+  await db.put(STORE_NAME, unlockedPrivateKey, unlockedKeyName(mode, userId));
+}
+
+/**
+ * Retrieve the unprotected (unlocked) private key for the given account mode and user
+ */
+export async function getUnlockedPrivateKey(
+  mode: 'personal' | 'organization',
+  userId?: string
+): Promise<string | null> {
   if (typeof window === 'undefined') return null;
   try {
     const db = await getDB();
-    const key = await db.get(STORE_NAME, `unlocked_private_key_${mode}`);
+    const key = await db.get(STORE_NAME, unlockedKeyName(mode, userId));
     return key || null;
   } catch (error) {
     console.error('Error fetching unlocked private key from IndexedDB:', error);

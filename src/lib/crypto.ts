@@ -204,13 +204,21 @@ export async function decryptSecret(
       armoredKey: privateKeyArmored,
     });
 
-    const privateKey = passphrase
-      ? await openpgp.decryptKey({ privateKey: rawPrivateKey, passphrase })
-      : rawPrivateKey;
-
     const message = await openpgp.readMessage({
       armoredMessage: encryptedSecret,
     });
+
+    const messageKeyIDs = message.getEncryptionKeyIDs().map((k) => k.toHex().toUpperCase());
+    const privateKeyIDs = rawPrivateKey.getKeyIDs().map((k) => k.toHex().toUpperCase());
+    if (!messageKeyIDs.some((id) => privateKeyIDs.includes(id))) {
+      throw new Error(
+        'This secret is not encrypted for your private key. It may belong to another user, or the private/public key pair may not match.'
+      );
+    }
+
+    const privateKey = passphrase
+      ? await openpgp.decryptKey({ privateKey: rawPrivateKey, passphrase })
+      : rawPrivateKey;
 
     const decrypted = await openpgp.decrypt({
       message,
@@ -221,7 +229,7 @@ export async function decryptSecret(
       throw new Error('Nested or undecryptable ciphertext');
     }
     return plainText;
-  } catch (error) {
+  } catch (error: any) {
     // Handle legacy base64 mock payload
     if (encryptedSecret.includes('::')) {
       return safeBase64Decode(encryptedSecret);
@@ -229,10 +237,37 @@ export async function decryptSecret(
     // Real PGP messages must fail loudly; otherwise raw ciphertext leaks into exports
     if (encryptedSecret.includes('-----BEGIN PGP MESSAGE-----')) {
       console.error('OpenPGP decryption failed:', error);
+      if (error?.message?.toLowerCase().includes('no decryption key packets found')) {
+        throw new Error('This secret is not encrypted for your private key. It may belong to another user, or the private/public key pair may not match.');
+      }
       throw error;
     }
     // Plain text / non-encrypted fallback
     return encryptedSecret;
+  }
+}
+
+export async function decryptBestSecret(
+  bestSecret: { encryptedData?: string } | null | undefined,
+  allSecrets: { encryptedData?: string }[] | null | undefined,
+  userRole: string | undefined,
+  privateKeyArmored: string,
+  passphrase?: string
+): Promise<string> {
+  if (!bestSecret?.encryptedData) throw new Error('No usable secret for this user');
+  try {
+    return await decryptSecret(bestSecret.encryptedData, privateKeyArmored, passphrase);
+  } catch (err: any) {
+    if (userRole === 'Owner' || userRole === 'Admin') {
+      const fallback = (allSecrets || []).find((s) => s?.encryptedData?.startsWith('[PGP-ENCRYPTED-BLOB::'));
+      if (fallback?.encryptedData) {
+        const decoded = safeBase64Decode(fallback.encryptedData);
+        if (decoded && !decoded.startsWith('[PGP-ENCRYPTED-BLOB::') && !decoded.includes('-----BEGIN PGP MESSAGE-----')) {
+          return decoded;
+        }
+      }
+    }
+    throw err;
   }
 }
 

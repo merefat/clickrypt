@@ -43,7 +43,8 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
-import { decryptSecret, encryptSecret } from '@/lib/crypto';
+import { decryptBestSecret, encryptSecret } from '@/lib/crypto';
+import { resolveBestSecret } from '@/lib/secretResolver';
 import { useAuth } from '@/context/AuthContext';
 import {
   buildDecryptedExportData,
@@ -449,12 +450,13 @@ export default function GroupsPage() {
     const targetUserIds = selectedGroup.members.map((m: any) => m.userId);
     const resResource = await api.get(`/resources/${selectedResourceToShare}`);
     const resourceData = resResource.data;
-    const userSecret = resourceData.secrets?.find((s: any) => s.userId === user?.id) || resourceData.secrets?.[0];
+    const userSecret = resolveBestSecret(resourceData, user?.id, user?.role);
     const encryptedBlob = userSecret?.encryptedData || '';
+    if (!encryptedBlob) throw new Error('No usable secret for this user');
 
     const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
     if (!privateKey) throw new Error('No private key available');
-    const plainText = await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
+    const plainText = await decryptBestSecret(userSecret, resourceData.secrets, user?.role, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
 
     const targetSecrets = [];
     for (const tId of targetUserIds) {
@@ -467,6 +469,7 @@ export default function GroupsPage() {
     await api.post(`/resources/${selectedResourceToShare}/share`, {
       targetUserIds,
       secrets: targetSecrets,
+      password: plainText,
     });
 
     setGroupResourceIds((prev) => {
@@ -494,7 +497,8 @@ export default function GroupsPage() {
     try {
       await performShare();
     } catch (err) {
-      alert('Failed to share password with group');
+      console.error('Share failed:', err);
+      alert(err instanceof Error ? err.message : 'Failed to share password with group');
     }
   };
 
@@ -507,12 +511,13 @@ export default function GroupsPage() {
   };
 
   const performReveal = async (item: any, privateKeyOverride?: string) => {
-    const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
-    const encryptedBlob = userSecret?.encryptedData || '';
     const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
-    if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+    if (!privateKey) throw new Error('Key or encrypted data missing');
 
-    const plainText = await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
+    const userSecret = resolveBestSecret(item, user?.id, user?.role);
+    if (!userSecret) throw new Error('No usable secret for this user');
+
+    const plainText = await decryptBestSecret(userSecret, item.secrets, user?.role, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
     setRevealedPasswords((prev) => ({ ...prev, [item.id]: plainText }));
   };
 
@@ -536,17 +541,19 @@ export default function GroupsPage() {
     try {
       await performReveal(item);
     } catch (err) {
-      alert('Failed to decrypt secret.');
+      console.error('Reveal failed:', err);
+      alert(err instanceof Error ? err.message : 'Failed to decrypt secret.');
     }
   };
 
   const performCopy = async (item: any, privateKeyOverride?: string) => {
-    const userSecret = item.secrets?.find((s: any) => s.userId === user?.id) || item.secrets?.[0];
-    const encryptedBlob = userSecret?.encryptedData || '';
     const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
-    if (!privateKey || !encryptedBlob) throw new Error('Key or encrypted data missing');
+    if (!privateKey) throw new Error('Key or encrypted data missing');
 
-    return await decryptSecret(encryptedBlob, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
+    const userSecret = resolveBestSecret(item, user?.id, user?.role);
+    if (!userSecret) throw new Error('No usable secret for this user');
+
+    return await decryptBestSecret(userSecret, item.secrets, user?.role, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
   };
 
   const handleCopyPass = async (item: any) => {
@@ -566,8 +573,9 @@ export default function GroupsPage() {
 
     try {
       pass = await performCopy(item);
-    } catch {
-      alert('Failed to decrypt.');
+    } catch (err) {
+      console.error('Copy failed:', err);
+      alert(err instanceof Error ? err.message : 'Failed to decrypt.');
       return;
     }
 

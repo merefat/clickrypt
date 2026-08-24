@@ -4,7 +4,8 @@
 import React, { useState, useEffect } from 'react';
 import { Share2, Lock, X, Check, Users, Shield, CheckSquare, Square, Globe, Link as LinkIcon, Copy } from 'lucide-react';
 import api from '@/lib/api';
-import { encryptSecret, decryptSecret } from '@/lib/crypto';
+import { encryptSecret, decryptBestSecret } from '@/lib/crypto';
+import { resolveBestSecret } from '@/lib/secretResolver';
 import { useAuth } from '@/context/AuthContext';
 
 interface ShareModalProps {
@@ -152,20 +153,21 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
     setLoading(true);
 
     try {
-      let secretPlainText = 'SecretVal123!';
+      let secretPlainText: string | null = null;
       try {
         const resResource = await api.get(`/resources/${resourceId}`);
         const resourceData = resResource.data;
         if (resourceData && resourceData.secrets) {
-          const userSecret = resourceData.secrets.find((s: any) => s.userId === user?.id) || resourceData.secrets[0];
+          const userSecret = resolveBestSecret(resourceData, user?.id, user?.role);
           const privateKey = await getEncryptedPrivateKey();
           if (privateKey && (masterPassword || unlockedPgpKey) && userSecret?.encryptedData) {
-            secretPlainText = await decryptSecret(userSecret.encryptedData, privateKey, masterPassword || undefined);
+            secretPlainText = await decryptBestSecret(userSecret, resourceData.secrets, user?.role, privateKey, masterPassword || undefined);
           }
         }
       } catch (e) {
         console.warn('Fallback secret plainText retrieval:', e);
       }
+      if (!secretPlainText) throw new Error('Cannot decrypt this password. Please unlock the vault first.');
 
       const targetSecrets: any[] = [];
       for (const targetId of selectedUserIds) {
@@ -185,6 +187,7 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
       await api.post(`/resources/${resourceId}/share`, {
         targetUserIds: selectedUserIds,
         secrets: targetSecrets,
+        password: secretPlainText,
       });
 
       setSharingSuccess(true);

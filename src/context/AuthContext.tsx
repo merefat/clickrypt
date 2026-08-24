@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import api from '@/lib/api';
-import { generateKeyPair, reencryptPrivateKey, protectPrivateKey, unprotectPrivateKey, canUnlockPrivateKey } from '@/lib/crypto';
+import { generateKeyPair, reencryptPrivateKey, protectPrivateKey, unprotectPrivateKey, canUnlockPrivateKey, getArmoredPublicKeyFingerprint } from '@/lib/crypto';
 import { savePrivateKey, getPrivateKey, clearKeys, saveUnlockedPrivateKey, getUnlockedPrivateKey } from '@/lib/secureStorage';
 import { useRouter } from 'next/navigation';
 
@@ -66,11 +66,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isHydrating, setIsHydrating] = useState(false);
 
-  const loadUnlockedPrivateKey = async (mode: 'personal' | 'organization') => {
+  const loadUnlockedPrivateKey = async (
+    mode: 'personal' | 'organization',
+    userId?: string,
+    publicKey?: string
+  ) => {
     try {
       if (typeof window === 'undefined') return;
-      const cached = await getUnlockedPrivateKey(mode);
-      if (cached) setUnlockedPgpKey(cached);
+      const cached = await getUnlockedPrivateKey(mode, userId);
+      if (!cached) return;
+
+      if (publicKey) {
+        try {
+          const cachedFp = await getArmoredPublicKeyFingerprint(cached);
+          const userFp = await getArmoredPublicKeyFingerprint(publicKey);
+          if (cachedFp && userFp && cachedFp === userFp) {
+            setUnlockedPgpKey(cached);
+          } else {
+            console.warn('Cached unlocked PGP key does not match user public key; ignoring.');
+          }
+        } catch {
+          console.warn('Could not validate cached unlocked PGP key; ignoring.');
+        }
+      } else {
+        setUnlockedPgpKey(cached);
+      }
     } catch (e) {
       console.warn('Failed to load unlocked private key:', e);
     }
@@ -79,7 +99,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const unlockAndCachePrivateKey = async (
     passphrase: string,
     mode: 'personal' | 'organization',
-    encryptedKeyArmored?: string
+    encryptedKeyArmored?: string,
+    userId?: string
   ): Promise<boolean> => {
     try {
       const encryptedKey = encryptedKeyArmored || user?.encryptedPrivateKey || await getPrivateKey();
@@ -87,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const unlocked = await unprotectPrivateKey(encryptedKey, passphrase);
       setUnlockedPgpKey(unlocked);
       if (typeof window !== 'undefined') {
-        await saveUnlockedPrivateKey(unlocked, mode);
+        await saveUnlockedPrivateKey(unlocked, mode, userId || user?.id);
       }
       return true;
     } catch (e) {
@@ -147,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (typeof window !== 'undefined') {
           localStorage.setItem(`clickrypt_user_profile_${currentMode}`, JSON.stringify(res.data.user));
         }
-        await loadUnlockedPrivateKey(currentMode);
+        await loadUnlockedPrivateKey(currentMode, res.data.user.id, res.data.user.publicKey);
         if (
           res.data.user.accountMode === 'organization' &&
           res.data.user.organization?.verificationStatus === 'pending' &&
@@ -179,8 +200,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const savedUser = localStorage.getItem(`clickrypt_user_profile_${currentMode}`);
         if (savedUser) {
           try {
-            setUser(JSON.parse(savedUser));
-            await loadUnlockedPrivateKey(currentMode);
+            const savedProfile = JSON.parse(savedUser);
+            setUser(savedProfile);
+            await loadUnlockedPrivateKey(currentMode, savedProfile.id, savedProfile.publicKey);
           } catch {
             setUser(null);
           }
@@ -233,10 +255,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (unlocked !== undefined) {
         setUnlockedPgpKey(unlocked);
         if (unlocked && typeof window !== 'undefined') {
-          await saveUnlockedPrivateKey(unlocked, serverMode);
+          await saveUnlockedPrivateKey(unlocked, serverMode, userObj.id);
         }
       } else if (masterPass) {
-        await unlockAndCachePrivateKey(masterPass, serverMode, userObj.encryptedPrivateKey);
+        await unlockAndCachePrivateKey(masterPass, serverMode, userObj.encryptedPrivateKey, userObj.id);
       }
 
       if (typeof window !== 'undefined') {
@@ -380,7 +402,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(res.data.user);
         setMasterPassword(masterPass);
         await savePrivateKey(privateKey);
-        await unlockAndCachePrivateKey(masterPass, currentMode, privateKey);
+        await unlockAndCachePrivateKey(masterPass, currentMode, privateKey, res.data.user.id);
         return { success: true, user: res.data.user };
       }
       throw new Error(res.data?.error || 'Registration failed');
@@ -442,7 +464,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
       await savePrivateKey(reencrypted);
-      await unlockAndCachePrivateKey(newMasterPass, appModeState, reencrypted);
+      await unlockAndCachePrivateKey(newMasterPass, appModeState, reencrypted, updated.id);
     } catch (e) {
       console.warn('Key re-encryption error:', e);
     }
@@ -506,7 +528,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setMasterPassword(password);
       setUnlockedPgpKey(unlocked);
       if (typeof window !== 'undefined') {
-        await saveUnlockedPrivateKey(unlocked, appModeState);
+        await saveUnlockedPrivateKey(unlocked, appModeState, user?.id);
       }
       return unlocked;
     } catch {

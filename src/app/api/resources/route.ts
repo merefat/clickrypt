@@ -163,18 +163,26 @@ export async function POST(request: Request) {
     const existing = db.resourcesFor(userMode);
     const maxSort = existing.reduce((m, it) => Math.max(m, it.sortOrder ?? 0), 0);
 
+    let creatorEncryptedData = body.encryptedData;
+    if (body.password && authUser.publicKey) {
+      creatorEncryptedData = await encryptSecret(body.password, authUser.publicKey);
+    }
+    if (!creatorEncryptedData) {
+      return NextResponse.json({ error: 'No usable encrypted data for the creator' }, { status: 400 });
+    }
+
     const creatorSecret = {
       userId: authUser.id,
-      encryptedData: body.encryptedData || `[PGP-ENCRYPTED-BLOB::${Buffer.from(body.password).toString('base64')}]`,
+      encryptedData: creatorEncryptedData,
     };
     const secrets = [creatorSecret];
 
     // In organization mode, also encrypt a secret for the organization Owner so they can view any vault item
-    if (userMode === 'organization' && authUser.role !== 'Owner' && authUser.organizationId && body.password) {
+    if (userMode === 'organization' && authUser.organizationId && body.password) {
       const owner = db.users.find(
         (u) => u.organizationId === authUser.organizationId && u.role === 'Owner'
       );
-      if (owner) {
+      if (owner && owner.id !== authUser.id) {
         const ownerEncryptedData = await encryptSecret(body.password, owner.publicKey);
         secrets.push({ userId: owner.id, encryptedData: ownerEncryptedData });
       }
