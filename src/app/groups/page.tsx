@@ -848,7 +848,7 @@ export default function GroupsPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
+    <div className="flex h-screen overflow-hidden bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -946,7 +946,7 @@ export default function GroupsPage() {
                               </div>
                               <div className="mt-3 flex items-center justify-between text-[10px] text-[#64748b]">
                                 <span>{g.members.length} members</span>
-                                <span>Active {g.lastActive}</span>
+                                <span>Creation date: {new Date(g.createdAt || g.lastActive).toLocaleDateString()}</span>
                               </div>
                             </SortableListItem>
                           );
@@ -1095,24 +1095,26 @@ export default function GroupsPage() {
                                 data={{ type: 'group-folder' }}
                                 isOver={dragOver.id === f.id}
                                 className="p-4 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl shadow-sm transition-all">
+                              <div className="flex items-center justify-between w-full">
                                 <div className="flex items-center gap-3">
-                                <Folder className="w-5 h-5 text-[#d97706]" />
-                                <div>
-                                  <h4 className="text-xs font-extrabold text-[#0f172a]">{f.name}</h4>
-                                  <p className="text-[10px] text-[#64748b]">{f.itemCount} items</p>
+                                  <Folder className="w-5 h-5 text-[#d97706]" />
+                                  <div>
+                                    <h4 className="text-xs font-extrabold text-[#0f172a]">{f.name}</h4>
+                                    <p className="text-[10px] text-[#64748b]">{f.itemCount} items</p>
+                                  </div>
                                 </div>
-                              </div>
 
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleUnassignFolder(f.id);
-                                }}
-                                className="p-1 text-gray-400 hover:text-rose-600"
-                                title="Unassign folder"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleUnassignFolder(f.id);
+                                  }}
+                                  className="p-1 text-gray-400 hover:text-rose-600"
+                                  title="Unassign folder"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </SortableListItem>
                           ))}
                           </SortableContext>
@@ -1378,6 +1380,8 @@ export default function GroupsPage() {
                                 <div>
                                   <p className="font-extrabold text-[#0f172a]">{log.details || log.action}</p>
                                   <p className="text-[10px] text-[#64748b] flex items-center gap-1 mt-0.5">
+                                    <span className="font-bold text-[#0f172a]">by {users.find((u) => u.id === log.userId)?.name || log.userId || 'Unknown'}</span>
+                                    <span>•</span>
                                     <Clock className="w-3 h-3 text-[#64748b]" />
                                     <span>{new Date(log.timestamp).toLocaleString()}</span>
                                   </p>

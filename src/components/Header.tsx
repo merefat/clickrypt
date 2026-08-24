@@ -360,7 +360,7 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
                 {appMode !== 'personal' && (
                   <div className="p-3 bg-[#f8fafc] border-t border-[#cbd5e1] text-center">
                     <Link
-                      href="/admin"
+                      href="/admin?tab=audit"
                       onClick={() => setShowNotifications(false)}
                       className="text-xs text-[#0284c7] font-extrabold hover:underline inline-flex items-center gap-1.5"
                     >
@@ -371,6 +371,25 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
                 )}
               </div>
             )}
+          </div>
+
+          {/* Profile Block */}
+          <div className="flex items-center gap-2.5 bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-2.5 py-1.5 shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] text-[10px] font-extrabold overflow-hidden">
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                (user?.name || user?.email || 'RE').slice(0, 2).toUpperCase()
+              )}
+            </div>
+            <div className="hidden sm:block">
+              <p className="text-[11px] font-extrabold text-[#0f172a] leading-tight">
+                {user?.name || (user?.email ? user.email.split('@')[0] : 'User')}
+              </p>
+              <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight">
+                {user?.role || 'Member'}
+              </p>
+            </div>
           </div>
 
         </div>

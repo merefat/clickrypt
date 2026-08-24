@@ -228,6 +228,7 @@ export async function decryptSecret(
     }
     // Real PGP messages must fail loudly; otherwise raw ciphertext leaks into exports
     if (encryptedSecret.includes('-----BEGIN PGP MESSAGE-----')) {
+      console.error('OpenPGP decryption failed:', error);
       throw error;
     }
     // Plain text / non-encrypted fallback

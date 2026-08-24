@@ -31,6 +31,7 @@ import {
   ShieldCheck,
   ShieldAlert,
   Clock,
+  Filter,
   Users,
   GripVertical
 } from 'lucide-react';
@@ -155,7 +156,7 @@ export default function VaultPage() {
   const [externalSharedSecret, setExternalSharedSecret] = useState<any | null>(null);
   const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
   const [isOldFilter, setIsOldFilter] = useState(false);
-  const [activeFilterMode, setActiveFilterMode] = useState<'all' | 'leaked' | 'outdated'>('all');
+  const [activeFilterMode, setActiveFilterMode] = useState<'all' | 'leaked' | 'outdated' | 'own' | 'shared' | 'lastModified'>('all');
   const [bulkSelectMode, setBulkSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [exportFormat, setExportFormat] = useState<'csv' | 'json' | 'pdf' | 'xlsx' | 'kdbx'>('csv');
@@ -165,7 +166,14 @@ export default function VaultPage() {
   const [pendingUnlockItem, setPendingUnlockItem] = useState<any | null>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const [isMoveDropdownOpen, setIsMoveDropdownOpen] = useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const filterDropdownRef = React.useRef<HTMLDivElement>(null);
+  const moveDropdownRef = React.useRef<HTMLDivElement>(null);
+  const mainRef = React.useRef<HTMLElement>(null);
   const syncInProgress = React.useRef(false);
 
   const dndSensors = useSensors(
@@ -189,10 +197,18 @@ export default function VaultPage() {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsFolderDropdownOpen(false);
       }
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
+        setIsFilterDropdownOpen(false);
+      }
+      if (moveDropdownRef.current && !moveDropdownRef.current.contains(event.target as Node)) {
+        setIsMoveDropdownOpen(false);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+
 
   useEffect(() => {
     if (user?.role === 'External') {
@@ -509,18 +525,66 @@ export default function VaultPage() {
     return modDate < sixMonthsAgo;
   }).length;
 
-  const displayedResources = resources.filter((r) => {
-    if (activeFilterMode === 'leaked') {
-      return r.isPwned || r.isCompromised || r.strength === 'Weak' || r.name.toLowerCase().includes('leaked') || r.name.toLowerCase().includes('breach');
-    }
-    if (activeFilterMode === 'outdated') {
-      if (r.isOld || r.name.toLowerCase().includes('old')) return true;
-      if (!r.lastModified) return false;
-      const modDate = new Date(r.lastModified);
-      return modDate < sixMonthsAgo;
-    }
-    return true;
+  const ownCount = resources.filter((r) => r.ownerId === user?.id).length;
+
+  const sharedCount = resources.filter(
+    (r) => (r.secrets && r.secrets.length > 1) || (r.sharedWith && r.sharedWith.length > 0) || r.isExternalShared
+  ).length;
+
+  const duplicateMap: Record<string, string[]> = {};
+  resources.forEach((r) => {
+    const key = `${(r.url || '').trim().toLowerCase()}||${(r.username || '').trim().toLowerCase()}`;
+    if (!duplicateMap[key]) duplicateMap[key] = [];
+    duplicateMap[key].push(r.id);
   });
+  const duplicateGroups = Object.values(duplicateMap).filter((arr) => arr.length > 1);
+  const duplicateGroupCount = duplicateGroups.length;
+  const duplicateIds = new Set<string>();
+  duplicateGroups.forEach((arr) => arr.forEach((id) => duplicateIds.add(id)));
+
+  const displayedResources = resources
+    .filter((r) => {
+      if (showDuplicates && !duplicateIds.has(r.id)) return false;
+      if (activeFilterMode === 'leaked') {
+        return r.isPwned || r.isCompromised || r.strength === 'Weak' || r.name.toLowerCase().includes('leaked') || r.name.toLowerCase().includes('breach');
+      }
+      if (activeFilterMode === 'outdated') {
+        if (r.isOld || r.name.toLowerCase().includes('old')) return true;
+        if (!r.lastModified) return false;
+        const modDate = new Date(r.lastModified);
+        return modDate < sixMonthsAgo;
+      }
+      if (activeFilterMode === 'own') {
+        return r.ownerId === user?.id;
+      }
+      if (activeFilterMode === 'shared') {
+        return (r.secrets && r.secrets.length > 1) || (r.sharedWith && r.sharedWith.length > 0) || r.isExternalShared;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const dateA = a.lastModified ? new Date(a.lastModified).getTime() : 0;
+      const dateB = b.lastModified ? new Date(b.lastModified).getTime() : 0;
+      return dateB - dateA;
+    });
+
+  const filterModeLabel = {
+    all: 'All Vault Passwords',
+    leaked: 'Leaked Passwords',
+    outdated: 'Outdated (>6 Months)',
+    own: 'Items I Own',
+    shared: 'Items I Shared',
+    lastModified: 'Last Modified',
+  }[activeFilterMode];
+
+  const filterModeColor =
+    activeFilterMode === 'leaked'
+      ? 'text-rose-700'
+      : activeFilterMode === 'outdated'
+      ? 'text-[#d97706]'
+      : activeFilterMode === 'all'
+      ? 'text-[#0f172a]'
+      : 'text-[#0284c7]';
 
   const toggleResourceSelection = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -545,14 +609,13 @@ export default function VaultPage() {
         unlockedPgpKey,
         getEncryptedPrivateKey
       );
-      const { filename, count, filePassword } = await exportPasswords(data, exportFormat, user);
+      const { filename, count } = await exportPasswords(data, exportFormat, user);
       addImportExportHistory({
         type: 'export',
         fileName: filename,
         format: exportFormat,
         count,
         by: user?.name || user?.email || 'Unknown',
-        filePassword,
         passwordNames: target.map((r) => r.name),
       });
       const failedDecryptionCount = data.filter((d) => d.Password === '[Decryption Required]').length;
@@ -594,6 +657,44 @@ export default function VaultPage() {
     await executeExport(target);
   };
 
+  const handleBulkMove = async (folderId: string) => {
+    if (selectedIds.length === 0) {
+      alert('No passwords selected to move.');
+      return;
+    }
+    try {
+      await Promise.all(selectedIds.map((id) => api.put(`/resources/${id}`, { folderId })));
+      setIsMoveDropdownOpen(false);
+      setSelectedIds([]);
+      fetchResources();
+      fetchFolders();
+    } catch (err) {
+      alert('Failed to move selected passwords.');
+    }
+  };
+
+  const handleRemoveDuplicates = async () => {
+    const idsToRemove: string[] = [];
+    duplicateGroups.forEach((ids) => {
+      const sorted = [...ids].sort((a, b) => {
+        const aModified = resources.find((r) => r.id === a)?.lastModified || '';
+        const bModified = resources.find((r) => r.id === b)?.lastModified || '';
+        return new Date(bModified).getTime() - new Date(aModified).getTime();
+      });
+      idsToRemove.push(...sorted.slice(1));
+    });
+    if (idsToRemove.length === 0) return;
+    if (!confirm(`Remove ${idsToRemove.length} duplicate password(s)?`)) return;
+    try {
+      await Promise.all(idsToRemove.map((id) => api.delete(`/resources/${id}`)));
+      setShowDuplicates(false);
+      fetchResources();
+      fetchFolders();
+    } catch (err) {
+      alert('Failed to remove duplicates.');
+    }
+  };
+
   const handleUnlockSubmit = async (password: string) => {
     const privateKey = await unlockVault(password);
     if (!privateKey) return false;
@@ -620,13 +721,13 @@ export default function VaultPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
+    <div className="flex h-screen overflow-hidden bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Header searchTerm={searchTerm} onSearchChange={setSearchTerm} />
 
-        <main className="p-8 flex-1 overflow-y-auto">
+        <main ref={mainRef} onScroll={(e) => setShowBackToTop(e.currentTarget.scrollTop > 300)} className="p-8 flex-1 overflow-y-auto relative">
           {/* Top Title & Action Bar */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -779,157 +880,61 @@ export default function VaultPage() {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              {/* LEFT COLUMN: Folders Sidebar Panel */}
-              <div className="lg:col-span-1 space-y-3">
-                <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl p-4 shadow-xl space-y-4">
-                  <div className="flex items-center justify-between pb-3 border-b border-[#cbd5e1]">
-                    <div className="flex items-center gap-2">
-                      <Folder className="w-4 h-4 text-[#f39c12]" />
-                      <h2 className="text-sm font-extrabold text-[#0f172a]">Vault Folders</h2>
+            <div className="grid grid-cols-1 gap-6">
+              {/* RIGHT COLUMN: Passwords Data Table */}
+              <div className="space-y-4">
+                {/* Duplicate Password Warning */}
+                {duplicateGroupCount > 0 && !showDuplicates && (
+                  <div className="p-4 bg-rose-50 border border-rose-300 rounded-2xl flex items-center justify-between text-xs text-rose-900 font-extrabold shadow-sm animate-in fade-in duration-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0">
+                        <ShieldAlert className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-rose-900 text-xs">{duplicateGroupCount} duplicate password group{duplicateGroupCount > 1 ? 's' : ''} detected</h4>
+                        <p className="text-[11px] text-rose-700 font-medium">
+                          Multiple items share the same URL and username.
+                        </p>
+                      </div>
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      {selectedFolderId && (
-                        <button
-                          onClick={() => setSelectedFolderId('')}
-                          className="text-[11px] text-[#0284c7] hover:underline font-extrabold cursor-pointer"
-                        >
-                          Clear
-                        </button>
-                      )}
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
-                        onClick={() => setIsFolderModalOpen(true)}
-                        className="gold-cyan-gradient-btn px-2.5 py-1 text-[11px] rounded-lg text-white font-extrabold shadow-sm flex items-center gap-1 cursor-pointer"
-                        title="Create New Folder"
+                        onClick={() => setShowDuplicates(true)}
+                        className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
                       >
-                        <Plus className="w-3 h-3" />
-                        <span>New</span>
+                        Show Duplicates
+                      </button>
+                      <button
+                        onClick={handleRemoveDuplicates}
+                        className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Remove Duplicates
                       </button>
                     </div>
                   </div>
+                )}
 
-                  {/* Vertical Folders List */}
-                  <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-0.5">
-                    {/* All Folders Item */}
-                    <div
-                      onClick={() => setSelectedFolderId('')}
-                      className={`w-full flex items-center justify-between p-3 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
-                        !selectedFolderId
-                          ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
-                          : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] text-[#0f172a] hover:border-[#1fbbd2]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 truncate">
-                        <Folder className="w-4 h-4 text-[#f39c12] shrink-0" />
-                        <span className="truncate">All Folders</span>
+                {showDuplicates && (
+                  <div className="p-4 bg-rose-50 border border-rose-300 rounded-2xl flex items-center justify-between text-xs text-rose-900 font-extrabold shadow-sm animate-in fade-in duration-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0">
+                        <ShieldAlert className="w-4 h-4" />
                       </div>
-                      {!selectedFolderId && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
+                      <div>
+                        <h4 className="font-extrabold text-rose-900 text-xs">Showing duplicates</h4>
+                        <p className="text-[11px] text-rose-700 font-medium">
+                          {displayedResources.length} duplicate item{displayedResources.length !== 1 ? 's' : ''} displayed.
+                        </p>
+                      </div>
                     </div>
-
-                    {/* Created Folders Items */}
-                    <DndContext
-                      sensors={dndSensors}
-                      collisionDetection={closestCenter}
-                      onDragOver={handleDragOver}
-                      onDragEnd={handleDragEnd}
+                    <button
+                      onClick={() => setShowDuplicates(false)}
+                      className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0"
                     >
-                      <SortableContext items={folders.map((f) => f.id)} strategy={verticalListSortingStrategy}>
-                        {folders.map((f) => {
-                          const isSelected = selectedFolderId === f.id;
-                          return (
-                            <SortableListItem
-                              key={f.id}
-                              id={f.id}
-                              onClick={() => setSelectedFolderId(f.id)}
-                              data={{ type: 'folder' }}
-                              isOver={dragOver.id === f.id}
-                              className={`w-full p-3 rounded-xl border text-xs font-extrabold cursor-pointer transition-all ${
-                                isSelected
-                                  ? 'border-2 border-[#1fbbd2] bg-[#e0f2fe] text-[#0284c7] shadow-sm'
-                                  : 'border-[#cbd5e1] bg-[#ffffff] hover:bg-[#f8fafc] text-[#0f172a] hover:border-[#1fbbd2]'
-                              }`}
-                            >
-                              <div className="flex-1 flex items-center justify-between">
-                                <div className="flex items-center gap-2.5 truncate">
-                                  <Folder className="w-4 h-4 text-[#f39c12] shrink-0" />
-                                  <div className="truncate">
-                                    <p className="truncate leading-tight">{f.name}</p>
-                                    {f.description && (
-                                      <p className="text-[10px] text-[#64748b] font-medium truncate mt-0.5">
-                                        {f.description}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <span className="bg-[#e0f2fe] text-[#0284c7] border border-[#1fbbd2]/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                                    {f.itemCount || 0}
-                                  </span>
-                                  {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
-                                </div>
-                              </div>
-                            </SortableListItem>
-                          );
-                        })}
-                      </SortableContext>
-                    </DndContext>
+                      Show All
+                    </button>
                   </div>
-                </div>
-              </div>
-
-              {/* RIGHT COLUMN: Passwords Data Table */}
-              <div className="lg:col-span-3 space-y-4">
-                {/* Security Audit Filter Tabs */}
-                <div className="flex items-center gap-2 flex-wrap bg-[#ffffff] p-2 rounded-2xl border border-[#d0dbe5] shadow-sm text-xs font-extrabold">
-                  <button
-                    onClick={() => setActiveFilterMode('all')}
-                    className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-                      activeFilterMode === 'all'
-                        ? 'bg-[#0f172a] text-white shadow-sm'
-                        : 'text-[#64748b] hover:bg-[#f1f5f9] hover:text-[#0f172a]'
-                    }`}
-                  >
-                    <span>All Vault Passwords</span>
-                    <span className="px-2 py-0.5 rounded-full bg-slate-700/40 text-[10px]">
-                      {resources.length}
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveFilterMode('leaked')}
-                    className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-                      activeFilterMode === 'leaked'
-                        ? 'bg-rose-600 text-white shadow-sm'
-                        : 'text-rose-700 hover:bg-rose-50 border border-rose-200'
-                    }`}
-                  >
-                    <ShieldAlert className="w-3.5 h-3.5" />
-                    <span>Leaked Passwords</span>
-                    {leakedCount > 0 && (
-                      <span className="px-2 py-0.5 rounded-full bg-rose-800 text-white text-[10px]">
-                        {leakedCount}
-                      </span>
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => setActiveFilterMode('outdated')}
-                    className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-                      activeFilterMode === 'outdated'
-                        ? 'bg-[#d97706] text-white shadow-sm'
-                        : 'text-[#d97706] hover:bg-amber-50 border border-amber-200'
-                    }`}
-                  >
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>Outdated (&gt;6 Months)</span>
-                    {outdatedCount > 0 && (
-                      <span className="px-2 py-0.5 rounded-full bg-amber-800 text-white text-[10px]">
-                        {outdatedCount}
-                      </span>
-                    )}
-                  </button>
-                </div>
+                )}
 
                 {/* Audit Context Banner */}
                 {activeFilterMode === 'leaked' && (
@@ -978,6 +983,96 @@ export default function VaultPage() {
 
                 {/* Bulk Select & Export Bar */}
                 <div className="flex flex-wrap items-center gap-3 bg-[#ffffff] border border-[#d0dbe5] rounded-2xl p-3 shadow-sm">
+                  <div className="relative" ref={filterDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsFilterDropdownOpen((prev) => !prev)}
+                      className="flex items-center gap-2 bg-[#ffffff] hover:bg-[#f8fafc] border border-[#cbd5e1] hover:border-[#1fbbd2] px-3.5 py-2 rounded-xl text-[#0f172a] transition-all cursor-pointer"
+                    >
+                      <Filter className="w-3.5 h-3.5 text-[#0284c7]" />
+                      <span className={filterModeColor}>
+                        {filterModeLabel}
+                      </span>
+                      <ChevronDown className="w-3.5 h-3.5 text-[#64748b]" />
+                    </button>
+
+                    {isFilterDropdownOpen && (
+                      <div className="absolute left-0 mt-2 w-56 bg-[#ffffff] border border-[#cbd5e1] rounded-2xl shadow-xl z-50 overflow-hidden animate-in slide-in-from-top-2 duration-150 p-1.5 space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => { setActiveFilterMode('all'); setIsFilterDropdownOpen(false); }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                            activeFilterMode === 'all'
+                              ? 'bg-[#e0f2fe] text-[#0284c7]'
+                              : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">All Vault Passwords ({resources.length})</span>
+                          {activeFilterMode === 'all' && <Check className="w-3.5 h-3.5 text-[#0284c7]" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setActiveFilterMode('leaked'); setIsFilterDropdownOpen(false); }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                            activeFilterMode === 'leaked'
+                              ? 'bg-[#e0f2fe] text-[#0284c7]'
+                              : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">Leaked Passwords ({leakedCount})</span>
+                          {activeFilterMode === 'leaked' && <Check className="w-3.5 h-3.5 text-[#0284c7]" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setActiveFilterMode('outdated'); setIsFilterDropdownOpen(false); }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                            activeFilterMode === 'outdated'
+                              ? 'bg-[#e0f2fe] text-[#0284c7]'
+                              : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">Outdated (&gt;6 Months) ({outdatedCount})</span>
+                          {activeFilterMode === 'outdated' && <Check className="w-3.5 h-3.5 text-[#0284c7]" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setActiveFilterMode('own'); setIsFilterDropdownOpen(false); }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                            activeFilterMode === 'own'
+                              ? 'bg-[#e0f2fe] text-[#0284c7]'
+                              : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">Items I Own ({ownCount})</span>
+                          {activeFilterMode === 'own' && <Check className="w-3.5 h-3.5 text-[#0284c7]" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setActiveFilterMode('shared'); setIsFilterDropdownOpen(false); }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                            activeFilterMode === 'shared'
+                              ? 'bg-[#e0f2fe] text-[#0284c7]'
+                              : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">Items I Shared ({sharedCount})</span>
+                          {activeFilterMode === 'shared' && <Check className="w-3.5 h-3.5 text-[#0284c7]" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setActiveFilterMode('lastModified'); setIsFilterDropdownOpen(false); }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                            activeFilterMode === 'lastModified'
+                              ? 'bg-[#e0f2fe] text-[#0284c7]'
+                              : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">Last Modified ({resources.length})</span>
+                          {activeFilterMode === 'lastModified' && <Check className="w-3.5 h-3.5 text-[#0284c7]" />}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={() => {
                       setBulkSelectMode((prev) => !prev);
@@ -998,6 +1093,42 @@ export default function VaultPage() {
                       </button>
 
                       <ExportFormatDropdown value={exportFormat} onChange={(value) => setExportFormat(value)} />
+
+                      {/* Bulk Move to Folder */}
+                      <div className="relative" ref={moveDropdownRef}>
+                        <button
+                          type="button"
+                          onClick={() => setIsMoveDropdownOpen((prev) => !prev)}
+                          disabled={selectedIds.length === 0}
+                          className="flex items-center gap-2 bg-[#f8fafc] hover:bg-[#e0f2fe] border border-[#cbd5e1] hover:border-[#1fbbd2] disabled:opacity-50 disabled:cursor-not-allowed px-3.5 py-2 rounded-xl text-xs font-extrabold text-[#0f172a] transition-all cursor-pointer"
+                        >
+                          <Folder className="w-3.5 h-3.5 text-[#f39c12]" />
+                          <span>Move to Folder</span>
+                          <ChevronDown className="w-3.5 h-3.5 text-[#64748b]" />
+                        </button>
+
+                        {isMoveDropdownOpen && (
+                          <div className="absolute left-0 mt-2 w-56 bg-[#ffffff] border border-[#cbd5e1] rounded-2xl shadow-xl z-50 overflow-hidden animate-in slide-in-from-top-2 duration-150 p-1.5 space-y-1">
+                            {folders.length === 0 ? (
+                              <p className="px-3 py-2 text-xs text-[#64748b]">No folders available</p>
+                            ) : (
+                              folders.map((f) => (
+                                <button
+                                  key={f.id}
+                                  type="button"
+                                  onClick={() => handleBulkMove(f.id)}
+                                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold text-[#0f172a] hover:bg-[#f1f5f9] transition-colors cursor-pointer"
+                                >
+                                  <span className="flex items-center gap-2 truncate">
+                                    <Folder className="w-3.5 h-3.5 text-[#f39c12]" />
+                                    {f.name}
+                                  </span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
 
                       <button
                         onClick={handleBulkExport}
@@ -1219,6 +1350,17 @@ export default function VaultPage() {
           </div>
         </div>
       )}
+
+        {showBackToTop && (
+          <button
+            type="button"
+            onClick={() => mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="fixed bottom-6 right-6 z-20 p-2.5 bg-[#0284c7] hover:bg-[#0369a1] text-white rounded-full shadow-lg transition-all cursor-pointer"
+            title="Back to top"
+          >
+            <ChevronLeft className="w-4 h-4 rotate-90" />
+          </button>
+        )}
         </main>
       </div>
 

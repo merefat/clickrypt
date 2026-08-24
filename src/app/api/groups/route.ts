@@ -47,6 +47,7 @@ export async function POST(request: Request) {
 
     const maxSort = db.groups.reduce((m, it) => Math.max(m, it.sortOrder ?? 0), 0);
 
+    const now = new Date().toISOString();
     const newGroup = {
       id: `g-${Date.now()}`,
       name,
@@ -57,7 +58,8 @@ export async function POST(request: Request) {
           .filter((id: string) => id !== authUser.id)
           .map((userId: string) => ({ userId, role: 'User' as const })),
       ],
-      lastActive: new Date().toISOString(),
+      createdAt: now,
+      lastActive: now,
       sortOrder: maxSort + 1,
     };
 

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
@@ -301,7 +301,7 @@ export default function AdminPage() {
   });
 
   return (
-    <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
+    <div className="flex h-screen overflow-hidden bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -380,132 +380,6 @@ export default function AdminPage() {
               )}
             </div>
           </div>
-
-          {/* Organization Settings */}
-          {user?.role === 'Owner' && user.organization && (
-            <div className="bg-[#ffffff] border border-[#cbd5e1] rounded-2xl p-6 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-extrabold text-[#0f172a]">Organization Settings</h2>
-                <button
-                  type="button"
-                  onClick={() => setShowSettings(!showSettings)}
-                  className="text-[#0284c7] text-xs font-extrabold hover:underline"
-                >
-                  {showSettings ? 'Hide' : 'Manage'}
-                </button>
-              </div>
-
-              {showSettings && (
-                <div className="space-y-6">
-                  <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-xs">
-                    <strong>Open enrollment</strong> lets anyone with a matching email domain join your organization
-                    automatically. Keep this off unless you fully trust your email domain security. It is safer to invite
-                    members manually.
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-extrabold text-[#0f172a]">Open Enrollment</p>
-                      <p className="text-[10px] text-[#64748b]">
-                        Currently {openEnrollment ? 'ON' : 'OFF'}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleToggleOpenEnrollment}
-                      disabled={openEnrollmentLoading}
-                      className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
-                        openEnrollment
-                          ? 'bg-rose-100 text-rose-700 hover:bg-rose-200'
-                          : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                      }`}
-                    >
-                      {openEnrollmentLoading ? 'Saving...' : openEnrollment ? 'Turn Off' : 'Turn On'}
-                    </button>
-                  </div>
-
-                  {transferMessage && (
-                    <div className="p-3 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 text-xs font-bold">
-                      {transferMessage}
-                    </div>
-                  )}
-                  {transferError && (
-                    <div className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-rose-900 text-xs font-bold">
-                      {transferError}
-                    </div>
-                  )}
-
-                  <div>
-                    <p className="text-sm font-extrabold text-[#0f172a] mb-2">Transfer Ownership</p>
-                    {transferStage === 'idle' ? (
-                      <form onSubmit={handleInitiateTransfer} className="flex items-center gap-3">
-                        <select
-                          value={transferTarget}
-                          onChange={(e) => setTransferTarget(e.target.value)}
-                          className="bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-3 py-2 text-xs text-[#0f172a] font-bold outline-none focus:border-[#1fbbd2]"
-                          required
-                        >
-                          <option value="">Select member</option>
-                          {users
-                            .filter((u) => u.id !== user.id)
-                            .map((u) => (
-                              <option key={u.id} value={u.id}>
-                                {u.name} ({u.email})
-                              </option>
-                            ))}
-                        </select>
-                        <button
-                          type="submit"
-                          className="px-4 py-2 bg-[#0f172a] text-white rounded-xl text-xs font-extrabold hover:bg-[#1fbbd2] transition-colors cursor-pointer"
-                        >
-                          Start Transfer
-                        </button>
-                      </form>
-                    ) : (
-                      <form onSubmit={handleConfirmTransfer} className="space-y-3">
-                        <p className="text-[11px] text-[#64748b]">
-                          Enter the code sent to your email and your 2FA code if enabled.
-                        </p>
-                        <input
-                          type="text"
-                          placeholder="Email code"
-                          value={transferCode}
-                          onChange={(e) => setTransferCode(e.target.value)}
-                          className="w-full max-w-xs bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-3 py-2 text-xs text-[#0f172a] font-bold outline-none focus:border-[#1fbbd2]"
-                          required
-                        />
-                        {user.twoFactorEnabled && (
-                          <input
-                            type="text"
-                            placeholder="2FA code"
-                            value={twoFactorCode}
-                            onChange={(e) => setTwoFactorCode(e.target.value)}
-                            className="w-full max-w-xs bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-3 py-2 text-xs text-[#0f172a] font-bold outline-none focus:border-[#1fbbd2]"
-                            required
-                          />
-                        )}
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="submit"
-                            className="px-4 py-2 bg-[#f39c12] text-white rounded-xl text-xs font-extrabold hover:opacity-95 transition-colors cursor-pointer"
-                          >
-                            Confirm Transfer
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setTransferStage('idle'); setTransferCode(''); setTwoFactorCode(''); setTransferError(''); setTransferMessage(''); }}
-                            className="px-4 py-2 bg-[#ffffff] border border-[#cbd5e1] text-[#64748b] rounded-xl text-xs font-extrabold hover:bg-[#f1f5f9] transition-colors cursor-pointer"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </form>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
           {activeTab === 'members' && (
             <>

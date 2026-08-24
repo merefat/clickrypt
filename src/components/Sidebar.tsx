@@ -13,15 +13,21 @@ import {
   Settings,
   LogOut,
   UserCheck,
-  ChevronLeft
+  ChevronLeft,
+  ChevronDown,
+  CreditCard,
 } from 'lucide-react';
 import { useAuth, useRequireAuth } from '@/context/AuthContext';
+import api from '@/lib/api';
 
 export default function Sidebar() {
   useRequireAuth();
   const pathname = usePathname();
   const { user, logout, appMode } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [expanded, setExpanded] = useState<{ [key: string]: boolean }>({});
+  const [subGroups, setSubGroups] = useState<any[]>([]);
+  const [subFolders, setSubFolders] = useState<any[]>([]);
 
   useEffect(() => {
     const storedState = localStorage.getItem('clickrypt_sidebar_collapsed');
@@ -29,6 +35,25 @@ export default function Sidebar() {
       setIsCollapsed(storedState === 'true');
     }
   }, []);
+
+  useEffect(() => {
+    if (appMode === 'personal') return;
+    const load = async () => {
+      try {
+        const [groupsRes, foldersRes] = await Promise.all([
+          api.get('/groups'),
+          api.get('/folders', {
+            params: { secretVault: false, ...(user?.role === 'Owner' || user?.role === 'Admin' ? { scope: 'manage' } : {}) },
+          }),
+        ]);
+        setSubGroups(groupsRes.data || []);
+        setSubFolders(foldersRes.data || []);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    load();
+  }, [appMode, user?.role]);
 
   const toggleCollapse = () => {
     setIsCollapsed((prev) => {
@@ -38,25 +63,58 @@ export default function Sidebar() {
     });
   };
 
+  const toggleExpand = (key: string) => {
+    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
   const menuItems = [
     { name: 'Passwords', path: '/vault', icon: KeyRound },
-    { name: 'Secret Vault', path: '/secret-vault', icon: Lock, badge: 'Private', role: 'Owner' },
-    { name: 'Groups', path: '/groups', icon: Users, role: 'OrganizationOnly' },
-    { name: 'Folders', path: '/folders', icon: Folder },
-    { name: appMode === 'organization' ? 'Shared with me' : 'Shared by me', path: '/shared', icon: Share2 },
+    { name: 'Card Vault', path: '/secret-vault', icon: CreditCard, badge: 'Cards', role: 'Owner' },
+    { name: 'Groups', path: '/groups', icon: Users, role: 'OrganizationOnly', hasSubmenu: true },
+    { name: 'Folders', path: '/folders', icon: Folder, hasSubmenu: true },
+    { name: 'Shared Passwords', path: '/shared', icon: Share2 },
     { name: 'Team Members', path: '/admin', icon: UserCheck, role: 'OrganizationOnly' },
     { name: 'Import / Export', path: '/import-export', icon: FileSpreadsheet },
     { name: 'Settings', path: '/settings', icon: Settings },
   ];
 
+  const renderSubmenu = (key: string) => {
+    const items = key === 'Groups' ? subGroups : subFolders;
+    const Icon = key === 'Groups' ? Users : Folder;
+    return (
+      <div
+        className={`overflow-hidden transition-all duration-200 ease-in-out ${
+          isCollapsed ? 'max-h-0' : 'max-h-[200px] overflow-y-auto'
+        }`}
+      >
+        <div className="pl-3.5 pr-1.5 py-1 space-y-1">
+          {items.length === 0 ? (
+            <p className="px-3 py-1.5 text-[10px] text-[#64748b] font-medium truncate">No {key.toLowerCase()} available</p>
+          ) : (
+            items.map((it: any) => (
+              <div
+                key={it.id}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-[11px] font-bold text-[#475569] hover:bg-[#d8e2ec] hover:text-[#0f172a] cursor-pointer truncate"
+                title={it.name}
+              >
+                <Icon className="w-3.5 h-3.5 text-[#64748b] shrink-0" />
+                <span className="truncate">{it.name}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <aside
       suppressHydrationWarning
-      className={`bg-[#e4ecf3] border-r border-[#cbd5e1] flex flex-col justify-between p-3.5 select-none font-sora min-h-screen transition-[width] duration-300 ease-in-out shrink-0 overflow-hidden ${
+      className={`bg-[#e4ecf3] border-r border-[#cbd5e1] flex flex-col justify-between p-3.5 select-none font-sora h-screen overflow-hidden transition-[width] duration-300 ease-in-out shrink-0 ${
         isCollapsed ? 'w-20' : 'w-64'
       }`}
     >
-      <div className="space-y-6">
+      <div className="space-y-6 overflow-hidden">
         {/* Brand Header with Vibrant Cyan Collapse Toggle Button */}
         <div className={`flex items-center ${isCollapsed ? 'justify-center flex-col gap-3' : 'justify-between'} px-1 py-1`}>
           <img
@@ -82,7 +140,7 @@ export default function Sidebar() {
         </div>
 
         {/* Navigation Items */}
-        <nav className="space-y-1.5">
+        <nav className="space-y-1.5 overflow-y-auto overflow-x-hidden">
           {menuItems.map((item) => {
             if (item.role === 'OrganizationOnly' && appMode === 'personal') {
               return null;
@@ -99,83 +157,75 @@ export default function Sidebar() {
 
             const Icon = item.icon;
             const isActive = pathname === item.path;
+            const isExpanded = !!expanded[item.name];
 
             return (
-              <Link
-                key={item.path}
-                href={item.path}
-                title={isCollapsed ? item.name : undefined}
-                className={`flex items-center ${
-                  isCollapsed ? 'justify-center p-3' : 'justify-between px-3.5 py-2.5'
-                } rounded-xl text-xs font-bold transition-all duration-200 relative overflow-hidden ${
-                  isActive
-                    ? 'bg-[#f5f8fb] text-[#0f172a] shadow-md border border-[#d0dbe5] shadow-[#1fbbd2]/10'
-                    : 'text-[#475569] hover:text-[#0f172a] hover:bg-[#d8e2ec]'
-                }`}
-              >
-                {isActive && (
-                  <div className="absolute left-0 top-2 bottom-2 w-1.5 bg-[#1fbbd2] rounded-r-full" />
-                )}
+              <div key={item.path}>
+                <div
+                  className={`relative flex items-center ${
+                    isCollapsed ? 'justify-center p-3' : 'justify-between px-3.5 py-2.5'
+                  } rounded-xl text-xs font-bold transition-all duration-200 overflow-hidden ${
+                    isActive
+                      ? 'bg-[#f5f8fb] text-[#0f172a] shadow-md border border-[#d0dbe5] shadow-[#1fbbd2]/10'
+                      : 'text-[#475569] hover:text-[#0f172a] hover:bg-[#d8e2ec]'
+                  }`}
+                >
+                  {isActive && (
+                    <div className="absolute left-0 top-2 bottom-2 w-1.5 bg-[#1fbbd2] rounded-r-full" />
+                  )}
 
-                <div className="flex items-center gap-3 pl-1 min-w-0">
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#1fbbd2]' : 'text-[#64748b]'}`} />
-                  <span
-                    className={`transition-all duration-300 ease-in-out whitespace-nowrap truncate ${
-                      isCollapsed ? 'max-w-0 opacity-0 pointer-events-none' : 'max-w-[140px] opacity-100'
-                    }`}
+                  <Link
+                    href={item.path}
+                    title={isCollapsed ? item.name : undefined}
+                    className={`flex items-center gap-3 pl-1 min-w-0 ${isCollapsed ? '' : 'flex-1'}`}
                   >
-                    {item.name}
-                  </span>
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#1fbbd2]' : 'text-[#64748b]'}`} />
+                    <span
+                      className={`transition-all duration-300 ease-in-out whitespace-nowrap truncate ${
+                        isCollapsed ? 'max-w-0 opacity-0 pointer-events-none' : 'max-w-[140px] opacity-100'
+                      }`}
+                    >
+                      {item.name}
+                    </span>
+                  </Link>
+
+                  {!isCollapsed && item.badge && (
+                    <span
+                      className="bg-[#f39c12]/15 text-[#d97706] text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-[#f39c12]/30 shrink-0"
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+
+                  {!isCollapsed && item.hasSubmenu && appMode !== 'personal' && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleExpand(item.name);
+                      }}
+                      className="p-1 text-[#64748b] hover:text-[#0f172a] transition-colors shrink-0"
+                      title={isExpanded ? 'Collapse' : 'Expand'}
+                    >
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                          isExpanded ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                  )}
                 </div>
 
-                {item.badge && (
-                  <span
-                    className={`bg-[#f39c12]/15 text-[#d97706] text-[10px] font-extrabold px-2 py-0.5 rounded-md border border-[#f39c12]/30 shrink-0 transition-all duration-300 ease-in-out ${
-                      isCollapsed ? 'max-w-0 opacity-0 pointer-events-none px-0 border-0' : 'max-w-[60px] opacity-100'
-                    }`}
-                  >
-                    {item.badge}
-                  </span>
-                )}
-              </Link>
+                {!isCollapsed && item.hasSubmenu && isExpanded && appMode !== 'personal' && renderSubmenu(item.name)}
+              </div>
             );
           })}
         </nav>
       </div>
 
-      {/* Footer Profile & Logout */}
-      <div className="pt-4 border-t border-[#cbd5e1] space-y-2.5">
-        <Link
-          href="/settings"
-          className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2.5'} p-2 rounded-xl hover:bg-[#d8e2ec] transition-all cursor-pointer group overflow-hidden`}
-          title={user?.name || user?.email?.split('@')[0] || 'User'}
-        >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-xs font-extrabold text-[#0f172a] group-hover:scale-105 transition-transform shadow-xs overflow-hidden shrink-0">
-            {user?.avatarUrl ? (
-              <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-            ) : user?.name ? (
-              user.name.slice(0, 2).toUpperCase()
-            ) : user?.email ? (
-              user.email.slice(0, 2).toUpperCase()
-            ) : (
-              'RE'
-            )}
-          </div>
-
-          <div
-            className={`transition-all duration-300 ease-in-out whitespace-nowrap overflow-hidden ${
-              isCollapsed ? 'max-w-0 opacity-0 pointer-events-none' : 'max-w-[140px] opacity-100'
-            }`}
-          >
-            <p className="text-xs font-extrabold text-[#0f172a] group-hover:text-[#0284c7] leading-tight transition-colors truncate">
-              {user?.name || user?.email?.split('@')[0] || 'Refat'}
-            </p>
-            <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight truncate">
-              {user?.role || 'Owner'}
-            </p>
-          </div>
-        </Link>
-
+      {/* Footer Logout */}
+      <div className="pt-4 border-t border-[#cbd5e1]">
         <button
           type="button"
           onClick={logout}

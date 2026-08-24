@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -10,8 +11,7 @@ import {
   Copy,
   Check,
   ShieldAlert,
-  ChevronDown,
-  FolderPlus
+  ChevronDown
 } from 'lucide-react';
 import { generatePassword } from '@/lib/generator';
 import { evaluatePasswordStrength, encryptSecret, safeBase64Encode } from '@/lib/crypto';
@@ -43,9 +43,12 @@ export default function PasswordDrawer({
   const [url, setUrl] = useState('');
   const [urlError, setUrlError] = useState(false);
   const [password, setPassword] = useState('');
-  const [category, setCategory] = useState('Developer');
   const [folderId, setFolderId] = useState('');
   const [folders, setFolders] = useState<any[]>([]);
+  const [existingResources, setExistingResources] = useState<any[]>([]);
+  const [cardNumber, setCardNumber] = useState('');
+  const [expiry, setExpiry] = useState('');
+  const [cvv, setCvv] = useState('');
 
   // Password Generator options
   const [passLength, setPassLength] = useState(16);
@@ -71,6 +74,7 @@ export default function PasswordDrawer({
   useEffect(() => {
     if (isOpen) {
       fetchFolders();
+      fetchExistingResources();
     }
   }, [isOpen]);
 
@@ -80,15 +84,19 @@ export default function PasswordDrawer({
       setUsername(editItem.username || '');
       setUrl(editItem.url || '');
       setPassword('');
-      setCategory(editItem.category || 'Developer');
       setFolderId(editItem.folderId || defaultFolderId || initialFolderId || '');
+      setCardNumber('');
+      setExpiry('');
+      setCvv('');
     } else {
       setName('');
       setUsername('');
       setUrl('');
       setPassword('');
-      setCategory('Developer');
       setFolderId(defaultFolderId || initialFolderId || '');
+      setCardNumber('');
+      setExpiry('');
+      setCvv('');
     }
   }, [editItem, isOpen]);
 
@@ -105,9 +113,26 @@ export default function PasswordDrawer({
     }
   };
 
+  const fetchExistingResources = async () => {
+    try {
+      const res = await api.get('/resources', { params: { secretVault: !!isSecretVault } });
+      setExistingResources(res.data || []);
+    } catch (err) {
+      console.error(err);
+      setExistingResources([]);
+    }
+  };
+
   if (!isOpen) return null;
 
-  const strength = evaluatePasswordStrength(password);
+  const cardSecret = isSecretVault
+    ? `Card Holder Name: ${name.trim()}
+Card Number: ${cardNumber.trim()}
+Expiry Date: ${expiry}
+CVV / CVC: ${cvv}`
+    : password;
+
+  const strength = evaluatePasswordStrength(cardSecret);
 
   const handleGenerate = () => {
     const gen = generatePassword({
@@ -120,8 +145,8 @@ export default function PasswordDrawer({
   };
 
   const handleCopy = () => {
-    if (password) {
-      navigator.clipboard.writeText(password);
+    if (cardSecret) {
+      navigator.clipboard.writeText(cardSecret);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -133,9 +158,18 @@ export default function PasswordDrawer({
     return pattern.test(value.trim());
   };
 
+  const handleExpiryChange = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 4);
+    if (digits.length <= 2) {
+      setExpiry(digits);
+    } else {
+      setExpiry(`${digits.slice(0, 2)}/${digits.slice(2)}`);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || (!password && !editItem)) {
+    if (!name || (!cardSecret && !editItem)) {
       alert('Please fill in required fields.');
       return;
     }
@@ -146,15 +180,29 @@ export default function PasswordDrawer({
       return;
     }
 
+    if (!isSecretVault) {
+      const trimmedUrl = url.trim().toLowerCase();
+      const trimmedUsername = username.trim().toLowerCase();
+      const duplicate = existingResources.some((r) =>
+        r.id !== (editItem?.id || '') &&
+        (r.url || '').trim().toLowerCase() === trimmedUrl &&
+        (r.username || '').trim().toLowerCase() === trimmedUsername
+      );
+      if (duplicate) {
+        alert('A password for this URL and username already exists.');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       let encryptedBlob = '';
 
-      if (password) {
+      if (cardSecret) {
         if (user?.publicKey) {
-          encryptedBlob = await encryptSecret(password, user.publicKey);
+          encryptedBlob = await encryptSecret(cardSecret, user.publicKey);
         } else {
-          encryptedBlob = `[PGP-ENCRYPTED-BLOB::${safeBase64Encode(password)}]`;
+          encryptedBlob = `[PGP-ENCRYPTED-BLOB::${safeBase64Encode(cardSecret)}]`;
         }
       }
 
@@ -163,13 +211,12 @@ export default function PasswordDrawer({
           name,
           username,
           url,
-          category,
           folderId: folderId || null,
           isPrivateOnly: isSecretVault,
         };
 
-        if (password) {
-          updateData.password = password;
+        if (cardSecret) {
+          updateData.password = cardSecret;
           updateData.encryptedData = encryptedBlob;
           updateData.strength = strength.tier;
         }
@@ -180,9 +227,8 @@ export default function PasswordDrawer({
           name,
           username,
           url,
-          category,
           folderId: folderId || null,
-          password,
+          password: cardSecret,
           isPrivateOnly: isSecretVault,
           strength: strength.tier,
           encryptedData: encryptedBlob,
@@ -210,7 +256,7 @@ export default function PasswordDrawer({
             </div>
             <div>
               <h2 className="text-base font-extrabold text-[#0f172a]">
-                {editItem ? 'Edit Password Item' : isSecretVault ? 'New Private Secret' : 'New Password Item'}
+                {editItem ? 'Edit Password Item' : isSecretVault ? 'New Card Item' : 'New Password Item'}
               </h2>
             </div>
           </div>
@@ -226,235 +272,295 @@ export default function PasswordDrawer({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
           <div>
-            <label className="block font-extrabold text-[#334155] mb-1">Item Title</label>
+            <label className="block font-extrabold text-[#334155] mb-1">
+              {isSecretVault ? 'Card Holder Name' : 'Item Title'}
+            </label>
             <input
               type="text"
-              placeholder="e.g. GitHub Production API"
+              placeholder={isSecretVault ? 'e.g. John Doe' : 'e.g. GitHub Production API'}
               value={name}
               onChange={(e) => setName(e.target.value)}
+              autoComplete={isSecretVault ? 'cc-name' : 'off'}
               className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none font-bold shadow-xs transition-all"
               required
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {!isSecretVault && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-extrabold text-[#334155] mb-1">Username / Email</label>
+                <input
+                  type="text"
+                  placeholder="alex.morgan"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="off"
+                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none font-bold shadow-xs transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block font-extrabold text-[#334155] mb-1">
+                  Folder
+                </label>
+
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsFolderDropdownOpen((prev) => !prev)}
+                    className="w-full flex items-center justify-between bg-[#ffffff] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl p-2.5 text-[#0f172a] font-bold shadow-xs transition-all cursor-pointer text-left"
+                  >
+                    <span className="truncate">
+                      {folderId
+                        ? folders.find((f) => f.id === folderId)?.name || 'No Folder'
+                        : 'No Folder'}
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-[#64748b] ml-1 shrink-0" />
+                  </button>
+
+                  {isFolderDropdownOpen && (
+                    <div className="absolute left-0 right-0 mt-1.5 bg-[#ffffff] border border-[#cbd5e1] rounded-2xl shadow-xl z-50 overflow-hidden animate-in slide-in-from-top-2 duration-150 p-1.5 space-y-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFolderId('');
+                          setIsFolderDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                          !folderId
+                            ? 'bg-[#e0f2fe] text-[#0284c7]'
+                            : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                        }`}
+                      >
+                        <span>No Folder</span>
+                        {!folderId && <Check className="w-3.5 h-3.5 text-[#0284c7]" />}
+                      </button>
+
+                      {folders.map((f) => {
+                        const isSelected = folderId === f.id;
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => {
+                              setFolderId(f.id);
+                              setIsFolderDropdownOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#e0f2fe] text-[#0284c7]'
+                                : 'text-[#0f172a] hover:bg-[#f1f5f9]'
+                            }`}
+                          >
+                            <span className="truncate">{f.name}</span>
+                            {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!isSecretVault && (
             <div>
-              <label className="block font-extrabold text-[#334155] mb-1">Username / Email</label>
+              <label className="block font-extrabold text-[#334155] mb-1">Website URL</label>
               <input
                 type="text"
-                placeholder="alex.morgan"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none font-bold shadow-xs transition-all"
+                placeholder="github.com"
+                value={url}
+                onChange={(e) => {
+                  setUrl(e.target.value);
+                  if (urlError) setUrlError(false);
+                }}
+                onBlur={(e) => setUrlError(!!e.target.value && !isValidUrl(e.target.value))}
+                autoComplete="off"
+                className={`w-full bg-[#ffffff] border rounded-xl p-2.5 text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none font-bold shadow-xs transition-all ${
+                  urlError ? 'border-rose-500' : 'border-[#cbd5e1]'
+                }`}
               />
+              {urlError && (
+                <p className="text-[11px] text-rose-600 mt-1.5 font-bold">
+                  Enter a valid website URL (e.g. github.com, wardenos.com.au) or leave it blank.
+                </p>
+              )}
             </div>
+          )}
 
-            <div>
-              <label className="block font-extrabold text-[#334155] mb-1">
-                {isSecretVault ? 'Private Folder' : 'Folder'}
-              </label>
 
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsFolderDropdownOpen((prev) => !prev)}
-                  className="w-full flex items-center justify-between bg-[#ffffff] border border-[#cbd5e1] hover:border-[#1fbbd2] rounded-xl p-2.5 text-[#0f172a] font-bold shadow-xs transition-all cursor-pointer text-left"
-                >
-                  <span className="truncate">
-                    {folderId
-                      ? folders.find((f) => f.id === folderId)?.name || 'No Folder'
-                      : 'No Folder'}
-                  </span>
-                  <ChevronDown className="w-4 h-4 text-[#64748b] ml-1 shrink-0" />
-                </button>
 
-                {isFolderDropdownOpen && (
-                  <div className="absolute left-0 right-0 mt-1.5 bg-[#ffffff] border border-[#cbd5e1] rounded-2xl shadow-xl z-50 overflow-hidden animate-in slide-in-from-top-2 duration-150 p-1.5 space-y-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFolderId('');
-                        setIsFolderDropdownOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
-                        !folderId
-                          ? 'bg-[#e0f2fe] text-[#0284c7]'
-                          : 'text-[#0f172a] hover:bg-[#f1f5f9]'
-                      }`}
-                    >
-                      <span>No Folder</span>
-                      {!folderId && <Check className="w-3.5 h-3.5 text-[#0284c7]" />}
-                    </button>
-
-                    {folders.map((f) => {
-                      const isSelected = folderId === f.id;
-                      return (
-                        <button
-                          key={f.id}
-                          type="button"
-                          onClick={() => {
-                            setFolderId(f.id);
-                            setIsFolderDropdownOpen(false);
-                          }}
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
-                            isSelected
-                              ? 'bg-[#e0f2fe] text-[#0284c7]'
-                              : 'text-[#0f172a] hover:bg-[#f1f5f9]'
-                          }`}
-                        >
-                          <span className="truncate">{f.name}</span>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-[#0284c7] shrink-0" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+          {isSecretVault && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="block font-extrabold text-[#334155] mb-1">Card Number</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="cc-number"
+                  placeholder="0000 0000 0000 0000"
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(e.target.value)}
+                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none font-bold shadow-xs transition-all"
+                />
               </div>
-            </div>
-          </div>
+              <div>
+                <label className="block font-extrabold text-[#334155] mb-1">Expiry Date (MM/YY)</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="cc-exp"
+                  placeholder="MM/YY"
+                  maxLength={5}
+                  value={expiry}
+                  onChange={(e) => handleExpiryChange(e.target.value)}
+                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none font-bold shadow-xs transition-all"
+                />
+              </div>
+              <div>
+                <label className="block font-extrabold text-[#334155] mb-1">CVV / CVC</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="cc-csc"
+                  placeholder="123"
+                  value={cvv}
+                  onChange={(e) => setCvv(e.target.value)}
+                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none font-bold shadow-xs transition-all"
+                />
+              </div>
 
-          <div>
-            <label className="block font-extrabold text-[#334155] mb-1">Website URL</label>
-            <input
-              type="text"
-              placeholder="github.com"
-              value={url}
-              onChange={(e) => {
-                setUrl(e.target.value);
-                if (urlError) setUrlError(false);
-              }}
-              onBlur={(e) => setUrlError(!!e.target.value && !isValidUrl(e.target.value))}
-              className={`w-full bg-[#ffffff] border rounded-xl p-2.5 text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none font-bold shadow-xs transition-all ${
-                urlError ? 'border-rose-500' : 'border-[#cbd5e1]'
-              }`}
-            />
-            {urlError && (
-              <p className="text-[11px] text-rose-600 mt-1.5 font-bold">
-                Enter a valid website URL (e.g. github.com, wardenos.com.au) or leave it blank.
-              </p>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Password Input & Reveal */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="font-extrabold text-[#334155]">Password</label>
-              <button
-                type="button"
-                onClick={handleGenerate}
-                className="text-[#d97706] hover:underline text-[11px] font-extrabold flex items-center gap-1 cursor-pointer"
-              >
-                <RefreshCw className="w-3 h-3 text-[#d97706]" /> Auto-generate
-              </button>
-            </div>
-
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Enter password..."
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 pr-20 font-mono font-bold text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none shadow-xs transition-all"
-              />
-
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {!isSecretVault && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-extrabold text-[#334155]">Password</label>
                 <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="p-1 text-gray-400 hover:text-[#0f172a] cursor-pointer"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="p-1 text-gray-400 hover:text-[#0f172a] cursor-pointer"
-                  title="Copy password"
-                >
-                  {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                    type="button"
+                    onClick={handleGenerate}
+                    className="text-[#d97706] hover:underline text-[11px] font-extrabold flex items-center gap-1 cursor-pointer"
+                  >
+                  <RefreshCw className="w-3 h-3 text-[#d97706]" /> Auto-generate
                 </button>
               </div>
-            </div>
 
-            {password && (
-              <div className="mt-2 space-y-1">
-                <div className="flex justify-between text-[10px]">
-                  <span className="text-[#64748b] font-bold">Strength Rating</span>
-                  <span className="font-extrabold text-[#d97706]">{strength.tier} ({strength.score}/100)</span>
-                </div>
-                <div className="w-full bg-[#cbd5e1] h-1.5 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-[#f39c12] to-[#1fbbd2] transition-all"
-                    style={{ width: `${strength.score}%` }}
-                  />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="new-password"
+                  placeholder="Enter password..."
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                  className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl p-2.5 pr-20 font-mono font-bold text-[#0f172a] placeholder-gray-400 focus:border-[#1fbbd2] focus:outline-none shadow-xs transition-all"
+                />
+
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="p-1 text-gray-400 hover:text-[#0f172a] cursor-pointer"
+                    >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                  <button
+                      type="button"
+                      onClick={handleCopy}
+                      className="p-1 text-gray-400 hover:text-[#0f172a] cursor-pointer"
+                      title="Copy password"
+                    >
+                    {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
+
+              {password && (
+                <div className="mt-2 space-y-1">
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[#64748b] font-bold">Strength Rating</span>
+                    <span className="font-extrabold text-[#d97706]">{strength.tier} ({strength.score}/100)</span>
+                  </div>
+                  <div className="w-full bg-[#cbd5e1] h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-[#f39c12] to-[#1fbbd2] transition-all"
+                      style={{ width: `${strength.score}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Generator Controls */}
-          <div className="p-4 rounded-2xl space-y-3 bg-[#f8fafc] border border-[#cbd5e1] shadow-xs">
-            <div className="flex items-center justify-between text-xs font-extrabold text-[#0f172a]">
-              <span>Generator Customizer</span>
-              <span className="text-[#d97706] font-mono font-extrabold">{passLength} chars</span>
+          {!isSecretVault && (
+            <div className="p-4 rounded-2xl space-y-3 bg-[#f8fafc] border border-[#cbd5e1] shadow-xs">
+              <div className="flex items-center justify-between text-xs font-extrabold text-[#0f172a]">
+                <span>Generator Customizer</span>
+                <span className="text-[#d97706] font-mono font-extrabold">{passLength} chars</span>
+              </div>
+
+              <input
+                type="range"
+                min={8}
+                max={32}
+                value={passLength}
+                onChange={(e) => setPassLength(Number(e.target.value))}
+                className="w-full accent-[#f39c12] bg-[#cbd5e1] h-1.5 rounded-lg cursor-pointer"
+              />
+
+              <div className="grid grid-cols-3 gap-2 text-[10px] text-[#334155] font-extrabold pt-1">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={incUppercase}
+                    onChange={(e) => setIncUppercase(e.target.checked)}
+                    className="accent-[#f39c12]"
+                  />
+                  A-Z Upper
+                </label>
+
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={incNumbers}
+                    onChange={(e) => setIncNumbers(e.target.checked)}
+                    className="accent-[#f39c12]"
+                  />
+                  0-9 Numbers
+                </label>
+
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={incSymbols}
+                    onChange={(e) => setIncSymbols(e.target.checked)}
+                    className="accent-[#f39c12]"
+                  />
+                  !@# Symbols
+                </label>
+              </div>
             </div>
-
-            <input
-              type="range"
-              min={8}
-              max={32}
-              value={passLength}
-              onChange={(e) => setPassLength(Number(e.target.value))}
-              className="w-full accent-[#f39c12] bg-[#cbd5e1] h-1.5 rounded-lg cursor-pointer"
-            />
-
-            <div className="grid grid-cols-3 gap-2 text-[10px] text-[#334155] font-extrabold pt-1">
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={incUppercase}
-                  onChange={(e) => setIncUppercase(e.target.checked)}
-                  className="accent-[#f39c12]"
-                />
-                A-Z Upper
-              </label>
-
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={incNumbers}
-                  onChange={(e) => setIncNumbers(e.target.checked)}
-                  className="accent-[#f39c12]"
-                />
-                0-9 Numbers
-              </label>
-
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={incSymbols}
-                  onChange={(e) => setIncSymbols(e.target.checked)}
-                  className="accent-[#f39c12]"
-                />
-                !@# Symbols
-              </label>
-            </div>
-          </div>
+          )}
 
           <div className="pt-4 flex gap-3">
             <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2.5 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] text-[#334155] rounded-xl font-extrabold transition-all cursor-pointer shadow-xs"
-            >
+                type="button"
+                onClick={onClose}
+                className="flex-1 py-2.5 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] text-[#334155] rounded-xl font-extrabold transition-all cursor-pointer shadow-xs"
+              >
               Cancel
             </button>
 
             <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 py-2.5 gold-cyan-gradient-btn rounded-xl text-white font-extrabold shadow-md transition-all cursor-pointer"
-            >
+                type="submit"
+                disabled={loading}
+                className="flex-1 py-2.5 gold-cyan-gradient-btn rounded-xl text-white font-extrabold shadow-md transition-all cursor-pointer"
+              >
               {loading ? 'Encrypting & Saving...' : editItem ? 'Save Changes' : 'Create Item'}
             </button>
           </div>

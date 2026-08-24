@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
 import { ENABLE_PAY_BILL } from '@/lib/config';
+import { encryptSecret } from '@/lib/crypto';
 
 export async function GET(request: Request) {
   // Subscription check
@@ -162,6 +163,23 @@ export async function POST(request: Request) {
     const existing = db.resourcesFor(userMode);
     const maxSort = existing.reduce((m, it) => Math.max(m, it.sortOrder ?? 0), 0);
 
+    const creatorSecret = {
+      userId: authUser.id,
+      encryptedData: body.encryptedData || `[PGP-ENCRYPTED-BLOB::${Buffer.from(body.password).toString('base64')}]`,
+    };
+    const secrets = [creatorSecret];
+
+    // In organization mode, also encrypt a secret for the organization Owner so they can view any vault item
+    if (userMode === 'organization' && authUser.role !== 'Owner' && authUser.organizationId && body.password) {
+      const owner = db.users.find(
+        (u) => u.organizationId === authUser.organizationId && u.role === 'Owner'
+      );
+      if (owner) {
+        const ownerEncryptedData = await encryptSecret(body.password, owner.publicKey);
+        secrets.push({ userId: owner.id, encryptedData: ownerEncryptedData });
+      }
+    }
+
     const newResource = {
       id: `r-${Date.now()}`,
       name: body.name,
@@ -174,12 +192,7 @@ export async function POST(request: Request) {
       strength: body.strength || 'Strong',
       lastModified: new Date().toISOString(),
       sortOrder: maxSort + 1,
-      secrets: [
-        {
-          userId: authUser.id,
-          encryptedData: body.encryptedData || `[PGP-ENCRYPTED-BLOB::${Buffer.from(body.password).toString('base64')}]`,
-        },
-      ],
+      secrets,
     };
 
     db.resourcesFor(userMode).unshift(newResource);

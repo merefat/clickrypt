@@ -272,7 +272,7 @@ export default function SharedPage() {
   const activeList = activeTab === 'received' ? receivedResources : outboundRows;
 
   return (
-    <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
+    <div className="flex h-screen overflow-hidden bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">

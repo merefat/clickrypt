@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
+import { schedulePersist } from '@/lib/dbPersistence';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -83,5 +84,43 @@ export async function PUT(request: Request) {
     );
   } catch (error) {
     return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const targetUser = await getAuthUserFromRequest(request);
+
+    if (!targetUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_CACHE_HEADERS });
+    }
+
+    if (targetUser.role === 'Owner') {
+      return NextResponse.json(
+        { error: 'Organization owners must transfer ownership before deleting their account.' },
+        { status: 403, headers: NO_CACHE_HEADERS }
+      );
+    }
+
+    db.users = db.users.filter((u) => u.id !== targetUser.id);
+    db.resources = db.resources.filter((r) => r.ownerId !== targetUser.id);
+    db.folders = db.folders.filter((f) => f.creatorId !== targetUser.id);
+    db.auditLogs = db.auditLogs.filter((l) => l.userId !== targetUser.id);
+
+    if (targetUser.organizationId) {
+      db.organizationResources = db.organizationResources.filter((r) => r.ownerId !== targetUser.id);
+      db.organizationFolders = db.organizationFolders.filter((f) => f.creatorId !== targetUser.id);
+      db.organizationAuditLogs = db.organizationAuditLogs.filter((l) => l.userId !== targetUser.id);
+      db.groups = db.groups.map((g) => ({ ...g, members: g.members.filter((m) => m.userId !== targetUser.id) }));
+    }
+
+    schedulePersist(db);
+
+    return NextResponse.json(
+      { success: true, message: 'Account deleted successfully' },
+      { status: 200, headers: NO_CACHE_HEADERS }
+    );
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to delete account' }, { status: 500, headers: NO_CACHE_HEADERS });
   }
 }

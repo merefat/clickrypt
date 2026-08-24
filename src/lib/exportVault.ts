@@ -282,7 +282,7 @@ export async function exportPasswords(
   data: ExportRow[],
   format: 'csv' | 'json' | 'pdf' | 'xlsx' | 'kdbx',
   user: any
-): Promise<{ filename: string; count: number; filePassword: string; originalFormat: string }> {
+): Promise<{ filename: string; count: number; filePassword?: string; originalFormat: string }> {
   const timestampStr = new Date().toISOString().replace(/[:.]/g, '-');
   const baseName = `clickrypt_vault_export_${timestampStr}`;
   const count = data.length;
@@ -296,10 +296,8 @@ export async function exportPasswords(
     );
     const originalBytes = new TextEncoder().encode(fileContent);
     const originalFileName = `${baseName}.json`;
-    const html = await buildEncryptedHtmlExport(originalBytes, originalFileName, getOriginalMime(format), filePassword);
-    const encryptedFileName = `${baseName}.html`;
-    downloadBlob(new Blob([html], { type: 'text/html' }), encryptedFileName);
-    return { filename: encryptedFileName, count, filePassword, originalFormat: format };
+    downloadBlob(new Blob([originalBytes], { type: getOriginalMime(format) }), originalFileName);
+    return { filename: originalFileName, count, originalFormat: format };
   }
 
   if (format === 'csv') {
@@ -318,10 +316,8 @@ export async function exportPasswords(
     const fileContent = csvRows.join('\r\n');
     const originalBytes = new TextEncoder().encode(fileContent);
     const originalFileName = `${baseName}.csv`;
-    const html = await buildEncryptedHtmlExport(originalBytes, originalFileName, getOriginalMime(format), filePassword);
-    const encryptedFileName = `${baseName}.html`;
-    downloadBlob(new Blob([html], { type: 'text/html' }), encryptedFileName);
-    return { filename: encryptedFileName, count, filePassword, originalFormat: format };
+    downloadBlob(new Blob([originalBytes], { type: getOriginalMime(format) }), originalFileName);
+    return { filename: originalFileName, count, originalFormat: format };
   }
 
   if (format === 'pdf') {
@@ -355,21 +351,26 @@ export async function exportPasswords(
       bodyStyles: { fillColor: [255, 255, 255], textColor: [15, 23, 42], fontSize: 8.5 },
       alternateRowStyles: { fillColor: [245, 248, 251] },
       margin: { top: 28, left: 14, right: 14, bottom: 18 },
+      columnStyles: {
+        0: { cellWidth: 40 },
+        1: { cellWidth: 45 },
+        2: { cellWidth: 50 },
+        3: { cellWidth: 80 },
+        4: { cellWidth: 35 },
+      },
     });
     const pageCount = (doc as any).internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
       doc.setTextColor(100, 116, 139);
-      doc.text(`Page ${i} of ${pageCount} • Clickrypt OpenPGP Encrypted Export • Strictly Confidential`, 14, 202);
+      doc.text(`Page ${i} of ${pageCount} • Clickrypt OpenPGP Vault Export • Strictly Confidential`, 14, 202);
     }
     const pdfArray = doc.output('arraybuffer') as ArrayBuffer;
     const originalBytes = new Uint8Array(pdfArray);
     const originalFileName = `${baseName}.pdf`;
-    const html = await buildEncryptedHtmlExport(originalBytes, originalFileName, getOriginalMime(format), filePassword);
-    const encryptedFileName = `${baseName}.html`;
-    downloadBlob(new Blob([html], { type: 'text/html' }), encryptedFileName);
-    return { filename: encryptedFileName, count, filePassword, originalFormat: format };
+    downloadBlob(new Blob([originalBytes], { type: getOriginalMime(format) }), originalFileName);
+    return { filename: originalFileName, count, originalFormat: format };
   }
 
   if (format === 'xlsx') {
@@ -384,15 +385,20 @@ export async function exportPasswords(
         LastModified: neutralizeFormulaStart(d.LastModified),
       }));
       const ws = XLSX.utils.json_to_sheet(sanitizedData);
+      ws['!cols'] = [
+        { wch: 28 },
+        { wch: 26 },
+        { wch: 28 },
+        { wch: 40 },
+        { wch: 22 },
+      ];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Passwords');
       const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const originalBytes = new Uint8Array(out as ArrayBuffer);
       const originalFileName = `${baseName}.xlsx`;
-      const html = await buildEncryptedHtmlExport(originalBytes, originalFileName, getOriginalMime(format), filePassword);
-      const encryptedFileName = `${baseName}.html`;
-      downloadBlob(new Blob([html], { type: 'text/html' }), encryptedFileName);
-      return { filename: encryptedFileName, count, filePassword, originalFormat: format };
+      downloadBlob(new Blob([originalBytes], { type: getOriginalMime(format) }), originalFileName);
+      return { filename: originalFileName, count, originalFormat: format };
     } catch (err: any) {
       throw new Error('XLSX export failed: ' + (err?.message || 'unknown error'));
     }
@@ -424,7 +430,7 @@ export async function exportPasswords(
     }
   }
 
-  return { filename: baseName, count, filePassword, originalFormat: format };
+  return { filename: baseName, count, originalFormat: format };
 }
 
 export interface ImportExportRecord {
@@ -435,7 +441,6 @@ export interface ImportExportRecord {
   format: string;
   count: number;
   by: string;
-  filePassword?: string;
   passwordNames?: string[];
 }
 

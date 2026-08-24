@@ -3,10 +3,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import {
   User,
+  Users,
   Lock,
   Key,
   ShieldCheck,
@@ -59,13 +61,19 @@ export default function SettingsPage() {
     refreshUser,
     appMode,
     setUnlockedPgpKey,
+    logout,
   } = useAuth();
+  const router = useRouter();
   const is2FAEnabled = !!user?.twoFactorEnabled;
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -86,10 +94,29 @@ export default function SettingsPage() {
   const [showSsoConfigModal, setShowSsoConfigModal] = useState(false);
   const [ssoSettingsList, setSsoSettingsList] = useState<any[]>([]);
 
+  // Organization Settings state
+  const [showSettings, setShowSettings] = useState(false);
+  const [openEnrollment, setOpenEnrollment] = useState(false);
+  const [openEnrollmentLoading, setOpenEnrollmentLoading] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  const [transferTarget, setTransferTarget] = useState('');
+  const [transferStage, setTransferStage] = useState<'idle' | 'confirm'>('idle');
+  const [transferCode, setTransferCode] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [transferError, setTransferError] = useState('');
+  const [transferMessage, setTransferMessage] = useState('');
+
   useEffect(() => {
     fetchRecPolicy();
     fetchSsoSettings();
+    fetchUsers();
   }, []);
+
+  useEffect(() => {
+    if (user?.organization) {
+      setOpenEnrollment(user.organization.openEnrollment ?? false);
+    }
+  }, [user]);
 
   const fetchRecPolicy = async () => {
     try {
@@ -103,6 +130,75 @@ export default function SettingsPage() {
       const res = await api.get('/sso/settings');
       if (res.data?.settings) setSsoSettingsList(res.data.settings);
     } catch (e) {}
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const res = await api.get('/admin/users');
+      setUsers(res.data || []);
+    } catch (e) {}
+  };
+
+  const handleToggleOpenEnrollment = async () => {
+    setOpenEnrollmentLoading(true);
+    setTransferError('');
+    setTransferMessage('');
+    try {
+      const res = await api.post('/admin/users', { action: 'toggle-open-enrollment' });
+      if (res.data?.openEnrollment !== undefined) {
+        setOpenEnrollment(res.data.openEnrollment);
+        setTransferMessage('Open enrollment updated');
+      }
+    } catch (err: any) {
+      setTransferError(err.response?.data?.error || 'Failed to update open enrollment');
+    } finally {
+      setOpenEnrollmentLoading(false);
+    }
+  };
+
+  const handleInitiateTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transferTarget) return;
+    setTransferError('');
+    setTransferMessage('');
+    try {
+      const res = await api.post('/admin/users', {
+        action: 'initiate-ownership-transfer',
+        targetUserId: transferTarget,
+      });
+      if (res.data?.success) {
+        setTransferStage('confirm');
+        setTransferMessage(res.data.message || 'Transfer code sent to your email');
+      }
+    } catch (err: any) {
+      setTransferError(err.response?.data?.error || 'Failed to initiate transfer');
+    }
+  };
+
+  const handleConfirmTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transferTarget || !transferCode) return;
+    setTransferError('');
+    setTransferMessage('');
+    try {
+      const res = await api.post('/admin/users', {
+        action: 'confirm-ownership-transfer',
+        targetUserId: transferTarget,
+        emailOtp: transferCode,
+        twoFactorCode: user?.twoFactorEnabled ? twoFactorCode : undefined,
+      });
+      if (res.data?.success) {
+        setTransferStage('idle');
+        setTransferCode('');
+        setTwoFactorCode('');
+        setTransferTarget('');
+        setTransferMessage(res.data.message || 'Ownership transferred successfully');
+        await refreshUser();
+        fetchUsers();
+      }
+    } catch (err: any) {
+      setTransferError(err.response?.data?.error || 'Failed to confirm transfer');
+    }
   };
 
   const handleSaveRecPolicy = async (e: React.FormEvent) => {
@@ -252,6 +348,23 @@ ${backupCodes.map((code, idx) => `${idx + 1}. ${code}`).join('\n')}
     await updateProfile(name, email, avatarUrl);
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') {
+      setDeleteError('Please type DELETE to confirm.');
+      return;
+    }
+    setDeleteLoading(true);
+    setDeleteError('');
+    try {
+      await api.delete('/auth/me');
+      await logout();
+      router.push('/');
+    } catch (err: any) {
+      setDeleteError(err.response?.data?.error || 'Failed to delete account. Please try again.');
+      setDeleteLoading(false);
+    }
   };
 
   const handleChangePasswordSubmit = async (e: React.FormEvent) => {
@@ -494,7 +607,7 @@ ${privKey}
   };
 
   return (
-    <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
+    <div className="flex h-screen overflow-hidden bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -773,6 +886,182 @@ ${privKey}
               )}
             </div>
           </div>
+
+          {/* Organization Settings */}
+          {user?.role === 'Owner' && user.organization && (
+            <div className="bg-[#ffffff] border border-[#cbd5e1] rounded-2xl p-6 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-[#0284c7]" />
+                  <h2 className="text-lg font-extrabold text-[#0f172a]">Organization Settings</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSettings(!showSettings)}
+                  className="text-[#0284c7] text-xs font-extrabold hover:underline"
+                >
+                  {showSettings ? 'Hide' : 'Manage'}
+                </button>
+              </div>
+
+              {showSettings && (
+                <div className="space-y-6">
+                  <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-xs">
+                    <strong>Open enrollment</strong> lets anyone with a matching email domain join your organization
+                    automatically. Keep this off unless you fully trust your email domain security. It is safer to invite
+                    members manually.
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-extrabold text-[#0f172a]">Open Enrollment</p>
+                      <p className="text-[10px] text-[#64748b]">
+                        Currently {openEnrollment ? 'ON' : 'OFF'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleToggleOpenEnrollment}
+                      disabled={openEnrollmentLoading}
+                      className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                        openEnrollment
+                          ? 'bg-rose-100 text-rose-700 hover:bg-rose-200'
+                          : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                      }`}
+                    >
+                      {openEnrollmentLoading ? 'Saving...' : openEnrollment ? 'Turn Off' : 'Turn On'}
+                    </button>
+                  </div>
+
+                  {transferMessage && (
+                    <div className="p-3 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 text-xs font-bold">
+                      {transferMessage}
+                    </div>
+                  )}
+                  {transferError && (
+                    <div className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-rose-900 text-xs font-bold">
+                      {transferError}
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="text-sm font-extrabold text-[#0f172a] mb-2">Transfer Ownership</p>
+                    {transferStage === 'idle' ? (
+                      <form onSubmit={handleInitiateTransfer} className="flex items-center gap-3">
+                        <select
+                          value={transferTarget}
+                          onChange={(e) => setTransferTarget(e.target.value)}
+                          className="bg-[#e0f2fe] border border-[#1fbbd2] rounded-xl px-3 py-2 text-xs text-[#0f172a] font-bold outline-none focus:border-[#0284c7]"
+                          required
+                        >
+                          <option value="">Select member</option>
+                          {users
+                            .filter((u) => u.id !== user?.id)
+                            .map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.name} ({u.email})
+                              </option>
+                            ))}
+                        </select>
+                        <button
+                          type="submit"
+                          className="px-4 py-2 bg-[#0f172a] text-white rounded-xl text-xs font-extrabold hover:bg-[#1fbbd2] transition-colors cursor-pointer"
+                        >
+                          Start Transfer
+                        </button>
+                      </form>
+                    ) : (
+                      <form onSubmit={handleConfirmTransfer} className="space-y-3">
+                        <p className="text-[11px] text-[#64748b]">
+                          Enter the code sent to your email and your 2FA code if enabled.
+                        </p>
+                        <input
+                          type="text"
+                          placeholder="Email code"
+                          value={transferCode}
+                          onChange={(e) => setTransferCode(e.target.value)}
+                          className="w-full max-w-xs bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-3 py-2 text-xs text-[#0f172a] font-bold outline-none focus:border-[#1fbbd2]"
+                          required
+                        />
+                        {user?.twoFactorEnabled && (
+                          <input
+                            type="text"
+                            placeholder="2FA code"
+                            value={twoFactorCode}
+                            onChange={(e) => setTwoFactorCode(e.target.value)}
+                            className="w-full max-w-xs bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-3 py-2 text-xs text-[#0f172a] font-bold outline-none focus:border-[#1fbbd2]"
+                            required
+                          />
+                        )}
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="submit"
+                            className="px-4 py-2 bg-[#f39c12] text-white rounded-xl text-xs font-extrabold hover:opacity-95 transition-colors cursor-pointer"
+                          >
+                            Confirm Transfer
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setTransferStage('idle'); setTransferCode(''); setTwoFactorCode(''); setTransferError(''); setTransferMessage(''); }}
+                            className="px-4 py-2 bg-[#ffffff] border border-[#cbd5e1] text-[#64748b] rounded-xl text-xs font-extrabold hover:bg-[#f1f5f9] transition-colors cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Delete Account */}
+          <div className="glass-panel rounded-2xl p-6 border border-rose-200 bg-[#ffffff] space-y-6 shadow-xl">
+            <div className="flex items-center gap-2 text-sm font-extrabold text-[#0f172a] border-b border-rose-200 pb-3">
+              <ShieldAlert className="w-4 h-4 text-rose-600" />
+              <span>Delete Account</span>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-[11px] text-[#64748b]">
+                Permanently delete your account and all associated data. This action cannot be undone.
+              </p>
+
+              {deleteError && (
+                <div className="p-3 rounded-xl border border-rose-300 bg-rose-50 text-rose-900 text-xs font-bold">
+                  {deleteError}
+                </div>
+              )}
+
+              {!showDeleteConfirm ? (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-extrabold transition-colors cursor-pointer shadow-sm"
+                >
+                  Delete Account
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    placeholder="Type DELETE to confirm"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    className="w-full max-w-xs bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-3 py-2 text-xs text-[#0f172a] font-bold outline-none focus:border-rose-500"
+                  />
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={deleteLoading}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-extrabold transition-colors cursor-pointer shadow-sm disabled:opacity-50"
+                  >
+                    {deleteLoading ? 'Deleting...' : 'Permanently Delete Account'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
         </main>
       </div>
 

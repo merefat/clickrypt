@@ -114,7 +114,6 @@ export default function ImportExportPage() {
   const [importedCount, setImportedCount] = useState<number | null>(null);
   const [exportSuccessMessage, setExportSuccessMessage] = useState<string | null>(null);
   const [importedFileName, setImportedFileName] = useState<string | null>(null);
-  const [kdbxPassword, setKdbxPassword] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [pendingExportResources, setPendingExportResources] = useState<any[] | null>(null);
@@ -213,14 +212,13 @@ export default function ImportExportPage() {
       const currentLine = rows[r].map((val) => val.trim().replace(/^["']|["']$/g, ''));
       if (currentLine.length === 0 || (currentLine.length === 1 && !currentLine[0])) continue;
 
-      const itemObj: any = { name: '', username: '', password: '', url: 'example.com', category: 'Imported' };
+      const itemObj: any = { name: '', username: '', password: '', url: 'example.com' };
       headers.forEach((h, idx) => {
         const val = currentLine[idx] || '';
         if (h.includes('title') || h.includes('name')) itemObj.name = val;
         else if (h.includes('user') || h.includes('login') || h.includes('email')) itemObj.username = val;
         else if (h.includes('pass') || h.includes('secret')) itemObj.password = val;
         else if (h.includes('url') || h.includes('website') || h.includes('link')) itemObj.url = val;
-        else if (h.includes('cat') || h.includes('folder') || h.includes('group')) itemObj.category = val;
       });
 
       if (!itemObj.name) itemObj.name = currentLine[0] || `Imported Item ${r}`;
@@ -238,11 +236,11 @@ export default function ImportExportPage() {
     return [parsed];
   };
 
-  const parseKdbx = async (file: File, password: string) => {
+  const parseKdbx = async (file: File, password?: string) => {
     const kdbxwebModule = await import('kdbxweb');
     const kdbxweb = (kdbxwebModule as any).default || kdbxwebModule;
     const arrayBuffer = await file.arrayBuffer();
-    const credentials = new kdbxweb.Credentials(kdbxweb.ProtectedValue.fromString(password));
+    const credentials = new kdbxweb.Credentials(kdbxweb.ProtectedValue.fromString(password ?? ''));
     const db = await kdbxweb.Kdbx.load(arrayBuffer, credentials);
 
     const getField = (entry: any, field: string): string => {
@@ -261,7 +259,6 @@ export default function ImportExportPage() {
           username: getField(entry, 'UserName') || '',
           password: getField(entry, 'Password') || '',
           url: getField(entry, 'URL') || 'example.com',
-          category: group.name || 'Imported',
         });
       }
       for (const sub of group.groups || []) {
@@ -286,12 +283,7 @@ export default function ImportExportPage() {
       let parsedItems: any[] = [];
 
       if (file.name.endsWith('.kdbx') || selectedFormat === 'kdbx') {
-        if (!kdbxPassword) {
-          alert('Please enter the KeePass master password to decrypt this .kdbx file.');
-          setLoadingImport(false);
-          return;
-        }
-        parsedItems = await parseKdbx(file, kdbxPassword);
+        parsedItems = await parseKdbx(file);
       } else {
         const text = await file.text();
 
@@ -333,7 +325,6 @@ export default function ImportExportPage() {
           name: title,
           username: userStr,
           url: urlStr,
-          category: 'Imported',
           encryptedData,
         });
         count++;
@@ -368,7 +359,6 @@ export default function ImportExportPage() {
         getEncryptedPrivateKey
       );
       const { filename, count, filePassword } = await exportPasswords(decryptedExportData, exportType, user);
-      console.log('[debug] exportPasswords returned filePassword:', filePassword);
 
       const newRecord = addImportExportHistory({
         type: 'export',
@@ -376,7 +366,6 @@ export default function ImportExportPage() {
         format: exportType,
         count,
         by: user?.name || user?.email || 'Unknown',
-        filePassword,
         passwordNames: allResources.map((r: any) => r.name),
       });
       console.log('[debug] newRecord:', newRecord);
@@ -391,7 +380,7 @@ export default function ImportExportPage() {
         ? ` Note: ${failedDecryptionCount} password${failedDecryptionCount > 1 ? 's' : ''} could not be decrypted and will show "[Decryption Required]".`
         : '';
       const kdbxNote = exportType === 'kdbx' ? ` The KDBX master password is: ${filePassword}.` : '';
-      setExportSuccessMessage(`Exported ${count} passwords to ${filename}.${kdbxNote} The export password is recorded in the history below.${failedNote}`);
+      setExportSuccessMessage(`Exported ${count} passwords to ${filename}.${kdbxNote}${failedNote}`);
     } catch (err: any) {
       console.error(err);
       alert('Export failed: ' + (err.message || 'Unknown error'));
@@ -472,7 +461,7 @@ export default function ImportExportPage() {
 
   if (isLoading || !user) {
     return (
-      <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
+      <div className="flex h-screen overflow-hidden bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <Header />
@@ -485,7 +474,7 @@ export default function ImportExportPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
+    <div className="flex h-screen overflow-hidden bg-[#dfe6ed] text-[#0f172a] select-none font-sora">
       <Sidebar />
 
       {/* Hidden Native OS File Input */}
@@ -560,20 +549,6 @@ export default function ImportExportPage() {
                   })}
                 </div>
               </div>
-
-              {/* KeePass Master Password */}
-              {selectedFormat === 'kdbx' && (
-                <div className="space-y-2">
-                  <label className="text-xs font-extrabold text-[#334155]">KeePass Master Password</label>
-                  <input
-                    type="password"
-                    value={kdbxPassword}
-                    onChange={(e) => setKdbxPassword(e.target.value)}
-                    placeholder="Enter your .kdbx master password"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#cbd5e1] text-xs font-extrabold text-[#0f172a] focus:outline-none focus:ring-2 focus:ring-[#1fbbd2]/50"
-                  />
-                </div>
-              )}
 
               {/* Interactive Dropzone with Native File Picker */}
               <div
@@ -868,17 +843,16 @@ export default function ImportExportPage() {
                   </div>
                 ) : (
                   <><div className="overflow-x-auto border border-[#cbd5e1] rounded-xl">
-                    <table className="w-full text-left text-xs">
+                    <table className="w-full text-left text-xs table-fixed">
                       <thead className="bg-[#e6eff7] text-[#334155] font-extrabold border-b border-[#cbd5e1]">
                         <tr>
-                          <th className="py-2.5 px-3">Type</th>
-                          <th className="py-2.5 px-3">Date & Time</th>
-                          <th className="py-2.5 px-3">Format</th>
-                          <th className="py-2.5 px-3">Password</th>
-                          <th className="py-2.5 px-3">File</th>
-                          <th className="py-2.5 px-3">Count</th>
-                          <th className="py-2.5 px-3">By</th>
-                          <th className="py-2.5 px-3">Items</th>
+                          <th className="py-2.5 px-3 w-16 whitespace-nowrap">Type</th>
+                          <th className="py-2.5 px-3 w-40 whitespace-nowrap">Date &amp; Time</th>
+                          <th className="py-2.5 px-3 w-24 whitespace-nowrap">Format</th>
+                          <th className="py-2.5 px-3 w-40 whitespace-nowrap">File</th>
+                          <th className="py-2.5 px-3 w-16 whitespace-nowrap">Count</th>
+                          <th className="py-2.5 px-3 w-32 whitespace-nowrap">By</th>
+                          <th className="py-2.5 px-3 w-40 whitespace-nowrap">Items</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#e2e8f0]">
@@ -887,11 +861,9 @@ export default function ImportExportPage() {
                             (historyPage - 1) * HISTORY_PER_PAGE,
                             historyPage * HISTORY_PER_PAGE
                           )
-                          .map((h) => {
-                          console.log('[debug] table row:', h);
-                          return (
+                          .map((h) => (
                           <tr key={h.id} className="hover:bg-[#f1f6fb]">
-                            <td className="py-2.5 px-3">
+                            <td className="py-2.5 px-3 whitespace-nowrap">
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
                                 h.type === 'import'
                                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -900,40 +872,18 @@ export default function ImportExportPage() {
                                 {h.type.toUpperCase()}
                               </span>
                             </td>
-                            <td className="py-2.5 px-3 text-[#334155]">{new Date(h.timestamp).toLocaleString()}</td>
-                            <td className="py-2.5 px-3 text-[#334155]">{h.format.toUpperCase()}</td>
-                            <td className="py-2.5 px-3 text-[#0f172a] font-mono max-w-[120px]" title={h.filePassword}>
-                              <div className="flex items-center gap-2">
-                                <span className="truncate">{h.filePassword || '—'}</span>
-                                {h.filePassword && (
-                                  <button
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(h.filePassword || '');
-                                      setCopiedId(h.id);
-                                      setTimeout(() => setCopiedId(null), 1500);
-                                    }}
-                                    className="shrink-0 text-[#0284c7] hover:text-[#0369a1] focus:outline-none"
-                                    title="Copy password"
-                                  >
-                                    {copiedId === h.id ? (
-                                      <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                    ) : (
-                                      <Copy className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                )}
-                              </div>
-                            </td>
+                            <td className="py-2.5 px-3 text-[#334155] whitespace-nowrap">{new Date(h.timestamp).toLocaleString()}</td>
+                            <td className="py-2.5 px-3 text-[#334155] whitespace-nowrap font-bold">{h.format.toUpperCase()}</td>
                             <td className="py-2.5 px-3 text-[#0f172a] font-bold truncate max-w-[140px]">{h.fileName}</td>
-                            <td className="py-2.5 px-3 text-[#334155]">{h.count}</td>
-                            <td className="py-2.5 px-3 text-[#334155]">{h.by}</td>
+                            <td className="py-2.5 px-3 text-[#334155] whitespace-nowrap">{h.count}</td>
+                            <td className="py-2.5 px-3 text-[#334155] truncate max-w-[128px]" title={h.by}>{h.by}</td>
                             <td className="py-2.5 px-3 text-[#334155] truncate max-w-[160px]" title={h.passwordNames?.join(', ')}>
                               {h.passwordNames && h.passwordNames.length > 0
                                 ? `${h.passwordNames.length} item${h.passwordNames.length > 1 ? 's' : ''}`
                                 : '—'}
                             </td>
                           </tr>
-                        )})}
+                        ))}
                       </tbody>
                     </table>
                   </div>
