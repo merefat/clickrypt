@@ -28,6 +28,57 @@ function verificationCodeExpiry(): string {
   return new Date(Date.now() + VERIFICATION_CODE_EXPIRY_MINUTES * 60 * 1000).toISOString();
 }
 
+async function createOrRecoverAuthUser(
+  email: string,
+  password: string,
+  displayName: string
+): Promise<{
+  authUser: { id: string };
+  session: { access_token: string } | null;
+  error?: string;
+}> {
+  const supabaseAuth = getSupabaseAuthClient();
+
+  const { data: signUpData, error: signUpError } = await supabaseAuth.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { name: displayName },
+  });
+
+  if (signUpData?.user) {
+    return { authUser: signUpData.user, session: null };
+  }
+
+  if (!signUpError) {
+    return { authUser: { id: '' }, session: null, error: 'User creation failed: Supabase did not return a user profile.' };
+  }
+
+  const isDuplicate =
+    signUpError.message.toLowerCase().includes('already registered') ||
+    signUpError.message.toLowerCase().includes('already exists') ||
+    signUpError.message.toLowerCase().includes('duplicate');
+
+  if (!isDuplicate) {
+    return { authUser: { id: '' }, session: null, error: signUpError.message };
+  }
+
+  const { data: signInData, error: signInError } = await supabaseAuth.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (signInError || !signInData?.user) {
+    return {
+      authUser: { id: '' },
+      session: null,
+      error: 'An account with this email already exists. Please sign in instead.',
+    };
+  }
+
+  return { authUser: signInData.user, session: signInData.session };
+}
+
 export async function POST(request: Request) {
   try {
     const {
@@ -66,25 +117,26 @@ export async function POST(request: Request) {
     const existingUserIndex = db.users.findIndex((u) => u.email?.toLowerCase() === lowerEmail);
     const existingUser = existingUserIndex >= 0 ? db.users[existingUserIndex] : null;
 
-    if (existingUser && existingUser.status === 'Invited') {
-      const { data: signUpData, error: signUpError } = await getSupabaseAuthClient().auth.admin.createUser({
-        email: lowerEmail,
-        password,
-        email_confirm: true,
-        user_metadata: { name: name || existingUser.name },
-      });
+    let activeSession: { access_token: string } | null = null;
 
-      if (signUpError) {
-        return NextResponse.json({ error: signUpError.message }, { status: 409 });
+    if (existingUser && existingUser.status === 'Invited') {
+      const displayName = name || existingUser.name || lowerEmail.split('@')[0];
+      const { authUser, session: authSession, error: authError } = await createOrRecoverAuthUser(
+        lowerEmail,
+        password,
+        displayName
+      );
+      if (authError) {
+        return NextResponse.json({ error: authError }, { status: 409 });
       }
-      if (!signUpData?.user) {
+      if (!authUser?.id) {
         return NextResponse.json(
           { error: 'User creation failed: Supabase did not return a user profile.' },
           { status: 500 }
         );
       }
 
-      const authId = signUpData.user.id;
+      const authId = authUser.id;
 
       existingUser.name = name || existingUser.name || lowerEmail.split('@')[0];
       existingUser.status = 'Active';
@@ -95,13 +147,15 @@ export async function POST(request: Request) {
       existingUser.lastActive = 'Just now';
       existingUser.accountMode = 'organization' as any;
 
-      const { data: signInData, error: signInError } = await getSupabaseAuthClient().auth.signInWithPassword({
-        email: lowerEmail,
-        password,
-      });
-      if (signInError || !signInData?.session) {
+      const session =
+        authSession ??
+        (await getSupabaseAuthClient().auth.signInWithPassword({
+          email: lowerEmail,
+          password,
+        })).data?.session;
+      if (!session) {
         return NextResponse.json(
-          { error: signInError?.message || 'Account created but session could not be started.' },
+          { error: 'Account created but session could not be started.' },
           { status: 500 }
         );
       }
@@ -118,7 +172,7 @@ export async function POST(request: Request) {
 
       const response = NextResponse.json({
         success: true,
-        token: signInData.session.access_token,
+        token: session.access_token,
         user: {
           id: existingUser.id,
           email: existingUser.email,
@@ -131,7 +185,7 @@ export async function POST(request: Request) {
         },
       });
 
-      response.cookies.set('access_token', signInData.session.access_token, {
+      response.cookies.set('access_token', session.access_token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
@@ -172,6 +226,7 @@ export async function POST(request: Request) {
       }
 
       const existingOrg = db.organizations.find((o) => o.domain === normalizedDomain);
+      const displayName = name || lowerEmail.split('@')[0];
 
       if (existingOrg) {
         if (existingOrg.verificationStatus !== 'verified') {
@@ -187,16 +242,15 @@ export async function POST(request: Request) {
           );
         }
 
-        const { data: signUpData, error: signUpError } = await getSupabaseAuthClient().auth.admin.createUser({
-          email: lowerEmail,
+        const { authUser, session: authSession, error: authError } = await createOrRecoverAuthUser(
+          lowerEmail,
           password,
-          email_confirm: true,
-          user_metadata: { name: name || lowerEmail.split('@')[0] },
-        });
-        if (signUpError) {
-          return NextResponse.json({ error: signUpError.message }, { status: 409 });
+          displayName
+        );
+        if (authError) {
+          return NextResponse.json({ error: authError }, { status: 409 });
         }
-        if (!signUpData?.user) {
+        if (!authUser?.id) {
           return NextResponse.json(
             { error: 'User creation failed: Supabase did not return a user profile.' },
             { status: 500 }
@@ -214,24 +268,25 @@ export async function POST(request: Request) {
           lastActive: 'Just now',
           accountMode: 'organization' as const,
           organizationId: existingOrg.id,
-          authId: signUpData.user.id,
+          authId: authUser.id,
         };
 
         db.users.push(newUser);
         targetUser = newUser;
+        activeSession = authSession;
       } else {
         // New organization, first registrant becomes pending Owner
         const orgId = newOrgId();
-        const { data: signUpData, error: signUpError } = await getSupabaseAuthClient().auth.admin.createUser({
-          email: lowerEmail,
+
+        const { authUser, session: authSession, error: authError } = await createOrRecoverAuthUser(
+          lowerEmail,
           password,
-          email_confirm: true,
-          user_metadata: { name: name || lowerEmail.split('@')[0] },
-        });
-        if (signUpError) {
-          return NextResponse.json({ error: signUpError.message }, { status: 409 });
+          displayName
+        );
+        if (authError) {
+          return NextResponse.json({ error: authError }, { status: 409 });
         }
-        if (!signUpData?.user) {
+        if (!authUser?.id) {
           return NextResponse.json(
             { error: 'User creation failed: Supabase did not return a user profile.' },
             { status: 500 }
@@ -249,7 +304,7 @@ export async function POST(request: Request) {
           lastActive: 'Just now',
           accountMode: 'organization' as const,
           organizationId: orgId,
-          authId: signUpData.user.id,
+          authId: authUser.id,
         };
 
         const code = generateVerificationCode();
@@ -280,16 +335,16 @@ export async function POST(request: Request) {
       }
     } else {
       // Personal account
-      const { data: signUpData, error: signUpError } = await getSupabaseAuthClient().auth.admin.createUser({
-        email: lowerEmail,
+      const displayName = name || lowerEmail.split('@')[0];
+      const { authUser, session: authSession, error: authError } = await createOrRecoverAuthUser(
+        lowerEmail,
         password,
-        email_confirm: true,
-        user_metadata: { name: name || lowerEmail.split('@')[0] },
-      });
-      if (signUpError) {
-        return NextResponse.json({ error: signUpError.message }, { status: 409 });
+        displayName
+      );
+      if (authError) {
+        return NextResponse.json({ error: authError }, { status: 409 });
       }
-      if (!signUpData?.user) {
+      if (!authUser?.id) {
         return NextResponse.json(
           { error: 'User creation failed: Supabase did not return a user profile.' },
           { status: 500 }
@@ -306,20 +361,23 @@ export async function POST(request: Request) {
         encryptedPrivateKey: encryptedPrivateKey || '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n...',
         lastActive: 'Just now',
         accountMode: 'personal' as const,
-        authId: signUpData.user.id,
+        authId: authUser.id,
       };
 
       db.users.push(newUser);
       targetUser = newUser;
+      activeSession = authSession;
     }
 
-    const { data: signInData, error: signInError } = await getSupabaseAuthClient().auth.signInWithPassword({
-      email: lowerEmail,
-      password,
-    });
-    if (signInError || !signInData?.session) {
+    const session =
+      activeSession ??
+      (await getSupabaseAuthClient().auth.signInWithPassword({
+        email: lowerEmail,
+        password,
+      })).data?.session;
+    if (!session) {
       return NextResponse.json(
-        { error: signInError?.message || 'Account created but session could not be started.' },
+        { error: 'Account created but session could not be started.' },
         { status: 500 }
       );
     }
@@ -336,7 +394,7 @@ export async function POST(request: Request) {
 
     const response = NextResponse.json({
       success: true,
-      token: signInData.session.access_token,
+      token: session.access_token,
       user: {
         id: targetUser.id,
         email: targetUser.email,
@@ -349,7 +407,7 @@ export async function POST(request: Request) {
       },
     });
 
-    response.cookies.set('access_token', signInData.session.access_token, {
+    response.cookies.set('access_token', session.access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
