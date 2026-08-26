@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { loadDbSync, schedulePersist, persistDb } from './dbPersistence';
+import { loadDb, schedulePersist } from './dbPersistence';
 
 export interface DbSubscription {
   plan: 'Organization' | 'Self-hosted';
@@ -28,6 +28,7 @@ export interface DbUser {
   personalProfile?: ModeProfile;
   organizationProfile?: ModeProfile;
   accountMode?: 'personal' | 'organization';
+  authId?: string;
   passkeys?: DbPasskey[];
   twoFactorEnabled?: boolean;
   twoFactorSecret?: string;
@@ -164,38 +165,7 @@ const globalForDbData = globalThis as unknown as {
 };
 
 if (!globalForDbData.dbUsersStore) {
-  globalForDbData.dbUsersStore = [
-    {
-      id: 'u-1',
-      email: 'refat61899200@gmail.com',
-      name: 'Refat',
-      role: 'Owner',
-      status: 'Active',
-      publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2RefatAhmedPublicKeyBase64PayloadData2026==\n-----END PGP PUBLIC KEY BLOCK-----',
-      encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2RefatAhmedPrivateKeyBase64PayloadData2026==\n-----END PGP PRIVATE KEY BLOCK-----',
-      lastActive: 'Just now',
-    },
-    {
-      id: 'u-2',
-      email: 'alex.morgan@acme.com',
-      name: 'Alex Morgan',
-      role: 'Owner',
-      status: 'Active',
-      publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2AcmeAlexMorganPublicKeyBase64PayloadData2026==\n-----END PGP PUBLIC KEY BLOCK-----',
-      encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2AcmeAlexMorganPrivateKeyBase64PayloadData2026==\n-----END PGP PRIVATE KEY BLOCK-----',
-      lastActive: 'May 24, 2025 10:32 AM',
-    },
-    {
-      id: 'u-5',
-      email: '20103227@iubat.edu',
-      name: 'Arif Ahmed',
-      role: 'Admin',
-      status: 'Active',
-      publicKey: '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...ArifPublic...==\n-----END PGP PUBLIC KEY BLOCK-----',
-      encryptedPrivateKey: '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...ArifPrivateKey...==\n-----END PGP PRIVATE KEY BLOCK-----',
-      lastActive: 'Just now',
-    },
-  ];
+  globalForDbData.dbUsersStore = [];
 }
 if (!globalForDbData.dbFoldersStore) globalForDbData.dbFoldersStore = [];
 if (!globalForDbData.dbResourcesStore) globalForDbData.dbResourcesStore = [];
@@ -467,12 +437,16 @@ function createPersistedObject(target: any, dbRef: any) {
 
 const globalForDb = globalThis as unknown as { backendDb: BackendDatabase };
 export const db = globalForDb.backendDb || new BackendDatabase();
-if (process.env.NODE_ENV !== 'production') {
-  globalForDb.backendDb = db;
-}
+globalForDb.backendDb = db;
 
-// Hydrate from db.json / Supabase first, then wrap in persistence proxies
-loadDbSync(db);
+// Hydrate from Supabase first, then wrap in persistence proxies
+try {
+  await loadDb(db);
+} catch (err) {
+  const message = err instanceof Error ? err.message : 'Database hydration failed';
+  console.error('Failed to load database from Supabase:', message);
+  db.isSupabaseConnected = false;
+}
 
 const persistableKeys = [
   'users',
@@ -506,6 +480,3 @@ for (const key of persistableKeys) {
 }
 
 (db as any).subscription = createPersistedObject(db.subscription, db);
-
-// Initial snapshot so the file exists and contains default seed data
-persistDb(db);

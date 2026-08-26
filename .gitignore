@@ -32,8 +32,10 @@ yarn-error.log*
 # Environment Files (Ignore local secrets, keep .env.example template)
 .env
 .env.local
+.env.development
 .env.development.local
 .env.test.local
+.env.production
 .env.production.local
 !.env.example
 

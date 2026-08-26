@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
-import jwt from 'jsonwebtoken';
+import { getSupabaseAuthClient } from '@/lib/supabaseServer';
 import { ENABLE_PAY_BILL } from '@/lib/config';
+import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'SuperSecretClickryptJwtKey_2026!';
 
 export async function POST(request: Request) {
   try {
     const { email, password } = await request.json();
+    const lowerEmail = (email || '').toLowerCase().trim();
 
     // 1. Strict Subscription Bill Check - Block Owner, Admin & User if Bill Unpaid/Expired
     if (ENABLE_PAY_BILL && (db.subscription.status === 'Expired' || db.subscription.daysRemaining <= 0)) {
@@ -17,7 +19,7 @@ export async function POST(request: Request) {
         timestamp: new Date().toISOString(),
         action: 'LOGIN_BLOCKED_UNPAID_BILL',
         userId: 'system',
-        details: `Sign-in blocked for ${email}. Organization subscription bill is unpaid/expired.`,
+        details: `Sign-in blocked for ${lowerEmail}. Organization subscription bill is unpaid/expired.`,
       });
 
       return NextResponse.json(
@@ -29,18 +31,31 @@ export async function POST(request: Request) {
       );
     }
 
-    let user = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    // 2. Authenticate with Supabase Auth
+    const { data: signInData, error: signInError } = await getSupabaseAuthClient().auth.signInWithPassword({
+      email: lowerEmail,
+      password,
+    });
+
+    if (signInError || !signInData.user) {
+      return NextResponse.json(
+        { error: 'Invalid email or password.' },
+        { status: 401 }
+      );
+    }
+
+    const user = db.users.find((u) => u.email?.toLowerCase() === lowerEmail);
 
     if (!user) {
       return NextResponse.json(
-        { error: 'No account found with this email. Please register first.' },
+        { error: 'Profile not found. Authentication succeeded but the Clickrypt account profile is missing.' },
         { status: 404 }
       );
     }
 
     const userMode = (user.accountMode || 'personal') as 'personal' | 'organization';
 
-    // 2. Individual Account Suspension Check
+    // 3. Individual Account Suspension Check
     if (user.status === 'Suspended') {
       db.auditLogsFor(userMode).unshift({
         id: `al-${Date.now()}`,
@@ -55,7 +70,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2FA Challenge: if 2FA is enabled, do not issue session token yet. Return short-lived challengeToken
+    // 4. 2FA Challenge
     if (user.twoFactorEnabled && user.twoFactorSecret) {
       const challengeToken = jwt.sign(
         { userId: user.id, email: user.email, is2FAChallenge: true },
@@ -70,12 +85,6 @@ export async function POST(request: Request) {
       });
     }
 
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
     db.auditLogsFor(userMode).unshift({
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),
@@ -86,7 +95,7 @@ export async function POST(request: Request) {
 
     const response = NextResponse.json({
       success: true,
-      token,
+      token: signInData.session!.access_token,
       user: {
         id: user.id,
         email: user.email,
@@ -98,9 +107,9 @@ export async function POST(request: Request) {
       },
     });
 
-    response.cookies.set('access_token', token, {
+    response.cookies.set('access_token', signInData.session!.access_token, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 7,

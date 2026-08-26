@@ -1,36 +1,69 @@
 import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
-import { db, type DbUser } from '@/lib/backendDb';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'SuperSecretClickryptJwtKey_2026!';
+import { getSupabaseServer } from '@/lib/supabaseServer';
+import { type DbUser } from '@/lib/backendDb';
 
 export interface AuthContext {
   user: DbUser | null;
   source: 'bearer' | 'cookie' | null;
 }
 
+function extractTokenFromHeader(request: Request): string | null {
+  const authHeader = request.headers.get('authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7);
+  }
+  return null;
+}
+
+function extractTokenFromCookie(request: Request): string | null {
+  const cookieHeader = request.headers.get('cookie') || '';
+  const match = cookieHeader.match(/access_token=([^;]+)/);
+  return match ? match[1] : null;
+}
+
+async function getClickryptUser(authId: string): Promise<DbUser | null> {
+  const { data: row, error } = await getSupabaseServer()
+    .from('users')
+    .select('id, auth_id, data')
+    .eq('auth_id', authId)
+    .single();
+
+  if (error || !row) {
+    return null;
+  }
+
+  const user = row.data as DbUser;
+  user.id = row.id;
+  user.authId = row.auth_id || row.data?.authId;
+  return user;
+}
+
 export async function getAuthContextFromRequest(request: Request): Promise<AuthContext> {
   try {
-    // 1. Try Authorization header first (tab-isolated session token)
-    const authHeader = request.headers.get('authorization');
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-      const user = db.users.find((u) => u.id === decoded.userId);
-      // Global suspension guard: a suspended token is treated as unauthenticated
-      if (user && user.status !== 'Suspended') return { user, source: 'bearer' };
-      return { user: null, source: 'bearer' };
+    // 1. Try Authorization header first
+    const bearerToken = extractTokenFromHeader(request);
+    if (bearerToken) {
+      const { data: authData, error } = await getSupabaseServer().auth.getUser(bearerToken);
+      if (!error && authData?.user) {
+        const user = await getClickryptUser(authData.user.id);
+        if (user && user.status !== 'Suspended') {
+          return { user, source: 'bearer' };
+        }
+        return { user: null, source: 'bearer' };
+      }
     }
 
     // 2. Fallback to cookie header
-    const cookieHeader = request.headers.get('cookie') || request.headers.get('Cookie') || '';
-    const match = cookieHeader.match(/access_token=([^;]+)/);
-    if (match) {
-      const token = match[1];
-      const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-      const user = db.users.find((u) => u.id === decoded.userId);
-      if (user && user.status !== 'Suspended') return { user, source: 'cookie' };
-      return { user: null, source: 'cookie' };
+    const cookieToken = extractTokenFromCookie(request);
+    if (cookieToken) {
+      const { data: authData, error } = await getSupabaseServer().auth.getUser(cookieToken);
+      if (!error && authData?.user) {
+        const user = await getClickryptUser(authData.user.id);
+        if (user && user.status !== 'Suspended') {
+          return { user, source: 'cookie' };
+        }
+        return { user: null, source: 'cookie' };
+      }
     }
 
     // 3. Fallback to cookie store
@@ -38,12 +71,16 @@ export async function getAuthContextFromRequest(request: Request): Promise<AuthC
       const cookieStore = await cookies();
       const token = cookieStore.get('access_token')?.value || null;
       if (token) {
-        const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-        const user = db.users.find((u) => u.id === decoded.userId);
-        if (user && user.status !== 'Suspended') return { user, source: 'cookie' };
-        return { user: null, source: 'cookie' };
+        const { data: authData, error } = await getSupabaseServer().auth.getUser(token);
+        if (!error && authData?.user) {
+          const user = await getClickryptUser(authData.user.id);
+          if (user && user.status !== 'Suspended') {
+            return { user, source: 'cookie' };
+          }
+          return { user: null, source: 'cookie' };
+        }
       }
-    } catch (e) {}
+    } catch {}
 
     return { user: null, source: null };
   } catch {

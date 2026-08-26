@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
+import { persistDb } from '@/lib/dbPersistence';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
-import { schedulePersist } from '@/lib/dbPersistence';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const mode = searchParams.get('mode') || 'organization';
+    const mode = (searchParams.get('mode') as 'personal' | 'organization') || user.accountMode || 'personal';
 
     const modeProfile = mode === 'personal' ? user.personalProfile : user.organizationProfile;
     const organization = user.organizationId ? db.organizations.find((o) => o.id === user.organizationId) : null;
@@ -43,6 +43,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ user: effectiveUser }, { headers: NO_CACHE_HEADERS });
   } catch (error) {
+    console.error('/api/auth/me error:', error);
     return NextResponse.json({ user: null }, { status: 200, headers: NO_CACHE_HEADERS });
   }
 }
@@ -56,7 +57,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const activeMode = mode || 'organization';
+    const activeMode = (mode as 'personal' | 'organization') || targetUser.accountMode || 'personal';
 
     if (activeMode === 'personal') {
       if (!targetUser.personalProfile) targetUser.personalProfile = {};
@@ -78,11 +79,14 @@ export async function PUT(request: Request) {
       avatarUrl: modeProfile?.avatarUrl !== undefined ? modeProfile.avatarUrl : targetUser.avatarUrl,
     };
 
+    await persistDb(db);
+
     return NextResponse.json(
       { user: effectiveUser, message: 'Profile updated successfully' },
       { headers: NO_CACHE_HEADERS }
     );
   } catch (error) {
+    console.error('Update profile error:', error);
     return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
   }
 }
@@ -114,13 +118,14 @@ export async function DELETE(request: Request) {
       db.groups = db.groups.map((g) => ({ ...g, members: g.members.filter((m) => m.userId !== targetUser.id) }));
     }
 
-    schedulePersist(db);
+    await persistDb(db);
 
     return NextResponse.json(
       { success: true, message: 'Account deleted successfully' },
       { status: 200, headers: NO_CACHE_HEADERS }
     );
   } catch (error) {
+    console.error('Delete account error:', error);
     return NextResponse.json({ error: 'Failed to delete account' }, { status: 500, headers: NO_CACHE_HEADERS });
   }
 }

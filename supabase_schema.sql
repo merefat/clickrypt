@@ -1,93 +1,233 @@
--- Clickrypt Supabase PostgreSQL Database Schema & Migration DDL
+-- Clickrypt Supabase PostgreSQL Database Schema
+-- Source of truth for the Clickrypt application.
+-- All runtime application state lives in these tables.
 
--- 1. Users Table
+-- ---------------------------------------------------------------------------
+-- 1. Application users (linked to Supabase Auth)
+-- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.users (
-  id VARCHAR(64) PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  name VARCHAR(255) NOT NULL,
-  role VARCHAR(32) NOT NULL DEFAULT 'User',
-  status VARCHAR(32) NOT NULL DEFAULT 'Active',
-  public_key TEXT NOT NULL,
-  encrypted_private_key TEXT NOT NULL,
-  last_active VARCHAR(64) DEFAULT 'Just now',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  id TEXT PRIMARY KEY,
+  auth_id UUID REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
+  email TEXT UNIQUE NOT NULL,
+  account_mode TEXT NOT NULL DEFAULT 'personal',
+  data JSONB NOT NULL DEFAULT '{}'
 );
 
--- 2. Folders Table
+CREATE INDEX IF NOT EXISTS idx_users_auth_id ON public.users(auth_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
+CREATE INDEX IF NOT EXISTS idx_users_account_mode ON public.users(account_mode);
+
+-- ---------------------------------------------------------------------------
+-- 2. Organizations
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.organizations (
+  id TEXT PRIMARY KEY,
+  domain TEXT UNIQUE NOT NULL,
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_organizations_domain ON public.organizations(domain);
+
+-- ---------------------------------------------------------------------------
+-- 3. Folders (split by account_mode column)
+-- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.folders (
-  id VARCHAR(64) PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  description TEXT,
-  item_count INT DEFAULT 0,
-  last_modified VARCHAR(64) DEFAULT 'Just now',
-  sort_order INT DEFAULT 0,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  id TEXT PRIMARY KEY,
+  mode TEXT NOT NULL DEFAULT 'personal',
+  data JSONB NOT NULL DEFAULT '{}'
 );
 
--- 3. Resources (Passwords & Vault Items) Table
+CREATE INDEX IF NOT EXISTS idx_folders_mode ON public.folders(mode);
+
+-- ---------------------------------------------------------------------------
+-- 4. Resources / Vault items
+-- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.resources (
-  id VARCHAR(64) PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  username VARCHAR(255),
-  url VARCHAR(512),
-  owner_id VARCHAR(64) REFERENCES public.users(id) ON DELETE CASCADE,
-  folder_id VARCHAR(64) REFERENCES public.folders(id) ON DELETE SET NULL,
-  is_private_only BOOLEAN DEFAULT FALSE,
-  score INT DEFAULT 85,
-  strength VARCHAR(32) DEFAULT 'Strong',
-  secrets_data JSONB NOT NULL DEFAULT '[]'::jsonb,
-  tags TEXT[] DEFAULT '{}',
-  last_modified VARCHAR(64) DEFAULT 'Just now',
-  sort_order INT DEFAULT 0,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  id TEXT PRIMARY KEY,
+  mode TEXT NOT NULL DEFAULT 'personal',
+  data JSONB NOT NULL DEFAULT '{}'
 );
 
--- 4. Groups Table
+CREATE INDEX IF NOT EXISTS idx_resources_mode ON public.resources(mode);
+
+-- ---------------------------------------------------------------------------
+-- 5. Groups
+-- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.groups (
-  id VARCHAR(64) PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  description TEXT,
-  members_data JSONB NOT NULL DEFAULT '[]'::jsonb,
-  assigned_resource_ids TEXT[] DEFAULT '{}',
-  last_active VARCHAR(64) DEFAULT 'Just now',
-  sort_order INT DEFAULT 0,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'
 );
 
--- 5. Subscriptions Table
-CREATE TABLE IF NOT EXISTS public.subscriptions (
-  id VARCHAR(64) PRIMARY KEY DEFAULT 'sub-main',
-  plan VARCHAR(64) NOT NULL DEFAULT 'Organization',
-  status VARCHAR(32) NOT NULL DEFAULT 'Active',
-  seats INT DEFAULT 25,
-  renewal_date VARCHAR(64) DEFAULT 'May 18, 2025',
-  days_remaining INT DEFAULT 365,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 6. Audit Logs Table
+-- ---------------------------------------------------------------------------
+-- 6. Audit logs
+-- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.audit_logs (
-  id VARCHAR(64) PRIMARY KEY,
-  timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  action VARCHAR(128) NOT NULL,
-  user_id VARCHAR(64),
-  resource_id VARCHAR(64),
-  details TEXT
+  id TEXT PRIMARY KEY,
+  mode TEXT NOT NULL DEFAULT 'personal',
+  data JSONB NOT NULL DEFAULT '{}'
 );
 
--- Initial Seeds for Supabase
-INSERT INTO public.subscriptions (id, plan, status, seats, renewal_date, days_remaining)
-VALUES ('sub-main', 'Organization', 'Warning', 25, 'May 18, 2025', 3)
-ON CONFLICT (id) DO NOTHING;
+CREATE INDEX IF NOT EXISTS idx_audit_logs_mode ON public.audit_logs(mode);
 
-INSERT INTO public.users (id, email, name, role, status, public_key, encrypted_private_key, last_active)
-VALUES
-('u-1', 'alex.morgan@acme.com', 'Alex Morgan', 'Owner', 'Active', '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...AlexMorganPublic...==\n-----END PGP PUBLIC KEY BLOCK-----', '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...AlexMorganEncryptedPrivateKey...==\n-----END PGP PRIVATE KEY BLOCK-----', 'Just now'),
-('u-2', 'sarah.johnson@acme.com', 'Sarah Johnson', 'Admin', 'Active', '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nmQENBF2...SarahPublic...==\n-----END PGP PUBLIC KEY BLOCK-----', '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n\nlQOYBF2...SarahPrivateKey...==\n-----END PGP PRIVATE KEY BLOCK-----', 'May 23, 2025 04:15 PM')
-ON CONFLICT (id) DO NOTHING;
+-- ---------------------------------------------------------------------------
+-- 7. Invitations
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.invitations (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'
+);
 
-INSERT INTO public.folders (id, name, description, item_count, last_modified)
-VALUES
-('f-1', 'Infrastructure', 'Servers, cloud providers, and deployment secrets', 12, '1h ago'),
-('f-2', 'Credentials', 'API keys, tokens, and service accounts', 8, '3h ago')
-ON CONFLICT (id) DO NOTHING;
+-- ---------------------------------------------------------------------------
+-- 8. Subscriptions
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.subscriptions (
+  id TEXT PRIMARY KEY DEFAULT 'sub-main',
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+-- ---------------------------------------------------------------------------
+-- 9. Passkey challenges
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.passkey_challenges (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+-- ---------------------------------------------------------------------------
+-- 10. SSO
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.sso_settings (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS public.sso_keys (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS public.sso_states (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS public.sso_tokens (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+-- ---------------------------------------------------------------------------
+-- 11. Auth challenges
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.auth_challenges (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+-- ---------------------------------------------------------------------------
+-- 12. Account recovery
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.account_recovery_policies (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS public.account_recovery_org_public_keys (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS public.account_recovery_user_settings (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS public.account_recovery_private_keys (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS public.account_recovery_private_key_passwords (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS public.account_recovery_requests (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE IF NOT EXISTS public.account_recovery_responses (
+  id TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'
+);
+
+-- ---------------------------------------------------------------------------
+-- Idempotent column fixes for pre-existing deployments
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS auth_id UUID UNIQUE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS account_mode TEXT NOT NULL DEFAULT 'personal';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.organizations ADD COLUMN IF NOT EXISTS domain TEXT UNIQUE;
+ALTER TABLE public.organizations ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.folders ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'personal';
+ALTER TABLE public.folders ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.resources ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'personal';
+ALTER TABLE public.resources ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.groups ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'personal';
+ALTER TABLE public.audit_logs ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.invitations ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.passkey_challenges ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.sso_settings ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE public.sso_keys ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE public.sso_states ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE public.sso_tokens ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.auth_challenges ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+
+ALTER TABLE public.account_recovery_policies ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE public.account_recovery_org_public_keys ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE public.account_recovery_user_settings ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE public.account_recovery_private_keys ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE public.account_recovery_private_key_passwords ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE public.account_recovery_requests ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+ALTER TABLE public.account_recovery_responses ADD COLUMN IF NOT EXISTS data JSONB NOT NULL DEFAULT '{}';
+
+-- ---------------------------------------------------------------------------
+-- Row Level Security
+-- The backend uses the Supabase service role, which bypasses RLS.
+-- These are disabled by default; add app-specific policies when moving
+-- queries to the browser client.
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.folders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.resources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invitations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.passkey_challenges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sso_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sso_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sso_states ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sso_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.auth_challenges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.account_recovery_policies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.account_recovery_org_public_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.account_recovery_user_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.account_recovery_private_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.account_recovery_private_key_passwords ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.account_recovery_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.account_recovery_responses ENABLE ROW LEVEL SECURITY;

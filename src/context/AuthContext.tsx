@@ -137,38 +137,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setAppMode = (mode: 'personal' | 'organization') => {
-    setAppModeState(mode);
     if (typeof window !== 'undefined') {
       localStorage.setItem('clickrypt_app_mode', mode);
     }
-    fetchSession();
+    fetchSession(mode);
   };
 
   const fetchSession = async (modeOverride?: 'personal' | 'organization') => {
     setIsHydrating(true);
     const currentMode =
       modeOverride ||
-      (typeof window !== 'undefined' ? (localStorage.getItem('clickrypt_app_mode') as 'personal' | 'organization') || 'personal' : 'personal');
+      (typeof window !== 'undefined'
+        ? (localStorage.getItem('clickrypt_app_mode') as 'personal' | 'organization') || 'personal'
+        : 'personal');
     if (modeOverride && typeof window !== 'undefined') {
       localStorage.setItem('clickrypt_app_mode', currentMode);
     }
     try {
-      const res = await api.get(`/auth/me?mode=${currentMode}`);
+      const url = modeOverride ? `/auth/me?mode=${currentMode}` : '/auth/me';
+      const res = await api.get(url);
       if (res.data?.user) {
         const serverMode = (res.data.user.accountMode as 'personal' | 'organization') || currentMode;
-        if (serverMode !== currentMode && !modeOverride) {
-          setAppModeState(serverMode);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('clickrypt_app_mode', serverMode);
-          }
-          await fetchSession(serverMode);
-          return;
-        }
+        setAppModeState(serverMode);
         setUser(res.data.user);
         if (typeof window !== 'undefined') {
-          localStorage.setItem(`clickrypt_user_profile_${currentMode}`, JSON.stringify(res.data.user));
+          localStorage.setItem('clickrypt_app_mode', serverMode);
+          localStorage.setItem(`clickrypt_user_profile_${serverMode}`, JSON.stringify(res.data.user));
         }
-        await loadUnlockedPrivateKey(currentMode, res.data.user.id, res.data.user.publicKey);
+        await loadUnlockedPrivateKey(serverMode, res.data.user.id, res.data.user.publicKey);
         if (
           res.data.user.accountMode === 'organization' &&
           res.data.user.organization?.verificationStatus === 'pending' &&
@@ -181,15 +177,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (typeof window !== 'undefined') {
           const hasToken = sessionStorage.getItem('access_token') || localStorage.getItem('access_token');
           if (hasToken) {
-            // Token is no longer valid (suspended/invalid) — force lock out
             sessionStorage.removeItem('access_token');
             localStorage.removeItem('access_token');
             localStorage.removeItem('clickrypt_user_profile_personal');
             localStorage.removeItem('clickrypt_user_profile_organization');
-            localStorage.removeItem(`clickrypt_user_profile_${currentMode}`);
             delete api.defaults.headers.common['Authorization'];
             clearKeys().catch(() => {});
-            if (window.location.pathname !== '/login') {
+            if (window.location.pathname !== '/login' && !modeOverride) {
               window.location.replace('/login');
             }
           }
@@ -218,10 +212,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.removeItem('access_token');
             localStorage.removeItem('clickrypt_user_profile_personal');
             localStorage.removeItem('clickrypt_user_profile_organization');
-            localStorage.removeItem(`clickrypt_user_profile_${currentMode}`);
             delete api.defaults.headers.common['Authorization'];
             clearKeys().catch(() => {});
-            if (window.location.pathname !== '/login') {
+            if (window.location.pathname !== '/login' && !modeOverride) {
               window.location.replace('/login');
             }
           }
@@ -373,7 +366,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role?: 'Owner' | 'Admin' | 'User' | 'External',
     organizationDomain?: string
   ): Promise<{ success: boolean; requiresVerification?: boolean; email?: string; user?: UserProfile }> => {
-    const currentMode = (typeof window !== 'undefined' ? localStorage.getItem('clickrypt_app_mode') || 'personal' : 'personal') as 'personal' | 'organization';
+    const currentMode = (typeof window !== 'undefined'
+      ? (localStorage.getItem('clickrypt_app_mode') as 'personal' | 'organization') || 'personal'
+      : 'personal');
     try {
       const { privateKey, publicKey } = await generateKeyPair(email, masterPass);
       const res = await api.post('/auth/register', {
@@ -392,24 +387,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (res.data?.user) {
+        const serverMode = (res.data.user.accountMode as 'personal' | 'organization') || currentMode;
         if (typeof window !== 'undefined') {
           if (res.data.token) {
             sessionStorage.setItem('access_token', res.data.token);
             localStorage.setItem('access_token', res.data.token);
           }
-          localStorage.setItem(`clickrypt_user_profile_${currentMode}`, JSON.stringify(res.data.user));
+          localStorage.setItem('clickrypt_app_mode', serverMode);
+          localStorage.setItem(`clickrypt_user_profile_${serverMode}`, JSON.stringify(res.data.user));
         }
+        setAppModeState(serverMode);
         setUser(res.data.user);
         setMasterPassword(masterPass);
         await savePrivateKey(privateKey);
-        await unlockAndCachePrivateKey(masterPass, currentMode, privateKey, res.data.user.id);
+        await unlockAndCachePrivateKey(masterPass, serverMode, privateKey, res.data.user.id);
         return { success: true, user: res.data.user };
       }
       throw new Error(res.data?.error || 'Registration failed');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       const status = error?.response?.status;
-      const message = error?.response?.data?.error || error?.message || 'Registration failed';
+      const data = error?.response?.data;
+      const message =
+        data?.error || (typeof data === 'string' ? data : null) || error?.message || 'Registration failed';
+      console.error('Register server response:', { status, data });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const err = new Error(message) as any;
       err.status = status || 0;

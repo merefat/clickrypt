@@ -104,6 +104,11 @@ function RegisterForm() {
       }
     }
 
+    if (!isOrgMode && !isExternalShare && isAllowedOrgEmailDomain(email)) {
+      setErrorMsg('Personal accounts require a consumer email address. Use a personal email or choose Organization.');
+      return;
+    }
+
     setErrorMsg('');
     setIsConflict(false);
     setLoading(true);

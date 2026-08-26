@@ -1,5 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
+import { persistDb } from '@/lib/dbPersistence';
+import { getSupabaseAuthClient } from '@/lib/supabaseServer';
 import {
   isAllowedOrgEmailDomain,
   matchesOrganizationDomain,
@@ -8,9 +11,18 @@ import {
 } from '@/lib/config';
 import { generateVerificationCode, sendVerificationEmail } from '@/lib/email';
 import crypto from 'crypto';
-import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'SuperSecretClickryptJwtKey_2026!';
+function newUserId(): string {
+  return `u-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
+}
+
+function newOrgId(): string {
+  return `org-${crypto.randomUUID()}`;
+}
+
+function newItemId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
+}
 
 function verificationCodeExpiry(): string {
   return new Date(Date.now() + VERIFICATION_CODE_EXPIRY_MINUTES * 60 * 1000).toISOString();
@@ -18,45 +30,95 @@ function verificationCodeExpiry(): string {
 
 export async function POST(request: Request) {
   try {
-    const { name, email, password, role, publicKey, encryptedPrivateKey, accountMode, organizationDomain } =
-      await request.json();
+    const {
+      name,
+      email,
+      password,
+      role,
+      publicKey,
+      encryptedPrivateKey,
+      accountMode,
+      organizationDomain,
+    } = await request.json();
+
+    const lowerEmail = (email || '').toLowerCase().trim();
+
+    if (!lowerEmail) {
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    }
+    if (!password) {
+      return NextResponse.json({ error: 'Password is required' }, { status: 400 });
+    }
+
     const validatedAccountMode = (accountMode === 'organization' ? 'organization' : 'personal') as
       | 'personal'
       | 'organization';
 
-    if (!email) {
-      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    // Account-mode validation
+    if (validatedAccountMode === 'personal' && isAllowedOrgEmailDomain(lowerEmail)) {
+      return NextResponse.json(
+        { error: 'Personal accounts require a consumer email address. Use a personal email or choose Organization.' },
+        { status: 400 }
+      );
     }
 
-    const existingUser = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-
     // Invited member completing registration
+    const existingUserIndex = db.users.findIndex((u) => u.email?.toLowerCase() === lowerEmail);
+    const existingUser = existingUserIndex >= 0 ? db.users[existingUserIndex] : null;
+
     if (existingUser && existingUser.status === 'Invited') {
-      existingUser.name = name || existingUser.name || email.split('@')[0];
+      const { data: signUpData, error: signUpError } = await getSupabaseAuthClient().auth.admin.createUser({
+        email: lowerEmail,
+        password,
+        email_confirm: true,
+        user_metadata: { name: name || existingUser.name },
+      });
+
+      if (signUpError) {
+        return NextResponse.json({ error: signUpError.message }, { status: 409 });
+      }
+      if (!signUpData?.user) {
+        return NextResponse.json(
+          { error: 'User creation failed: Supabase did not return a user profile.' },
+          { status: 500 }
+        );
+      }
+
+      const authId = signUpData.user.id;
+
+      existingUser.name = name || existingUser.name || lowerEmail.split('@')[0];
       existingUser.status = 'Active';
+      existingUser.authId = authId;
       if (role) existingUser.role = role as any;
       if (publicKey) existingUser.publicKey = publicKey;
       if (encryptedPrivateKey) existingUser.encryptedPrivateKey = encryptedPrivateKey;
       existingUser.lastActive = 'Just now';
       existingUser.accountMode = 'organization' as any;
 
-      const token = jwt.sign(
-        { userId: existingUser.id, email: existingUser.email, role: existingUser.role },
-        JWT_SECRET,
-        { expiresIn: '7d' }
-      );
+      const { data: signInData, error: signInError } = await getSupabaseAuthClient().auth.signInWithPassword({
+        email: lowerEmail,
+        password,
+      });
+      if (signInError || !signInData?.session) {
+        return NextResponse.json(
+          { error: signInError?.message || 'Account created but session could not be started.' },
+          { status: 500 }
+        );
+      }
 
       db.auditLogsFor((existingUser.accountMode || 'personal') as 'personal' | 'organization').unshift({
-        id: `al-${Date.now()}`,
+        id: newItemId('al'),
         timestamp: new Date().toISOString(),
         action: 'REGISTER_SUCCESS',
         userId: existingUser.id,
         details: `Invited member completed registration for ${existingUser.email}`,
       });
 
+      await persistDb(db);
+
       const response = NextResponse.json({
         success: true,
-        token,
+        token: signInData.session.access_token,
         user: {
           id: existingUser.id,
           email: existingUser.email,
@@ -69,9 +131,9 @@ export async function POST(request: Request) {
         },
       });
 
-      response.cookies.set('access_token', token, {
+      response.cookies.set('access_token', signInData.session.access_token, {
         httpOnly: true,
-        secure: false,
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
         maxAge: 60 * 60 * 24 * 7,
@@ -80,7 +142,7 @@ export async function POST(request: Request) {
       return response;
     }
 
-    if (existingUser && existingUser.status !== 'Invited') {
+    if (existingUser) {
       return NextResponse.json(
         { error: 'An account with this email already exists. Please sign in instead.' },
         { status: 409 }
@@ -102,7 +164,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Invalid organization domain.' }, { status: 400 });
       }
 
-      if (!matchesOrganizationDomain(email, normalizedDomain)) {
+      if (!matchesOrganizationDomain(lowerEmail, normalizedDomain)) {
         return NextResponse.json(
           { error: 'Your email domain must exactly match the organization domain.' },
           { status: 400 }
@@ -125,10 +187,26 @@ export async function POST(request: Request) {
           );
         }
 
+        const { data: signUpData, error: signUpError } = await getSupabaseAuthClient().auth.admin.createUser({
+          email: lowerEmail,
+          password,
+          email_confirm: true,
+          user_metadata: { name: name || lowerEmail.split('@')[0] },
+        });
+        if (signUpError) {
+          return NextResponse.json({ error: signUpError.message }, { status: 409 });
+        }
+        if (!signUpData?.user) {
+          return NextResponse.json(
+            { error: 'User creation failed: Supabase did not return a user profile.' },
+            { status: 500 }
+          );
+        }
+
         const newUser = {
-          id: `u-${Date.now()}`,
-          email,
-          name: name || email.split('@')[0],
+          id: newUserId(),
+          email: lowerEmail,
+          name: name || lowerEmail.split('@')[0],
           role: 'User' as const,
           status: 'Active' as const,
           publicKey: publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n...',
@@ -136,30 +214,48 @@ export async function POST(request: Request) {
           lastActive: 'Just now',
           accountMode: 'organization' as const,
           organizationId: existingOrg.id,
+          authId: signUpData.user.id,
         };
 
         db.users.push(newUser);
         targetUser = newUser;
       } else {
         // New organization, first registrant becomes pending Owner
-        const newOrgId = `org-${crypto.randomUUID()}`;
+        const orgId = newOrgId();
+        const { data: signUpData, error: signUpError } = await getSupabaseAuthClient().auth.admin.createUser({
+          email: lowerEmail,
+          password,
+          email_confirm: true,
+          user_metadata: { name: name || lowerEmail.split('@')[0] },
+        });
+        if (signUpError) {
+          return NextResponse.json({ error: signUpError.message }, { status: 409 });
+        }
+        if (!signUpData?.user) {
+          return NextResponse.json(
+            { error: 'User creation failed: Supabase did not return a user profile.' },
+            { status: 500 }
+          );
+        }
+
         const newUser = {
-          id: `u-${Date.now()}`,
-          email,
-          name: name || email.split('@')[0],
+          id: newUserId(),
+          email: lowerEmail,
+          name: name || lowerEmail.split('@')[0],
           role: 'Owner' as const,
           status: 'Active' as const,
           publicKey: publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n...',
           encryptedPrivateKey: encryptedPrivateKey || '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n...',
           lastActive: 'Just now',
           accountMode: 'organization' as const,
-          organizationId: newOrgId,
+          organizationId: orgId,
+          authId: signUpData.user.id,
         };
 
         const code = generateVerificationCode();
 
         const newOrg = {
-          id: newOrgId,
+          id: orgId,
           domain: normalizedDomain,
           ownerId: newUser.id,
           createdAt: new Date().toISOString(),
@@ -172,7 +268,8 @@ export async function POST(request: Request) {
         db.organizations.push(newOrg);
         db.users.push(newUser);
 
-        await sendVerificationEmail(email, code);
+        await sendVerificationEmail(lowerEmail, code);
+        await persistDb(db);
 
         return NextResponse.json({
           success: true,
@@ -183,39 +280,63 @@ export async function POST(request: Request) {
       }
     } else {
       // Personal account
+      const { data: signUpData, error: signUpError } = await getSupabaseAuthClient().auth.admin.createUser({
+        email: lowerEmail,
+        password,
+        email_confirm: true,
+        user_metadata: { name: name || lowerEmail.split('@')[0] },
+      });
+      if (signUpError) {
+        return NextResponse.json({ error: signUpError.message }, { status: 409 });
+      }
+      if (!signUpData?.user) {
+        return NextResponse.json(
+          { error: 'User creation failed: Supabase did not return a user profile.' },
+          { status: 500 }
+        );
+      }
+
       const newUser = {
-        id: `u-${Date.now()}`,
-        email,
-        name: name || email.split('@')[0],
+        id: newUserId(),
+        email: lowerEmail,
+        name: name || lowerEmail.split('@')[0],
         role: (role === 'External' ? 'External' : role || 'User') as any,
         status: 'Active' as const,
         publicKey: publicKey || '-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: Clickrypt 1.0\n...',
         encryptedPrivateKey: encryptedPrivateKey || '-----BEGIN PGP PRIVATE KEY BLOCK-----\nVersion: Clickrypt 1.0\n...',
         lastActive: 'Just now',
         accountMode: 'personal' as const,
+        authId: signUpData.user.id,
       };
 
       db.users.push(newUser);
       targetUser = newUser;
     }
 
-    const token = jwt.sign(
-      { userId: targetUser.id, email: targetUser.email, role: targetUser.role },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const { data: signInData, error: signInError } = await getSupabaseAuthClient().auth.signInWithPassword({
+      email: lowerEmail,
+      password,
+    });
+    if (signInError || !signInData?.session) {
+      return NextResponse.json(
+        { error: signInError?.message || 'Account created but session could not be started.' },
+        { status: 500 }
+      );
+    }
 
     db.auditLogsFor((targetUser.accountMode || 'personal') as 'personal' | 'organization').unshift({
-      id: `al-${Date.now()}`,
+      id: newItemId('al'),
       timestamp: new Date().toISOString(),
       action: 'REGISTER_SUCCESS',
       userId: targetUser.id,
       details: `Account registered & activated for ${targetUser.email}`,
     });
 
+    await persistDb(db);
+
     const response = NextResponse.json({
       success: true,
-      token,
+      token: signInData.session.access_token,
       user: {
         id: targetUser.id,
         email: targetUser.email,
@@ -228,9 +349,9 @@ export async function POST(request: Request) {
       },
     });
 
-    response.cookies.set('access_token', token, {
+    response.cookies.set('access_token', signInData.session.access_token, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 7,
@@ -239,6 +360,7 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     console.error('Register API error:', error);
-    return NextResponse.json({ error: 'Registration failed' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Registration failed';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
