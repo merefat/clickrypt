@@ -119,7 +119,7 @@ export default function AccountRecoveryPage() {
 
   return (
     <div className="min-h-screen bg-[#dfe6ed] text-[#0f172a] flex items-center justify-center p-6 font-sora select-none">
-      <div className="w-full max-w-lg glass-panel p-8 rounded-3xl border border-[#d0dbe5] shadow-2xl bg-[#ffffff]">
+      <div className="w-full max-w-lg glass-panel p-6 sm:p-8 rounded-3xl border border-[#d0dbe5] shadow-2xl bg-[#ffffff]">
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <div className="w-12 h-12 rounded-2xl bg-white p-1 border border-[#cbd5e1] flex items-center justify-center shadow-xs">

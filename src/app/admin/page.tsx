@@ -307,7 +307,7 @@ export default function AdminPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
 
-        <main className="p-8 flex-1 overflow-y-auto space-y-8">
+        <main className="p-4 md:p-8 flex-1 overflow-y-auto space-y-8">
           {/* Header & Tabs */}
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             <div className="flex items-center gap-3">

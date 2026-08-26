@@ -167,7 +167,7 @@ function RegisterForm() {
       </div>
 
       {/* Profile Setup & Pay-to-Enroll Box */}
-      <div className="w-full max-w-xl glass-panel p-8 rounded-3xl border border-[#d0dbe5] shadow-2xl bg-[#ffffff] z-10">
+      <div className="w-full max-w-xl glass-panel p-6 sm:p-8 rounded-3xl border border-[#d0dbe5] shadow-2xl bg-[#ffffff] z-10">
         <div className="text-center mb-6">
           {isExternalShare && (
             <div className="inline-flex items-center gap-1.5 bg-amber-50 text-[#d97706] border border-amber-300 px-3 py-1 rounded-full text-xs font-extrabold mb-3 shadow-xs">

@@ -465,7 +465,7 @@ export default function ImportExportPage() {
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <Header />
-          <main className="p-8 flex-1 flex items-center justify-center">
+          <main className="p-4 md:p-8 flex-1 flex items-center justify-center">
             <Loader2 className="w-8 h-8 text-[#0284c7] animate-spin" />
           </main>
         </div>
@@ -489,7 +489,7 @@ export default function ImportExportPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
 
-        <main className="p-8 flex-1 overflow-y-auto space-y-8">
+        <main className="p-4 md:p-8 flex-1 overflow-y-auto space-y-8">
           {/* Header */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#ffffff] border border-[#f39c12]/50 flex items-center justify-center text-[#d97706] shadow-sm">

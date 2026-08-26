@@ -23,12 +23,12 @@ export default function LandingPage() {
       <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[700px] h-[700px] bg-[#0284c7]/10 rounded-full blur-[160px] pointer-events-none" />
 
       {/* Top Navbar */}
-      <header className="max-w-6xl w-full mx-auto flex items-center justify-between py-3.5 px-6 z-10 bg-[#ffffff]/80 backdrop-blur-md rounded-2xl border border-[#cbd5e1] shadow-sm mb-6">
+      <header className="max-w-6xl w-full mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-3.5 px-6 z-10 bg-[#ffffff]/80 backdrop-blur-md rounded-2xl border border-[#cbd5e1] shadow-sm mb-6">
         <div className="flex items-center gap-3">
           <img src="/logo.png" alt="Clickrypt Logo" className="h-12 w-auto object-contain drop-shadow-sm" />
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <Link href="/login" className="text-xs font-bold text-[#0284c7] hover:text-[#0369a1] transition-colors">
             Already have a vault? <span className="underline">Sign in</span>
           </Link>

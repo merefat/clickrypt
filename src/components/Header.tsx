@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   Search,
+  Menu,
   Bell,
   Shield,
   ShieldAlert,
@@ -19,6 +20,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useMobileNav } from '@/components/MobileNavContext';
 import api from '@/lib/api';
 import { ENABLE_PAY_BILL } from '@/lib/config';
 
@@ -40,6 +42,7 @@ interface VaultNotification {
 
 export default function Header({ searchTerm = '', onSearchChange }: HeaderProps) {
   const { user, logout, appMode } = useAuth();
+  const { open } = useMobileNav();
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const [subscription, setSubscription] = useState<any | null>(null);
@@ -209,10 +212,10 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-[#f5f8fb]/95 backdrop-blur-md border-b border-[#cbd5e1] px-8 py-3.5 flex flex-col gap-2 font-sora">
+    <header className="sticky top-0 z-30 bg-[#f5f8fb]/95 backdrop-blur-md border-b border-[#cbd5e1] px-4 md:px-8 py-3.5 flex flex-col gap-2 font-sora">
       {/* Dynamic 7-Second Auto-Dismissing Renewal Notice Banner */}
       {ENABLE_PAY_BILL && showBanner && subscription && (
-        <div className="bg-gradient-to-r from-[#fff7ed] via-[#ffedd5] to-[#fff7ed] border border-[#f39c12] rounded-xl px-4 py-2 flex items-center justify-between text-xs text-[#c2410c] shadow-lg animate-in slide-in-from-top-2 duration-300">
+        <div className="bg-gradient-to-r from-[#fff7ed] via-[#ffedd5] to-[#fff7ed] border border-[#f39c12] rounded-xl px-4 py-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-[#c2410c] shadow-lg animate-in slide-in-from-top-2 duration-300">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-[#d97706] shrink-0 animate-bounce" />
             <span>
@@ -241,9 +244,18 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
       )}
 
       {/* Main Header Bar */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={open}
+          className="md:hidden w-9 h-9 rounded-xl bg-[#ffffff] border border-[#cbd5e1] flex items-center justify-center text-[#0f172a] shadow-sm transition-all cursor-pointer shrink-0"
+          title="Open menu"
+        >
+          <Menu className="w-5 h-5 text-[#0284c7]" />
+        </button>
+
         {/* Search Input */}
-        <div className="relative w-96">
+        <div className="relative w-full md:w-96">
           <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -258,7 +270,7 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
         </div>
 
         {/* Status Indicators & Profile */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           {/* Interactive Bell Notification Button & Popover Container */}
           <div className="relative" ref={popoverRef}>
             <button

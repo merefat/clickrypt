@@ -278,7 +278,7 @@ export default function LoginPage() {
       </div>
 
       {/* Login Box */}
-      <div className="w-full max-w-md glass-panel p-8 rounded-2xl !bg-[#f5f8fb] z-10 relative">
+      <div className="w-full max-w-md glass-panel p-6 sm:p-8 rounded-2xl !bg-[#f5f8fb] z-10 relative">
         {/* Header Action Bar */}
         <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-300/60">
           <span className="text-xs font-bold text-[#091528]">Sign In Portal</span>

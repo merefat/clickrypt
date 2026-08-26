@@ -21,7 +21,7 @@ export default function BillingPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
 
-        <main className="p-8 flex-1 overflow-y-auto max-w-6xl space-y-6">
+        <main className="p-4 md:p-8 flex-1 overflow-y-auto max-w-6xl space-y-6">
           {/* Header Title */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

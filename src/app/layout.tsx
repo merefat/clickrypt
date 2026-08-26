@@ -1,6 +1,7 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
+import { MobileNavProvider } from '@/components/MobileNavContext';
 
 export const metadata: Metadata = {
   title: 'Clickrypt - Zero-Knowledge Password Vault',
@@ -13,6 +14,11 @@ export const metadata: Metadata = {
     shortcut: '/logo.png',
     apple: '/logo.png',
   },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -34,7 +40,9 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sora bg-[#091528] text-white antialiased selection:bg-[#1fbbd2]/30 selection:text-[#f39c12]" suppressHydrationWarning>
-        <AuthProvider>{children}</AuthProvider>
+        <MobileNavProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </MobileNavProvider>
       </body>
     </html>
   );
