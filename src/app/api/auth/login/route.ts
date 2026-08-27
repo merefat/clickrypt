@@ -38,8 +38,10 @@ export async function POST(request: Request) {
     });
 
     if (signInError || !signInData.user) {
+      const authMessage = signInError?.message || 'Invalid email or password.';
+      console.error('Supabase sign-in error:', authMessage);
       return NextResponse.json(
-        { error: 'Invalid email or password.' },
+        { error: authMessage },
         { status: 401 }
       );
     }
