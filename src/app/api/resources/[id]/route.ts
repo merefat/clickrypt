@@ -17,7 +17,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
   const userMode = (authUser.accountMode || 'personal') as 'personal' | 'organization';
   const { id } = await params;
-  const resource = db.resourcesFor(userMode).find((r) => r.id === id);
+  let resource = db.resourcesFor(userMode).find((r) => r.id === id);
+  if (!resource) {
+    resource = db.resources.find((r) => r.id === id) || db.organizationResources.find((r) => r.id === id);
+  }
   if (!resource) {
     return NextResponse.json({ error: 'Resource not found' }, { status: 404 });
   }

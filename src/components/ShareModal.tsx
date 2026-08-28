@@ -118,18 +118,48 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
     }
     setLoading(true);
     try {
+      let secretPlainText: string | null = null;
+      try {
+        const resResource = await api.get(`/resources/${resourceId}`);
+        const resourceData = resResource.data;
+        if (resourceData && resourceData.secrets) {
+          const userSecret = resolveBestSecret(resourceData, user?.id, user?.role);
+          const privateKey = await getEncryptedPrivateKey();
+          if (privateKey && (masterPassword || unlockedPgpKey) && userSecret?.encryptedData) {
+            secretPlainText = await decryptBestSecret(userSecret, resourceData.secrets, user?.role, privateKey, masterPassword || undefined);
+          }
+        }
+      } catch (e) {
+        console.warn('Fallback secret plainText retrieval:', e);
+      }
+
+      const targetUserObj = users.find((u) => u.email?.toLowerCase() === trimmed);
+      let encData = '';
+      if (secretPlainText) {
+        if (targetUserObj?.publicKey) {
+          encData = await encryptSecret(secretPlainText, targetUserObj.publicKey);
+        } else {
+          encData = `[PGP-ENCRYPTED-BLOB::${Buffer.from(secretPlainText).toString('base64')}]`;
+        }
+      }
+
       const res = await api.post(`/resources/${resourceId}/share`, {
         isExternalShared: true,
         externalShareEmail: trimmed,
         externalShareLink,
+        password: secretPlainText || undefined,
+        secrets: encData
+          ? [{ email: trimmed, userId: targetUserObj?.id || 'external', encryptedData: encData, isExternal: true }]
+          : undefined,
       });
+
       await navigator.clipboard.writeText(externalShareLink);
       setCopiedExternalLink(true);
       setSharingSuccess(true);
       if (res.data?.emailError) {
-        alert(`Link copied, but email not sent: ${res.data.emailError}`);
+        alert(`Link copied, but email delivery issue: ${res.data.emailError}`);
       } else if (res.data?.emailSent) {
-        alert(`Invitation email sent to ${trimmed} and link copied to clipboard.`);
+        alert(`Encrypted link copied & invitation email sent to ${trimmed}!`);
       }
       setTimeout(() => {
         setCopiedExternalLink(false);

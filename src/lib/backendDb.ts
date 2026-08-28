@@ -38,6 +38,8 @@ export interface DbUser {
 export interface DbResourceSecret {
   userId: string;
   encryptedData: string;
+  email?: string;
+  isExternal?: boolean;
 }
 
 export interface DbResource {

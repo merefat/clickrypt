@@ -1,4 +1,4 @@
-﻿import { DbResource, DbGroup } from './backendDb';
+import { DbResource, DbGroup } from './backendDb';
 
 export interface AuthContextUser {
   id: string;
@@ -106,7 +106,20 @@ export function sanitizeResourceForUser(
   user: { id: string; email?: string }
 ): DbResource {
   const currentUserId = user.id;
-  const filteredSecrets = (resource.secrets || []).filter((s) => s.userId === currentUserId);
+  const currentUserEmail = (user.email || '').toLowerCase().trim();
+
+  const filteredSecrets = (resource.secrets || []).filter((s: any) => {
+    if (s.userId === currentUserId) return true;
+    if (s.email && s.email.toLowerCase() === currentUserEmail) return true;
+    if (
+      resource.isExternalShared &&
+      resource.externalShareEmail?.toLowerCase() === currentUserEmail &&
+      (s.userId === currentUserId || s.email?.toLowerCase() === currentUserEmail || s.userId?.startsWith('ext-') || s.userId === 'external' || s.isExternal)
+    ) {
+      return true;
+    }
+    return false;
+  });
 
   return {
     ...resource,

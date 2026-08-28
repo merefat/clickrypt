@@ -101,7 +101,7 @@ export default function SharedPage() {
     const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
     if (!privateKey) throw new Error('Key or encrypted data missing');
 
-    const userSecret = resolveBestSecret(item, user?.id, user?.role);
+    const userSecret = resolveBestSecret(item, user?.id, user?.role, user?.email);
     if (!userSecret) throw new Error('No usable secret for this user');
 
     const plainText = await decryptBestSecret(userSecret, item.secrets, user?.role, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);
@@ -137,7 +137,7 @@ export default function SharedPage() {
     const privateKey = privateKeyOverride || (await getEncryptedPrivateKey());
     if (!privateKey) throw new Error('Key or encrypted data missing');
 
-    const userSecret = resolveBestSecret(item, user?.id, user?.role);
+    const userSecret = resolveBestSecret(item, user?.id, user?.role, user?.email);
     if (!userSecret) throw new Error('No usable secret for this user');
 
     return await decryptBestSecret(userSecret, item.secrets, user?.role, privateKey, privateKeyOverride ? undefined : unlockedPgpKey ? undefined : masterPassword || undefined);

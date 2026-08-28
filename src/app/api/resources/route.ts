@@ -41,17 +41,25 @@ export async function GET(request: Request) {
 
   let result: any[] = [];
 
-  if (sharedWithUserId) {
-    // /shared page:
+  if (sharedWithUserId || authUser.role === 'External') {
+    // /shared page & External User Access:
     // Outbound: items owned by current user that are explicitly shared
-    // Inbound: items NOT owned by current user where current user is an authorized recipient
-    result = store.filter((r) => {
-      const isOwner = r.ownerId === currentUserId;
-      if (isOwner) {
-        return isResourceSharedOut(r);
+    const outbound = store.filter((r) => r.ownerId === currentUserId && isResourceSharedOut(r));
+
+    // Inbound: items NOT owned by current user where current user is an authorized recipient across ALL stores
+    const allInboundCandidates = [
+      ...db.resources.filter((r) => r.ownerId !== currentUserId),
+      ...db.organizationResources.filter((r) => r.ownerId !== currentUserId),
+    ];
+    const seenIds = new Set<string>();
+    const inbound: any[] = [];
+    for (const r of allInboundCandidates) {
+      if (!seenIds.has(r.id) && canUserAccessResource(r, authUser, userGroupFolderIds)) {
+        seenIds.add(r.id);
+        inbound.push(r);
       }
-      return canUserAccessResource(r, authUser, userGroupFolderIds);
-    });
+    }
+    result = [...outbound, ...inbound];
   } else if (secretVaultStr === 'true') {
     // Secret Vault (/secret-vault page): Only show private items owned by the current user
     if (userMode !== 'organization') {
