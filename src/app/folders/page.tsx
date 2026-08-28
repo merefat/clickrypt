@@ -184,7 +184,7 @@ export default function FoldersPage() {
     if (!targetId) return;
 
     const folderObj = folders.find((f) => f.id === targetId);
-    if (!confirm(`Are you sure you want to delete the folder "${folderObj?.name || 'this folder'}"?`)) {
+    if (!confirm(`Are you sure you want to move the folder "${folderObj?.name || 'this folder'}" and its items to Trash?`)) {
       return;
     }
 
@@ -196,7 +196,7 @@ export default function FoldersPage() {
       }
       fetchFolders();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to delete folder');
+      alert(err.response?.data?.error || 'Failed to move folder to Trash');
     }
   };
 

@@ -9,7 +9,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   if (!authUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const userMode = (authUser.accountMode || 'personal') as 'personal' | 'organization';
+  const requestedMode = request.headers.get('x-app-mode');
+  const userMode = (requestedMode === 'organization' || requestedMode === 'personal')
+    ? requestedMode
+    : ((authUser.accountMode || 'personal') as 'personal' | 'organization');
   const { id } = await params;
   const body = await request.json();
   const store = db.foldersFor(userMode);
@@ -54,34 +57,36 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
   }
 
-  const deletedFolder = db[storeName].splice(index, 1)[0];
+  const targetFolder = db[storeName][index];
 
-  // Unassign folderId from all resources
-  db.resources.forEach((r) => {
-    if (r.folderId === id) r.folderId = null;
-  });
-  db.organizationResources.forEach((r) => {
-    if (r.folderId === id) r.folderId = null;
-  });
+  const now = new Date().toISOString();
+  targetFolder.deletedAt = now;
+  targetFolder.deletedBy = authUser.id;
+  targetFolder.lastModified = now;
 
-  // Remove from group assignments
-  db.groups.forEach((g) => {
-    if (g.assignedFolderIds && g.assignedFolderIds.includes(id)) {
-      g.assignedFolderIds = g.assignedFolderIds.filter((fid) => fid !== id);
+  // Soft-delete child resources inside this folder
+  const resStore = userMode === 'organization' ? db.organizationResources : db.resources;
+  let childCount = 0;
+  resStore.forEach((r) => {
+    if (r.folderId === id && !r.deletedAt) {
+      r.deletedAt = now;
+      r.deletedBy = authUser.id;
+      r.originalFolderId = id;
+      r.lastModified = now;
+      childCount++;
     }
   });
 
   db.auditLogsFor(userMode).unshift({
     id: `al-${Date.now()}`,
-    timestamp: new Date().toISOString(),
-    action: 'DELETE_FOLDER',
+    timestamp: now,
+    action: 'MOVE_TO_TRASH_FOLDER',
     userId: authUser.id,
     resourceId: id,
-    details: `Deleted vault folder "${deletedFolder.name}"`,
+    details: `Moved vault folder "${targetFolder.name}" and ${childCount} item(s) to Trash`,
   });
 
-  await getSupabaseServer().from('folders').delete().eq('id', id);
   await persistDb(db);
 
-  return NextResponse.json({ success: true, message: `Folder ${deletedFolder.name} deleted successfully` });
+  return NextResponse.json({ success: true, message: `Folder ${targetFolder.name} moved to Trash` });
 }

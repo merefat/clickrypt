@@ -17,6 +17,7 @@ import {
   ChevronDown,
   CreditCard,
   X,
+  Trash2,
 } from 'lucide-react';
 import { useAuth, useRequireAuth } from '@/context/AuthContext';
 import { useMobileNav } from '@/components/MobileNavContext';
@@ -101,6 +102,7 @@ export default function Sidebar() {
     { name: 'Shared Passwords', path: '/shared', icon: Share2 },
     { name: 'Team Members', path: '/admin', icon: UserCheck, role: 'OrganizationOnly' },
     { name: 'Import / Export', path: '/import-export', icon: FileSpreadsheet },
+    { name: 'Trash', path: '/trash', icon: Trash2 },
     { name: 'Settings', path: '/settings', icon: Settings },
   ];
 

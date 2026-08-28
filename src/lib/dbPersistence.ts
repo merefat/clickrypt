@@ -94,14 +94,30 @@ export async function loadDb(db: any) {
 
   // Mode-split tables
   for (const { table, personal, organization } of MODE_SPLIT_TABLES) {
-    const { data: rows, error } = await getSupabaseServer().from(table).select('id, mode, data');
+    let selectCols = 'id, mode, data';
+    if (table === 'resources') {
+      selectCols = 'id, mode, deleted_at, deleted_by, original_folder_id, data';
+    } else if (table === 'folders') {
+      selectCols = 'id, mode, deleted_at, deleted_by, data';
+    }
+
+    const { data: rows, error } = await getSupabaseServer().from(table).select(selectCols);
     if (error) throw new Error(`Failed to load ${table}: ${error.message}`);
 
     db[personal].splice(0, db[personal].length);
     db[organization].splice(0, db[organization].length);
 
-    for (const row of rows || []) {
-      const item = { ...row.data, id: row.id, mode: row.mode };
+    for (const row of (rows as any[] || [])) {
+      const item: any = { ...row.data, id: row.id, mode: row.mode };
+      if (table === 'resources') {
+        item.deletedAt = row.deleted_at || row.data?.deletedAt || null;
+        item.deletedBy = row.deleted_by || row.data?.deletedBy || null;
+        item.originalFolderId = row.original_folder_id || row.data?.originalFolderId || null;
+      } else if (table === 'folders') {
+        item.deletedAt = row.deleted_at || row.data?.deletedAt || null;
+        item.deletedBy = row.deleted_by || row.data?.deletedBy || null;
+      }
+
       if (row.mode === 'organization') {
         db[organization].push(item);
       } else {
@@ -118,12 +134,9 @@ export async function loadDb(db: any) {
 
     if (prop === 'subscriptions') {
       if (rows && rows[0]) {
-        Object.assign(db.subscription, rows[0].data);
+        db.subscription = { ...db.subscription, ...rows[0].data };
       }
-      continue;
-    }
-
-    if (table === 'groups') {
+    } else if (table === 'groups') {
       const { data: groupRows, error: gErr } = await getSupabaseServer().from('groups').select('id, name, description, organization_id, data');
       if (!gErr && groupRows) {
         db.groups.splice(
@@ -137,11 +150,10 @@ export async function loadDb(db: any) {
             organizationId: row.organization_id || row.data?.organizationId || null,
           }))
         );
-        continue;
       }
+    } else if ((db as any)[prop]) {
+      (db as any)[prop].splice(0, (db as any)[prop].length, ...(rows || []).map((row: any) => ({ ...row.data, id: row.id })));
     }
-
-    db[prop].splice(0, db[prop].length, ...(rows || []).map((row: any) => ({ ...row.data, id: row.id })));
   }
 }
 
@@ -151,21 +163,17 @@ async function persistDbInternal(db: any) {
   }
 
   // Users
-  const userRows = db.users
-    .filter((u: any) => u.email)
-    .map((u: any) => ({
-      id: u.id,
-      auth_id: u.authId || u.auth_id || null,
-      email: u.email,
-      name: u.name,
-      account_mode: u.accountMode || 'personal',
-      data: {
-        status: 'Active',
-        role: 'User',
-        ...u,
-        organizationId: u.organizationId || null,
-      },
-    }));
+  const userRows = db.users.map((u: any) => ({
+    id: u.id,
+    auth_id: u.authId || null,
+    email: u.email,
+    name: u.name || '',
+    role: u.role || 'User',
+    status: u.status || 'Active',
+    account_mode: u.accountMode || 'personal',
+    last_active: u.lastActive || 'Just now',
+    data: { ...u },
+  }));
   if (userRows.length > 0) {
     const { error } = await getSupabaseServer().from('users').upsert(userRows, { onConflict: 'id' });
     if (error) console.error(`Failed to save users: ${error.message}`);
@@ -204,6 +212,9 @@ async function persistDbInternal(db: any) {
         url: item.url || '',
         owner_id: validUserIds.has(item.ownerId) ? item.ownerId : null,
         folder_id: validFolderIds.has(item.folderId) ? item.folderId : null,
+        original_folder_id: validFolderIds.has(item.originalFolderId) ? item.originalFolderId : null,
+        deleted_at: item.deletedAt || null,
+        deleted_by: validUserIds.has(item.deletedBy) ? item.deletedBy : null,
         is_private_only: !!item.isPrivateOnly,
         strength: item.strength || 'Strong',
         secrets_data: item.secrets || [],
@@ -222,6 +233,8 @@ async function persistDbInternal(db: any) {
           item_count: item.itemCount || 0,
           last_modified: item.lastModified || new Date().toISOString(),
           owner_id: validUserIds.has(rawOwner) ? rawOwner : null,
+          deleted_at: item.deletedAt || null,
+          deleted_by: validUserIds.has(item.deletedBy) ? item.deletedBy : null,
           mode,
           data: { ...item },
         };

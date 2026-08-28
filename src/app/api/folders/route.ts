@@ -23,8 +23,8 @@ export async function GET(req: Request) {
     const secretVaultParam = searchParams.get('secretVault');
     const scope = searchParams.get('scope');
 
-    const store = db.foldersFor(userMode);
-    let folders = store;
+    const rawStore = db.foldersFor(userMode);
+    let folders = rawStore.filter((f) => !f.deletedAt);
 
     if (secretVaultParam === 'true') {
       folders = folders.filter((f) => f.isPrivateOnly === true);
@@ -40,7 +40,7 @@ export async function GET(req: Request) {
     });
 
     const currentUserId = authUser.id;
-    const resourcesStore = db.resourcesFor(userMode);
+    const resourcesStore = db.resourcesFor(userMode).filter((r) => !r.deletedAt);
 
     const canManage = authUser.role === 'Owner' || authUser.role === 'Admin';
     const isManagerView = canManage && scope === 'manage';
@@ -111,7 +111,10 @@ export async function POST(req: Request) {
     if (!authUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const userMode = (authUser.accountMode || 'personal') as 'personal' | 'organization';
+    const requestedMode = req.headers.get('x-app-mode');
+    const userMode = (requestedMode === 'organization' || requestedMode === 'personal')
+      ? requestedMode
+      : ((authUser.accountMode || 'personal') as 'personal' | 'organization');
     const body = await req.json();
     const { name, description, isPrivateOnly } = body;
 

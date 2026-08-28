@@ -49,6 +49,9 @@ export interface DbResource {
   url: string;
   ownerId: string;
   folderId?: string | null;
+  originalFolderId?: string | null;
+  deletedAt?: string | null;
+  deletedBy?: string | null;
   isPrivateOnly?: boolean;
   isExternalShared?: boolean;
   externalShareEmail?: string;
@@ -69,6 +72,8 @@ export interface DbFolder {
   description?: string;
   itemCount: number;
   lastModified: string;
+  deletedAt?: string | null;
+  deletedBy?: string | null;
   isPrivateOnly?: boolean;
   mode?: 'personal' | 'organization';
   creatorId?: string;

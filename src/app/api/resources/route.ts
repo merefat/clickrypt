@@ -37,7 +37,8 @@ export async function GET(request: Request) {
 
   const currentUserId = authUser.id;
 
-  const store = db.resourcesFor(userMode);
+  const rawStore = db.resourcesFor(userMode);
+  const store = rawStore.filter((r) => !r.deletedAt);
   const userGroupFolderIds = getUserGroupFolderIds(currentUserId, db.groups);
 
   let result: any[] = [];
@@ -49,8 +50,8 @@ export async function GET(request: Request) {
 
     // Inbound: items NOT owned by current user where current user is an authorized recipient across ALL stores
     const allInboundCandidates = [
-      ...db.resources.filter((r) => r.ownerId !== currentUserId),
-      ...db.organizationResources.filter((r) => r.ownerId !== currentUserId),
+      ...db.resources.filter((r) => r.ownerId !== currentUserId && !r.deletedAt),
+      ...db.organizationResources.filter((r) => r.ownerId !== currentUserId && !r.deletedAt),
     ];
     const seenIds = new Set<string>();
     const inbound: any[] = [];
@@ -147,7 +148,10 @@ export async function POST(request: Request) {
     if (!authUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const userMode = (authUser.accountMode || 'personal') as 'personal' | 'organization';
+    const requestedMode = request.headers.get('x-app-mode');
+    const userMode = (requestedMode === 'organization' || requestedMode === 'personal')
+      ? requestedMode
+      : ((authUser.accountMode || 'personal') as 'personal' | 'organization');
     const body = await request.json();
 
     if (!body.name) {

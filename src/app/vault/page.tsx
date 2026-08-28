@@ -455,13 +455,13 @@ export default function VaultPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this password?')) return;
+    if (!confirm('Are you sure you want to move this password to Trash?')) return;
     setResources((prev) => prev.filter((r) => r.id !== id));
     try {
       await api.delete(`/resources/${id}`);
       await fetchResources();
     } catch (err: any) {
-      alert(err?.response?.data?.error || 'Failed to delete password');
+      alert(err?.response?.data?.error || 'Failed to move password to Trash');
       await fetchResources();
     }
   };

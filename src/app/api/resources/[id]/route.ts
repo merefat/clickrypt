@@ -170,28 +170,21 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     return NextResponse.json({ error: 'Forbidden: Only the owner can delete this resource' }, { status: 403 });
   }
 
-  const deleted = db[storeName].splice(index, 1)[0];
-
-  // Also remove from any group assignments
-  for (const g of db.groups) {
-    if (g.assignedResourceIds && g.assignedResourceIds.includes(id)) {
-      g.assignedResourceIds = g.assignedResourceIds.filter((rid) => rid !== id);
-    }
-  }
+  // Soft-delete: Move to Trash
+  targetResource.deletedAt = new Date().toISOString();
+  targetResource.deletedBy = authUser.id;
+  targetResource.originalFolderId = targetResource.folderId || null;
+  targetResource.lastModified = new Date().toISOString();
 
   db.auditLogsFor(userMode).unshift({
     id: `al-${Date.now()}`,
     timestamp: new Date().toISOString(),
-    action: 'DELETE_RESOURCE',
+    action: 'MOVE_TO_TRASH_RESOURCE',
     userId: authUser.id,
     resourceId: id,
-    details: `Deleted password item "${deleted.name}"`,
+    details: `Moved password item "${targetResource.name}" to Trash`,
   });
 
-  // Delete directly from Supabase PostgreSQL immediately
-  const { getSupabaseServer } = await import('@/lib/supabaseServer');
-  await getSupabaseServer().from('resources').delete().eq('id', id);
-
   await persistDb(db);
-  return NextResponse.json({ success: true, message: `Password item ${deleted.name} deleted successfully` });
+  return NextResponse.json({ success: true, message: `Password item ${targetResource.name} moved to Trash` });
 }
