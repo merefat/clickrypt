@@ -1,4 +1,4 @@
-﻿-- ==============================================================================
+-- ==============================================================================
 -- CLICKRYPT DATABASE SCHEMA NORMALIZATION & HARMONIZATION MIGRATION
 -- ==============================================================================
 
@@ -73,3 +73,37 @@ END $$;
 -- 6. DROP UNREFERENCED DEAD TABLES
 DROP TABLE IF EXISTS public.team_members CASCADE;
 DROP TABLE IF EXISTS public.activity_logs CASCADE;
+
+-- 7. ENABLE REALTIME PUBLICATION & REPLICA IDENTITY
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE 
+    public.resources,
+    public.folders,
+    public.resource_shares,
+    public.users,
+    public.groups,
+    public.group_members,
+    public.group_folders,
+    public.group_resources,
+    public.organizations,
+    public.subscriptions,
+    public.audit_logs,
+    public.invitations;
+EXCEPTION WHEN OTHERS THEN
+  -- Table already in publication
+  NULL;
+END $$;
+
+ALTER TABLE public.resources REPLICA IDENTITY FULL;
+ALTER TABLE public.folders REPLICA IDENTITY FULL;
+ALTER TABLE public.resource_shares REPLICA IDENTITY FULL;
+ALTER TABLE public.users REPLICA IDENTITY FULL;
+ALTER TABLE public.groups REPLICA IDENTITY FULL;
+ALTER TABLE public.group_members REPLICA IDENTITY FULL;
+ALTER TABLE public.group_folders REPLICA IDENTITY FULL;
+ALTER TABLE public.group_resources REPLICA IDENTITY FULL;
+ALTER TABLE public.organizations REPLICA IDENTITY FULL;
+ALTER TABLE public.subscriptions REPLICA IDENTITY FULL;
+ALTER TABLE public.audit_logs REPLICA IDENTITY FULL;
+ALTER TABLE public.invitations REPLICA IDENTITY FULL;
