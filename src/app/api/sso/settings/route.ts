@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
+import { persistDb } from '@/lib/dbPersistence';
 
 export async function GET() {
   try {
@@ -49,6 +50,8 @@ export async function POST(req: Request) {
       userId: authUser.id,
       details: `Created draft SSO configuration for provider ${provider}`,
     });
+
+    await persistDb(db);
 
     return NextResponse.json({ success: true, setting: newSetting });
   } catch (err: any) {

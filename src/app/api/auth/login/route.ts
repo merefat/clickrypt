@@ -53,12 +53,14 @@ export async function POST(request: Request) {
       const { getSupabaseServer } = await import('@/lib/supabaseServer');
       const { data: row } = await getSupabaseServer()
         .from('users')
-        .select('id, auth_id, email, name, account_mode, data')
+        .select('id, auth_id, email, name, role, status, account_mode, data')
         .eq('email', lowerEmail)
         .maybeSingle();
 
       if (row) {
         user = {
+          status: row.status || row.data?.status || 'Active',
+          role: row.role || row.data?.role || 'User',
           ...row.data,
           id: row.id,
           email: row.email,

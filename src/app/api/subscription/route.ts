@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
+import { persistDb } from '@/lib/dbPersistence';
 
 export async function GET() {
   return NextResponse.json(db.subscription);
@@ -33,12 +34,14 @@ export async function POST(request: Request) {
         details: `Organization Subscription renewed via Stripe for 365 days. Vault unlocked for all team members.`,
       });
 
+      await persistDb(db);
       return NextResponse.json({ success: true, subscription: db.subscription });
     }
 
     if (action === 'EXPIRE_DEMO') {
       db.subscription.status = 'Expired';
       db.subscription.daysRemaining = 0;
+      await persistDb(db);
       return NextResponse.json({ success: true, subscription: db.subscription });
     }
 

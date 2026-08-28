@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
+import { persistDb } from '@/lib/dbPersistence';
+import { getSupabaseServer } from '@/lib/supabaseServer';
 
 export async function PUT(
   req: Request,
@@ -41,10 +43,14 @@ export async function PUT(
         details: `Activated SSO provider configuration ${setting.provider} (demoted previous active configs)`,
       });
 
+      await persistDb(db);
+
       return NextResponse.json({ success: true, setting });
     } else if (action === 'deactivate') {
       setting.status = 'disabled';
       setting.modifiedAt = new Date().toISOString();
+
+      await persistDb(db);
 
       return NextResponse.json({ success: true, setting });
     }
@@ -62,6 +68,8 @@ export async function DELETE(
   try {
     const { id } = await params;
     db.ssoSettings = db.ssoSettings.filter((s) => s.id !== id);
+    await getSupabaseServer().from('sso_settings').delete().eq('id', id);
+    await persistDb(db);
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 });

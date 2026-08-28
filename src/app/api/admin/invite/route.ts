@@ -3,7 +3,7 @@ import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
 import { matchesOrganizationDomain } from '@/lib/config';
 import { sendEmail } from '@/lib/email';
-import { schedulePersist } from '@/lib/dbPersistence';
+import { persistDb } from '@/lib/dbPersistence';
 
 export async function POST(request: Request) {
   try {
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
       });
     }
 
-    schedulePersist(db);
+    await persistDb(db);
 
     db.auditLogsFor('organization').unshift({
       id: `al-${Date.now()}`,
@@ -196,13 +196,17 @@ export async function DELETE(request: Request) {
 
     if (token) {
       db.invitations = db.invitations.filter((i) => i.token !== token);
+      const { getSupabaseServer } = await import('@/lib/supabaseServer');
+      await getSupabaseServer().from('invitations').delete().eq('token', token);
     }
     if (email) {
       db.invitations = db.invitations.filter((i) => i.email.toLowerCase() !== email);
       db.users = db.users.filter((u) => !(u.email.toLowerCase() === email && u.status === 'Invited'));
+      const { getSupabaseServer } = await import('@/lib/supabaseServer');
+      await getSupabaseServer().from('invitations').delete().eq('email', email);
     }
 
-    schedulePersist(db);
+    await persistDb(db);
     return NextResponse.json({ success: true, message: 'Invitation revoked' });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to revoke invite' }, { status: 500 });
