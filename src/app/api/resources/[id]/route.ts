@@ -129,7 +129,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     details: `Updated resource ${res.name}`,
   });
 
-  persistDb(db);
+  await persistDb(db);
   const sanitized = sanitizeResourceForUser(res, authUser);
   return NextResponse.json(sanitized);
 }
@@ -139,23 +139,45 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (!authUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const userMode = (authUser.accountMode || 'personal') as 'personal' | 'organization';
+
   const { id } = await params;
-  const store = db.resourcesFor(userMode);
-  const index = store.findIndex((r) => r.id === id);
+  const requestedMode = request.headers.get('x-app-mode');
+  const userMode = (requestedMode === 'organization' || requestedMode === 'personal')
+    ? requestedMode
+    : ((authUser.accountMode || 'personal') as 'personal' | 'organization');
+
+  // Search in current mode, or fallback to search across all resources
+  let storeName: 'resources' | 'organizationResources' = userMode === 'organization' ? 'organizationResources' : 'resources';
+  let index = db[storeName].findIndex((r) => r.id === id);
+
+  if (index === -1) {
+    const otherStoreName = storeName === 'resources' ? 'organizationResources' : 'resources';
+    const otherIndex = db[otherStoreName].findIndex((r) => r.id === id);
+    if (otherIndex !== -1) {
+      storeName = otherStoreName;
+      index = otherIndex;
+    }
+  }
 
   if (index === -1) {
     return NextResponse.json({ error: 'Resource not found' }, { status: 404 });
   }
 
-  const targetResource = store[index];
+  const targetResource = db[storeName][index];
 
   // Only the resource owner can delete the resource
   if (!canUserModifyResource(targetResource, authUser)) {
     return NextResponse.json({ error: 'Forbidden: Only the owner can delete this resource' }, { status: 403 });
   }
 
-  const deleted = store.splice(index, 1)[0];
+  const deleted = db[storeName].splice(index, 1)[0];
+
+  // Also remove from any group assignments
+  for (const g of db.groups) {
+    if (g.assignedResourceIds && g.assignedResourceIds.includes(id)) {
+      g.assignedResourceIds = g.assignedResourceIds.filter((rid) => rid !== id);
+    }
+  }
 
   db.auditLogsFor(userMode).unshift({
     id: `al-${Date.now()}`,
@@ -166,6 +188,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     details: `Deleted password item "${deleted.name}"`,
   });
 
-  persistDb(db);
+  // Delete directly from Supabase PostgreSQL immediately
+  const { getSupabaseServer } = await import('@/lib/supabaseServer');
+  await getSupabaseServer().from('resources').delete().eq('id', id);
+
+  await persistDb(db);
   return NextResponse.json({ success: true, message: `Password item ${deleted.name} deleted successfully` });
 }

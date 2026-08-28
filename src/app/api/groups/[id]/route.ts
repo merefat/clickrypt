@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
+import { persistDb } from '@/lib/dbPersistence';
+import { getSupabaseServer } from '@/lib/supabaseServer';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const authUser = await getAuthUserFromRequest(request);
@@ -19,13 +21,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const authUser = await getAuthUserFromRequest(request);
-  if (!authUser) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  if (authUser.role !== 'Owner' && authUser.role !== 'Admin') {
-    return NextResponse.json({ error: 'Only Owners or Admins can update groups' }, { status: 403 });
-  }
+  try {
+    const authUser = await getAuthUserFromRequest(request);
+    if (!authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (authUser.role !== 'Owner' && authUser.role !== 'Admin') {
+      return NextResponse.json({ error: 'Only Owners or Admins can update groups' }, { status: 403 });
+    }
   const userMode = (authUser.accountMode || 'organization') as 'personal' | 'organization';
   const { id } = await params;
   const body = await request.json();
@@ -97,7 +100,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     details: `Updated team group ${group.name}`,
   });
 
-  return NextResponse.json(group);
+    await persistDb(db);
+    return NextResponse.json(group);
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Failed to update group' }, { status: 500 });
+  }
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -127,5 +134,8 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     details: `Deleted team group ${deleted.name}`,
   });
 
-  return NextResponse.json({ success: true });
+  await getSupabaseServer().from('groups').delete().eq('id', id);
+  await persistDb(db);
+
+  return NextResponse.json({ success: true, message: `Group ${deleted.name} deleted successfully` });
 }

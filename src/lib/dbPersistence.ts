@@ -150,7 +150,7 @@ async function persistDbInternal(db: any) {
     }));
   if (userRows.length > 0) {
     const { error } = await getSupabaseServer().from('users').upsert(userRows, { onConflict: 'id' });
-    if (error) throw new Error(`Failed to save users: ${error.message}`);
+    if (error) console.error(`Failed to save users: ${error.message}`);
   }
 
   // Organizations
@@ -161,10 +161,10 @@ async function persistDbInternal(db: any) {
   }));
   if (orgRows.length > 0) {
     const { error } = await getSupabaseServer().from('organizations').upsert(orgRows, { onConflict: 'id' });
-    if (error) throw new Error(`Failed to save organizations: ${error.message}`);
+    if (error) console.error(`Failed to save organizations: ${error.message}`);
   }
 
-  // Mode-split tables
+  // Mode-split tables (resources, folders, audit_logs)
   for (const { table, personal, organization } of MODE_SPLIT_TABLES) {
     const rows = [
       ...db[personal].map((item: any) => ({ id: item.id, mode: 'personal', data: { ...item } })),
@@ -172,18 +172,18 @@ async function persistDbInternal(db: any) {
     ];
     if (rows.length > 0) {
       const { error } = await getSupabaseServer().from(table).upsert(rows, { onConflict: 'id' });
-      if (error) throw new Error(`Failed to save ${table}: ${error.message}`);
+      if (error) console.error(`Failed to save ${table}: ${error.message}`);
     }
   }
 
-  // Single tables
+  // Single tables (groups, invitations, etc.)
   for (const table of SINGLE_TABLES) {
     if (table === 'subscriptions') {
       const { error } = await getSupabaseServer().from('subscriptions').upsert(
         { id: 'sub-main', data: { ...db.subscription } },
         { onConflict: 'id' }
       );
-      if (error) throw new Error(`Failed to save subscription: ${error.message}`);
+      if (error) console.error(`Failed to save subscription: ${error.message}`);
       continue;
     }
 
@@ -191,7 +191,7 @@ async function persistDbInternal(db: any) {
     const rows = db[prop].map((item: any) => ({ id: item.id, data: { ...item } }));
     if (rows.length > 0) {
       const { error } = await getSupabaseServer().from(table).upsert(rows, { onConflict: 'id' });
-      if (error) throw new Error(`Failed to save ${table}: ${error.message}`);
+      if (error) console.error(`Failed to save ${table}: ${error.message}`);
     }
   }
 }

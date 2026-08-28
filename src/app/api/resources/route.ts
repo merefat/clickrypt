@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
+import { persistDb } from '@/lib/dbPersistence';
 import { ENABLE_PAY_BILL } from '@/lib/config';
 import { encryptSecret } from '@/lib/crypto';
 import {
@@ -201,8 +202,11 @@ export async function POST(request: Request) {
       details: `Created new password item: ${newResource.name}`,
     });
 
+    await persistDb(db);
+
     return NextResponse.json(newResource);
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to create resource' }, { status: 500 });
+    console.error('Resource POST error details:', error);
+    return NextResponse.json({ error: 'Failed to create resource', details: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
 }

@@ -456,8 +456,14 @@ export default function VaultPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this password?')) return;
-    await api.delete(`/resources/${id}`);
-    fetchResources();
+    setResources((prev) => prev.filter((r) => r.id !== id));
+    try {
+      await api.delete(`/resources/${id}`);
+      await fetchResources();
+    } catch (err: any) {
+      alert(err?.response?.data?.error || 'Failed to delete password');
+      await fetchResources();
+    }
   };
 
   const [dragOver, setDragOver] = useState<{ id: string | null; type: string | null }>({ id: null, type: null });
@@ -715,13 +721,15 @@ export default function VaultPage() {
     });
     if (idsToRemove.length === 0) return;
     if (!confirm(`Remove ${idsToRemove.length} duplicate password(s)?`)) return;
+    setResources((prev) => prev.filter((r) => !idsToRemove.includes(r.id)));
     try {
       await Promise.all(idsToRemove.map((id) => api.delete(`/resources/${id}`)));
       setShowDuplicates(false);
-      fetchResources();
-      fetchFolders();
+      await fetchResources();
+      await fetchFolders();
     } catch (err) {
       alert('Failed to remove duplicates.');
+      await fetchResources();
     }
   };
 
