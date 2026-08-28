@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import QRCode from 'qrcode';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -262,6 +263,7 @@ export default function SettingsPage() {
   // 2FA State
   const [totpSecret, setTotpSecret] = useState('');
   const [totpUri, setTotpUri] = useState('');
+  const [totpQrDataUrl, setTotpQrDataUrl] = useState('');
   const [totpInputCode, setTotpInputCode] = useState('');
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [copiedBackupCodes, setCopiedBackupCodes] = useState(false);
@@ -272,6 +274,23 @@ export default function SettingsPage() {
   const [totpSuccessMsg, setTotpSuccessMsg] = useState('');
   const [totpError, setTotpError] = useState('');
   const [is2FALoading, setIs2FALoading] = useState(false);
+
+  useEffect(() => {
+    if (totpUri) {
+      QRCode.toDataURL(totpUri, {
+        width: 256,
+        margin: 1,
+        color: {
+          dark: '#0f172a',
+          light: '#ffffff',
+        },
+      })
+        .then((url) => setTotpQrDataUrl(url))
+        .catch((err) => console.error('Failed to generate QR code data URL:', err));
+    } else {
+      setTotpQrDataUrl('');
+    }
+  }, [totpUri]);
 
   const handleDownloadBackupCodes = () => {
     const textContent = `====================================================
@@ -1302,13 +1321,19 @@ ${privKey}
               {!is2FAEnabled && totpUri && (
                 <div className="bg-[#f8fafc] p-4 rounded-xl border border-[#cbd5e1] flex flex-col items-center text-center space-y-3">
                   <div className="w-36 h-36 bg-white p-2 rounded-xl flex items-center justify-center shadow border border-[#cbd5e1]">
-                    <Image
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(totpUri)}`}
-                      alt="Clickrypt 2FA QR Code"
-                      width={250}
-                      height={250}
-                      className="w-full h-full object-contain"
-                    />
+                    {totpQrDataUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={totpQrDataUrl}
+                        alt="Clickrypt 2FA QR Code"
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <div className="text-[10px] text-gray-400 font-extrabold flex flex-col items-center gap-1.5">
+                        <QrCode className="w-6 h-6 animate-pulse text-[#0284c7]" />
+                        <span>Rendering...</span>
+                      </div>
+                    )}
                   </div>
                   <p className="text-[11px] text-[#64748b] font-medium">
                     Scan this QR code with Microsoft Authenticator, Google Authenticator, or Authy.
