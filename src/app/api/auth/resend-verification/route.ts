@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
+import { persistDb } from '@/lib/dbPersistence';
 import { VERIFICATION_CODE_EXPIRY_MINUTES } from '@/lib/config';
 import { generateVerificationCode, sendVerificationEmail } from '@/lib/email';
 
@@ -11,9 +12,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
-    const user = db.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    const cleanEmail = email.toLowerCase().trim();
+    const user = db.users.find((u) => u.email?.toLowerCase() === cleanEmail);
     if (!user || !user.organizationId) {
-      return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
+      return NextResponse.json({ error: 'No pending organization found for this email' }, { status: 400 });
     }
 
     const org = db.organizations.find((o) => o.id === user.organizationId);
@@ -22,25 +24,37 @@ export async function POST(req: Request) {
     }
 
     if (org.verificationStatus === 'verified') {
-      return NextResponse.json({ error: 'Organization is already verified' }, { status: 400 });
+      return NextResponse.json({ error: 'Organization is already verified. Please sign in.' }, { status: 400 });
     }
 
     if (org.ownerId !== user.id) {
-      return NextResponse.json({ error: 'Only the owner can request a new code' }, { status: 403 });
+      return NextResponse.json({ error: 'Only the owner can request a new verification code' }, { status: 403 });
     }
 
     const code = generateVerificationCode();
     org.verificationCode = code;
     org.verificationCodeExpiresAt = new Date(Date.now() + VERIFICATION_CODE_EXPIRY_MINUTES * 60 * 1000).toISOString();
 
-    await sendVerificationEmail(email, code);
+    const mailResult = await sendVerificationEmail(cleanEmail, code, org.domain);
+    await persistDb(db);
+
+    if (!mailResult.success) {
+      return NextResponse.json(
+        {
+          error: `Verification code generated, but email delivery failed: ${mailResult.error || 'SMTP delivery error'}. Please verify your email settings.`,
+          emailSent: false,
+        },
+        { status: 502 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      message: 'A new verification code has been sent',
+      emailSent: true,
+      message: 'A new verification code has been successfully sent to your email.',
     });
   } catch (error) {
     console.error('Resend verification error:', error);
-    return NextResponse.json({ error: 'Failed to resend code' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to resend verification code' }, { status: 500 });
   }
 }

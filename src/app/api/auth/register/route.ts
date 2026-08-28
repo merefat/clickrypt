@@ -323,7 +323,7 @@ export async function POST(request: Request) {
         db.organizations.push(newOrg);
         db.users.push(newUser);
 
-        await sendVerificationEmail(lowerEmail, code);
+        const mailResult = await sendVerificationEmail(lowerEmail, code, normalizedDomain);
         await persistDb(db);
 
         return NextResponse.json({
@@ -331,6 +331,8 @@ export async function POST(request: Request) {
           requiresVerification: true,
           email: newUser.email,
           organizationId: newOrg.id,
+          emailSent: mailResult.success,
+          emailError: mailResult.error,
         });
       }
     } else {

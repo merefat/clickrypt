@@ -47,8 +47,8 @@ function VerifyForm() {
     setError('');
     setMessage('');
     try {
-      await api.post('/auth/resend-verification', { email });
-      setMessage('A new code has been sent to your email.');
+      const res = await api.post('/auth/resend-verification', { email });
+      setMessage(res.data?.message || 'A new verification code has been sent to your email.');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to resend code');
     } finally {
