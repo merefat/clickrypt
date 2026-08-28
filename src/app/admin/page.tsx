@@ -22,7 +22,10 @@ import {
   Check,
   Trash2,
   KeyRound,
-  X
+  X,
+  CheckSquare,
+  Square,
+  AlertTriangle
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -71,6 +74,14 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [auditLogPage, setAuditLogPage] = useState(1);
   const LOGS_PER_PAGE = 8;
+
+  // Audit Logs Selection & Management States
+  const [selectedLogIds, setSelectedLogIds] = useState<string[]>([]);
+  const [auditSearchTerm, setAuditSearchTerm] = useState('');
+  const [auditActionFilter, setAuditActionFilter] = useState('All');
+  const [showDeleteLogsModal, setShowDeleteLogsModal] = useState(false);
+  const [deleteLogsTarget, setDeleteLogsTarget] = useState<'selected' | 'all' | string | null>(null);
+  const [deletingLogsLoading, setDeletingLogsLoading] = useState(false);
 
   const [showSettings, setShowSettings] = useState(false);
   const [openEnrollment, setOpenEnrollment] = useState(false);
@@ -121,6 +132,53 @@ export default function AdminPage() {
       setAuditLogs(res.data);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleToggleSelectLog = (id: string) => {
+    setSelectedLogIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectAllPage = (logsOnPage: any[]) => {
+    const isAllPageSelected =
+      logsOnPage.length > 0 && logsOnPage.every((log) => selectedLogIds.includes(log.id));
+
+    if (isAllPageSelected) {
+      const pageIds = new Set(logsOnPage.map((l) => l.id));
+      setSelectedLogIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const newSelected = new Set([...selectedLogIds, ...logsOnPage.map((l) => l.id)]);
+      setSelectedLogIds(Array.from(newSelected));
+    }
+  };
+
+  const handleConfirmDeleteLogs = async () => {
+    if (!deleteLogsTarget) return;
+    setDeletingLogsLoading(true);
+    try {
+      if (deleteLogsTarget === 'all') {
+        await api.delete('/admin/audit-logs', { data: { deleteAll: true } });
+      } else if (deleteLogsTarget === 'selected') {
+        await api.delete('/admin/audit-logs', { data: { ids: selectedLogIds } });
+      } else {
+        await api.delete('/admin/audit-logs', { data: { ids: [deleteLogsTarget] } });
+      }
+      await fetchAuditLogs();
+      setSelectedLogIds((prev) =>
+        deleteLogsTarget === 'all'
+          ? []
+          : deleteLogsTarget === 'selected'
+          ? []
+          : prev.filter((id) => id !== deleteLogsTarget)
+      );
+      setShowDeleteLogsModal(false);
+      setDeleteLogsTarget(null);
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to delete audit logs');
+    } finally {
+      setDeletingLogsLoading(false);
     }
   };
 
@@ -665,62 +723,231 @@ export default function AdminPage() {
           {/* Audit Logs Tab Content */}
           {activeTab === 'audit' &&
             (() => {
-              const totalLogPages = Math.ceil(auditLogs.length / LOGS_PER_PAGE) || 1;
-              const currentLogs = auditLogs.slice(
+              const filteredAuditLogs = auditLogs.filter((log) => {
+                const matchesSearch =
+                  !auditSearchTerm.trim() ||
+                  log.action.toLowerCase().includes(auditSearchTerm.toLowerCase()) ||
+                  (log.details && log.details.toLowerCase().includes(auditSearchTerm.toLowerCase())) ||
+                  (log.userId && log.userId.toLowerCase().includes(auditSearchTerm.toLowerCase()));
+
+                const matchesAction =
+                  auditActionFilter === 'All' ||
+                  log.action.toUpperCase().includes(auditActionFilter.toUpperCase());
+
+                return matchesSearch && matchesAction;
+              });
+
+              const totalLogPages = Math.ceil(filteredAuditLogs.length / LOGS_PER_PAGE) || 1;
+              const currentLogs = filteredAuditLogs.slice(
                 (auditLogPage - 1) * LOGS_PER_PAGE,
                 auditLogPage * LOGS_PER_PAGE
               );
 
+              const isAllPageSelected =
+                currentLogs.length > 0 && currentLogs.every((log) => selectedLogIds.includes(log.id));
+
               return (
-                <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-4 shadow-xl">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm font-extrabold text-[#0f172a]">
-                      <Shield className="w-4 h-4 text-[#0284c7]" />
-                      <span>Live Security Audit Logs ({auditLogs.length})</span>
+                <div className="glass-panel rounded-2xl p-6 border border-[#d0dbe5] bg-[#ffffff] space-y-5 shadow-xl">
+                  {/* Controls & Filter Header */}
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-[#e2e8f0] pb-4">
+                    <div className="flex items-center gap-3 w-full md:w-auto">
+                      <div className="relative w-full sm:w-72">
+                        <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="Search audit details or actions..."
+                          value={auditSearchTerm}
+                          onChange={(e) => {
+                            setAuditSearchTerm(e.target.value);
+                            setAuditLogPage(1);
+                          }}
+                          className="w-full bg-[#ffffff] border border-[#cbd5e1] rounded-xl pl-10 pr-4 py-2 text-xs text-[#0f172a] placeholder-gray-400 focus:outline-none focus:border-[#1fbbd2] shadow-sm"
+                        />
+                      </div>
+
+                      <FilterDropdown
+                        value={auditActionFilter}
+                        onChange={(val) => {
+                          setAuditActionFilter(val);
+                          setAuditLogPage(1);
+                        }}
+                        icon={Filter}
+                        options={[
+                          { value: 'All', label: 'All Actions' },
+                          { value: 'CREATE', label: 'Create Actions' },
+                          { value: 'DELETE', label: 'Delete Actions' },
+                          { value: 'UPDATE', label: 'Update Actions' },
+                          { value: 'SHARE', label: 'Share Actions' },
+                          { value: 'LOGIN', label: 'Login Actions' },
+                          { value: 'AUTH', label: 'Auth Actions' },
+                          { value: 'PASSKEY', label: 'Passkey Actions' },
+                          { value: 'RECOVERY', label: 'Recovery Actions' },
+                        ]}
+                      />
                     </div>
 
-                    <span className="text-xs text-[#0284c7] font-extrabold">
-                      Page {auditLogPage} of {totalLogPages}
-                    </span>
-                  </div>
+                    <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                      <div className="flex items-center gap-2 text-xs font-extrabold text-[#0f172a]">
+                        <Shield className="w-4 h-4 text-[#0284c7]" />
+                        <span>Audit Logs ({filteredAuditLogs.length})</span>
+                      </div>
 
-                  <div className="space-y-2 font-mono text-xs">
-                    {currentLogs.map((log) => {
-                      const isDelete = log.action.includes('DELETE');
-                      const isShare = log.action.includes('SHARE');
-                      const isCreate = log.action.includes('CREATE');
-
-                      const badgeStyle = isDelete
-                        ? 'bg-rose-50 text-rose-700 border-rose-300'
-                        : isShare
-                        ? 'bg-sky-50 text-sky-700 border-sky-300'
-                        : isCreate
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                        : 'bg-[#fffbeb] text-[#d97706] border-[#f39c12]/40';
-
-                      return (
-                        <div
-                          key={log.id}
-                          className="p-3 bg-[#f8fafc] hover:bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl flex items-center justify-between shadow-sm transition-all"
+                      {auditLogs.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteLogsTarget('all');
+                            setShowDeleteLogsModal(true);
+                          }}
+                          className="px-3 py-1.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                          title="Purge all audit logs permanently"
                         >
-                          <div className="flex items-center gap-3">
-                            <span className={`border text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs ${badgeStyle}`}>
-                              [{log.action}]
-                            </span>
-                            <span className="text-[#0f172a] font-bold">{log.details}</span>
-                          </div>
-                          <span className="text-[#64748b] text-[10px] font-medium">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                        </div>
-                      );
-                    })}
+                          <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                          <span>Clear All Logs</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Bulk Selection Toolbar */}
+                  {selectedLogIds.length > 0 && (
+                    <div className="bg-[#f0f9ff] border border-[#bae6fd] rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200 shadow-sm">
+                      <div className="flex items-center gap-2.5 text-xs font-extrabold text-[#0369a1]">
+                        <CheckSquare className="w-4 h-4 text-[#0284c7]" />
+                        <span>{selectedLogIds.length} audit log{selectedLogIds.length > 1 ? 's' : ''} selected</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedLogIds([])}
+                          className="px-3 py-1.5 rounded-xl bg-white border border-[#cbd5e1] text-[#475569] hover:text-[#0f172a] hover:bg-[#f8fafc] text-xs font-extrabold transition-all cursor-pointer shadow-xs"
+                        >
+                          Deselect All
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteLogsTarget('selected');
+                            setShowDeleteLogsModal(true);
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete Selected ({selectedLogIds.length})</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Table View */}
+                  {filteredAuditLogs.length === 0 ? (
+                    <div className="p-8 text-center bg-[#f8fafc] border border-dashed border-[#cbd5e1] rounded-2xl space-y-2">
+                      <Shield className="w-8 h-8 text-[#94a3b8] mx-auto opacity-60" />
+                      <p className="text-xs font-extrabold text-[#0f172a]">No audit logs found</p>
+                      <p className="text-[11px] text-[#64748b]">
+                        {auditSearchTerm || auditActionFilter !== 'All'
+                          ? 'Try adjusting your search query or action filter.'
+                          : 'Security events and administrative actions will appear here automatically.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 font-mono text-xs">
+                      {/* Selection Header Row */}
+                      <div className="px-3 py-2 bg-[#f1f5f9] border border-[#cbd5e1] rounded-xl flex items-center justify-between text-[11px] font-sans font-extrabold text-[#475569]">
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSelectAllPage(currentLogs)}
+                            className="flex items-center gap-1.5 cursor-pointer text-[#475569] hover:text-[#0f172a]"
+                            title={isAllPageSelected ? 'Deselect all on this page' : 'Select all on this page'}
+                          >
+                            {isAllPageSelected ? (
+                              <CheckSquare className="w-4 h-4 text-[#0284c7]" />
+                            ) : (
+                              <Square className="w-4 h-4 text-[#94a3b8]" />
+                            )}
+                            <span>Select Page ({currentLogs.length})</span>
+                          </button>
+                        </div>
+                        <span className="text-[10px] text-[#64748b]">
+                          Page {auditLogPage} of {totalLogPages}
+                        </span>
+                      </div>
+
+                      {/* Log Rows */}
+                      {currentLogs.map((log) => {
+                        const isDelete = log.action.includes('DELETE');
+                        const isShare = log.action.includes('SHARE');
+                        const isCreate = log.action.includes('CREATE');
+                        const isSelected = selectedLogIds.includes(log.id);
+
+                        const badgeStyle = isDelete
+                          ? 'bg-rose-50 text-rose-700 border-rose-300'
+                          : isShare
+                          ? 'bg-sky-50 text-sky-700 border-sky-300'
+                          : isCreate
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                          : 'bg-[#fffbeb] text-[#d97706] border-[#f39c12]/40';
+
+                        return (
+                          <div
+                            key={log.id}
+                            className={`p-3 border rounded-xl flex items-center justify-between shadow-xs transition-all group ${
+                              isSelected
+                                ? 'bg-[#f0f9ff] border-[#0284c7] ring-1 ring-[#0284c7]/30'
+                                : 'bg-[#f8fafc] hover:bg-[#f1f5f9] border-[#cbd5e1]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleSelectLog(log.id)}
+                                className="cursor-pointer text-[#475569] hover:text-[#0284c7] shrink-0"
+                              >
+                                {isSelected ? (
+                                  <CheckSquare className="w-4 h-4 text-[#0284c7]" />
+                                ) : (
+                                  <Square className="w-4 h-4 text-[#94a3b8]" />
+                                )}
+                              </button>
+
+                              <span className={`border text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs shrink-0 ${badgeStyle}`}>
+                                [{log.action}]
+                              </span>
+                              <span className="text-[#0f172a] font-bold truncate">{log.details}</span>
+                            </div>
+
+                            <div className="flex items-center gap-3 shrink-0 ml-3">
+                              <span className="text-[#64748b] text-[10px] font-medium font-sans whitespace-nowrap">
+                                {new Date(log.timestamp).toLocaleDateString()} {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDeleteLogsTarget(log.id);
+                                  setShowDeleteLogsModal(true);
+                                }}
+                                className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                                title="Delete this audit log"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* Audit Logs Pagination Controls */}
-                  {auditLogs.length > LOGS_PER_PAGE && (
+                  {filteredAuditLogs.length > LOGS_PER_PAGE && (
                     <div className="pt-4 border-t border-[#cbd5e1] flex items-center justify-between text-xs text-[#64748b]">
                       <span>
                         Showing {(auditLogPage - 1) * LOGS_PER_PAGE + 1} to{' '}
-                        {Math.min(auditLogPage * LOGS_PER_PAGE, auditLogs.length)} of {auditLogs.length} logs
+                        {Math.min(auditLogPage * LOGS_PER_PAGE, filteredAuditLogs.length)} of {filteredAuditLogs.length} logs
                       </span>
 
                       <div className="flex items-center gap-1.5 font-sora">
@@ -863,6 +1090,73 @@ export default function AdminPage() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Audit Logs Confirmation Modal */}
+      {showDeleteLogsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 font-sora animate-in fade-in duration-200">
+          <div className="bg-[#ffffff] border border-[#d0dbe5] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-[#cbd5e1] pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 font-extrabold shadow-xs">
+                  <AlertTriangle className="w-5 h-5 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-[#0f172a]">
+                    {deleteLogsTarget === 'all'
+                      ? 'Clear All Audit Logs'
+                      : deleteLogsTarget === 'selected'
+                      ? `Delete ${selectedLogIds.length} Audit Log${selectedLogIds.length > 1 ? 's' : ''}`
+                      : 'Delete Audit Log'}
+                  </h3>
+                  <p className="text-[11px] text-rose-600 font-bold">Irreversible administrative action</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowDeleteLogsModal(false);
+                  setDeleteLogsTarget(null);
+                }}
+                disabled={deletingLogsLoading}
+                className="p-1 text-[#64748b] hover:text-[#0f172a] rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-[#475569] leading-relaxed">
+              {deleteLogsTarget === 'all'
+                ? `Are you sure you want to permanently delete all ${auditLogs.length} audit logs? Once cleared, historical security events and administrative records cannot be recovered.`
+                : deleteLogsTarget === 'selected'
+                ? `Are you sure you want to permanently delete the ${selectedLogIds.length} selected audit log entry(s)?`
+                : 'Are you sure you want to permanently delete this audit log entry?'}
+            </p>
+
+            <div className="pt-2 flex justify-end gap-3 border-t border-[#f1f5f9]">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteLogsModal(false);
+                  setDeleteLogsTarget(null);
+                }}
+                disabled={deletingLogsLoading}
+                className="px-4 py-2.5 bg-[#ffffff] hover:bg-[#f1f5f9] border border-[#cbd5e1] text-[#334155] rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-xs"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmDeleteLogs}
+                disabled={deletingLogsLoading}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-md flex items-center gap-2 disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{deletingLogsLoading ? 'Deleting...' : 'Confirm Delete'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
