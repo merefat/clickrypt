@@ -24,13 +24,23 @@ export async function GET(request: Request) {
     const mode = (searchParams.get('mode') as 'personal' | 'organization') || user.accountMode || 'personal';
 
     const modeProfile = mode === 'personal' ? user.personalProfile : user.organizationProfile;
-    const organization = user.organizationId ? db.organizations.find((o) => o.id === user.organizationId) : null;
+    let organization = user.organizationId ? db.organizations.find((o) => o.id === user.organizationId) : null;
+    if (!organization && user.email) {
+      const emailDomain = user.email.split('@')[1]?.toLowerCase();
+      if (emailDomain) {
+        organization = db.organizations.find((o) => o.domain?.toLowerCase() === emailDomain) || null;
+      }
+    }
+    if (organization && !user.organizationId) {
+      user.organizationId = organization.id;
+    }
     const effectiveUser = {
       ...user,
       name: modeProfile?.name || user.name,
       email: modeProfile?.email || user.email,
       avatarUrl: modeProfile?.avatarUrl !== undefined ? modeProfile.avatarUrl : user.avatarUrl,
       accountMode: user.accountMode || 'personal',
+      organizationId: organization?.id || user.organizationId,
       organization: organization
         ? {
             id: organization.id,
@@ -50,7 +60,7 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const { name, email, avatarUrl, mode } = await request.json();
+    const { name, email, avatarUrl, mode, publicKey, encryptedPrivateKey } = await request.json();
     const targetUser = await getAuthUserFromRequest(request);
 
     if (!targetUser) {
@@ -58,6 +68,12 @@ export async function PUT(request: Request) {
     }
 
     const activeMode = (mode as 'personal' | 'organization') || targetUser.accountMode || 'personal';
+
+    if (name) targetUser.name = name;
+    if (email) targetUser.email = email;
+    if (avatarUrl !== undefined) targetUser.avatarUrl = avatarUrl;
+    if (publicKey) targetUser.publicKey = publicKey;
+    if (encryptedPrivateKey) targetUser.encryptedPrivateKey = encryptedPrivateKey;
 
     if (activeMode === 'personal') {
       if (!targetUser.personalProfile) targetUser.personalProfile = {};

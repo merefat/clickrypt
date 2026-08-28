@@ -101,18 +101,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Password is required' }, { status: 400 });
     }
 
-    const validatedAccountMode = (accountMode === 'organization' ? 'organization' : 'personal') as
-      | 'personal'
-      | 'organization';
-
-    // Account-mode validation
-    if (validatedAccountMode === 'personal' && isAllowedOrgEmailDomain(lowerEmail)) {
-      return NextResponse.json(
-        { error: 'Personal accounts require a consumer email address. Use a personal email or choose Organization.' },
-        { status: 400 }
-      );
-    }
-
     // Invited member completing registration
     const existingUserIndex = db.users.findIndex((u) => u.email?.toLowerCase() === lowerEmail);
     const existingUser = existingUserIndex >= 0 ? db.users[existingUserIndex] : null;
@@ -194,6 +182,18 @@ export async function POST(request: Request) {
       });
 
       return response;
+    }
+
+    const validatedAccountMode = (accountMode === 'organization' ? 'organization' : 'personal') as
+      | 'personal'
+      | 'organization';
+
+    // Account-mode validation
+    if (validatedAccountMode === 'personal' && isAllowedOrgEmailDomain(lowerEmail)) {
+      return NextResponse.json(
+        { error: 'Personal accounts require a consumer email address. Use a personal email or choose Organization.' },
+        { status: 400 }
+      );
     }
 
     if (existingUser) {

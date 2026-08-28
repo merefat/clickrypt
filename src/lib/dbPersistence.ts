@@ -49,12 +49,18 @@ export async function loadDb(db: any) {
     (userRows || [])
       .filter((row: any) => row.email)
       .map((row: any) => ({
+        status: row.data?.status || 'Active',
+        role: row.data?.role || 'User',
+        publicKey: '',
+        encryptedPrivateKey: '',
+        lastActive: row.data?.lastActive || (row.data?.status === 'Invited' ? 'Pending Onboarding' : 'Just now'),
         ...row.data,
         id: row.id,
-        email: row.email,
-        name: row.name,
-        accountMode: row.account_mode,
+        email: row.email || row.data?.email,
+        name: row.name || row.data?.name || (row.email ? row.email.split('@')[0] : 'User'),
+        accountMode: (row.account_mode || row.data?.accountMode || 'personal') as 'personal' | 'organization',
         authId: row.auth_id || row.data?.authId,
+        organizationId: row.data?.organizationId,
       }))
   );
 
@@ -70,6 +76,21 @@ export async function loadDb(db: any) {
       domain: row.domain,
     }))
   );
+
+  // Enforce single-owner rule: only the user matching org.ownerId can be Owner
+  for (const org of db.organizations) {
+    if (org.ownerId) {
+      for (const u of db.users) {
+        if (u.organizationId === org.id || (org.domain && u.email?.toLowerCase().endsWith('@' + org.domain.toLowerCase()))) {
+          if (u.id === org.ownerId) {
+            u.role = 'Owner';
+          } else if (u.role === 'Owner') {
+            u.role = 'User';
+          }
+        }
+      }
+    }
+  }
 
   // Mode-split tables
   for (const { table, personal, organization } of MODE_SPLIT_TABLES) {
@@ -120,7 +141,12 @@ async function persistDbInternal(db: any) {
       email: u.email,
       name: u.name,
       account_mode: u.accountMode || 'personal',
-      data: { ...u },
+      data: {
+        status: 'Active',
+        role: 'User',
+        ...u,
+        organizationId: u.organizationId || null,
+      },
     }));
   if (userRows.length > 0) {
     const { error } = await getSupabaseServer().from('users').upsert(userRows, { onConflict: 'id' });

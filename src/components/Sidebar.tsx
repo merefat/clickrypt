@@ -27,11 +27,16 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout, appMode } = useAuth();
   const { isOpen, close } = useMobileNav();
+  const [mounted, setMounted] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [expanded, setExpanded] = useState<{ [key: string]: boolean }>({});
   const [subGroups, setSubGroups] = useState<any[]>([]);
   const [subFolders, setSubFolders] = useState<any[]>([]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const storedState = localStorage.getItem('clickrypt_sidebar_collapsed');
@@ -181,19 +186,25 @@ export default function Sidebar() {
             </button>
           </div>
 
-          <nav className="space-y-1.5 overflow-y-auto overflow-x-hidden">
+          <nav suppressHydrationWarning className="space-y-1.5 overflow-y-auto overflow-x-hidden">
             {menuItems.map((item) => {
-              if (item.role === 'OrganizationOnly' && appMode === 'personal') {
-                return null;
-              }
-              if (user?.role === 'External' && item.path !== '/shared' && item.path !== '/settings') {
-                return null;
-              }
-              if (item.role === 'Owner' && user?.role !== 'Owner') {
-                return null;
-              }
-              if (item.role === 'AdminOrOwner' && user?.role !== 'Owner' && user?.role !== 'Admin') {
-                return null;
+              if (!mounted) {
+                if (item.role === 'OrganizationOnly' || item.role === 'Owner' || item.role === 'AdminOrOwner') {
+                  return null;
+                }
+              } else {
+                if (item.role === 'OrganizationOnly' && appMode === 'personal') {
+                  return null;
+                }
+                if (user?.role === 'External' && item.path !== '/shared' && item.path !== '/settings') {
+                  return null;
+                }
+                if (item.role === 'Owner' && user?.role !== 'Owner') {
+                  return null;
+                }
+                if (item.role === 'AdminOrOwner' && user?.role !== 'Owner' && user?.role !== 'Admin') {
+                  return null;
+                }
               }
 
               const Icon = item.icon;

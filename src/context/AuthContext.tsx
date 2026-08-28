@@ -91,24 +91,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setUnlockedPgpKey(cached);
       }
-    } catch (e) {
-      console.warn('Failed to load unlocked private key:', e);
+    } catch (error) {
+      console.error('Error loading unlocked private key from IndexedDB:', error);
     }
   };
 
   const unlockAndCachePrivateKey = async (
     passphrase: string,
     mode: 'personal' | 'organization',
-    encryptedKeyArmored?: string,
+    encryptedKey?: string,
     userId?: string
-  ): Promise<boolean> => {
+  ) => {
+    if (!encryptedKey || typeof window === 'undefined') return false;
     try {
-      const encryptedKey = encryptedKeyArmored || user?.encryptedPrivateKey || await getPrivateKey();
-      if (!encryptedKey) return false;
       const unlocked = await unprotectPrivateKey(encryptedKey, passphrase);
-      setUnlockedPgpKey(unlocked);
-      if (typeof window !== 'undefined') {
-        await saveUnlockedPrivateKey(unlocked, mode, userId || user?.id);
+      if (unlocked) {
+        setUnlockedPgpKey(unlocked);
+        await saveUnlockedPrivateKey(unlocked, mode, userId);
       }
       return true;
     } catch (e) {
@@ -121,6 +120,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof window !== 'undefined') {
       const mode = (localStorage.getItem('clickrypt_app_mode') as 'personal' | 'organization') || 'personal';
       setAppModeState(mode);
+      const cached =
+        localStorage.getItem(`clickrypt_user_profile_${mode}`) ||
+        localStorage.getItem('clickrypt_user_profile_organization') ||
+        localStorage.getItem('clickrypt_user_profile_personal') ||
+        localStorage.getItem('clickrypt_user_profile');
+      if (cached) {
+        try {
+          setUser(JSON.parse(cached));
+        } catch {}
+      }
     }
     setIsLoading(true);
     fetchSession().finally(() => setIsLoading(false));
@@ -154,7 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('clickrypt_app_mode', currentMode);
     }
     try {
-      const url = modeOverride ? `/auth/me?mode=${currentMode}` : '/auth/me';
+      const url = `/auth/me?mode=${encodeURIComponent(currentMode)}`;
       const res = await api.get(url);
       if (res.data?.user) {
         const serverMode = (res.data.user.accountMode as 'personal' | 'organization') || currentMode;
@@ -251,7 +260,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await saveUnlockedPrivateKey(unlocked, serverMode, userObj.id);
         }
       } else if (masterPass) {
-        await unlockAndCachePrivateKey(masterPass, serverMode, userObj.encryptedPrivateKey, userObj.id);
+        const isStub = !userObj.encryptedPrivateKey || userObj.encryptedPrivateKey.length < 200;
+        if (isStub && userObj.email) {
+          try {
+            const { privateKey, publicKey } = await generateKeyPair(userObj.email, masterPass);
+            userObj.encryptedPrivateKey = privateKey;
+            userObj.publicKey = publicKey;
+            await savePrivateKey(privateKey);
+            await unlockAndCachePrivateKey(masterPass, serverMode, privateKey, userObj.id);
+            api.put('/auth/me', { publicKey, encryptedPrivateKey: privateKey }).catch(() => {});
+          } catch (e) {
+            console.warn('Auto key generation fallback failed:', e);
+          }
+        } else {
+          await unlockAndCachePrivateKey(masterPass, serverMode, userObj.encryptedPrivateKey, userObj.id);
+        }
       }
 
       if (typeof window !== 'undefined') {

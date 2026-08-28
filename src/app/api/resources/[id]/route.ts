@@ -2,17 +2,13 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
 import { persistDb } from '@/lib/dbPersistence';
-import { encryptSecret, safeBase64Decode } from '@/lib/crypto';
-
-function decodeBase64Fallback(secrets: any[]): string | null {
-  const fallback = secrets.find((s) => s?.encryptedData?.startsWith('[PGP-ENCRYPTED-BLOB::'));
-  if (!fallback) return null;
-  const decoded = safeBase64Decode(fallback.encryptedData);
-  if (!decoded || decoded.startsWith('[PGP-ENCRYPTED-BLOB::') || decoded.includes('-----BEGIN PGP MESSAGE-----')) {
-    return null;
-  }
-  return decoded;
-}
+import { encryptSecret } from '@/lib/crypto';
+import {
+  getUserGroupFolderIds,
+  canUserAccessResource,
+  canUserModifyResource,
+  sanitizeResourceForUser,
+} from '@/lib/resourceAuth';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const authUser = await getAuthUserFromRequest(request);
@@ -25,7 +21,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!resource) {
     return NextResponse.json({ error: 'Resource not found' }, { status: 404 });
   }
-  return NextResponse.json(resource);
+
+  const userGroupFolderIds = getUserGroupFolderIds(authUser.id, db.groups);
+  if (!canUserAccessResource(resource, authUser, userGroupFolderIds)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const sanitized = sanitizeResourceForUser(resource, authUser);
+  return NextResponse.json(sanitized);
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -44,6 +47,12 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   }
 
   const res = store[index];
+
+  // Only the resource owner can modify the resource
+  if (!canUserModifyResource(res, authUser)) {
+    return NextResponse.json({ error: 'Forbidden: Only the owner can modify this resource' }, { status: 403 });
+  }
+
   res.name = body.name || res.name;
   res.username = body.username || res.username;
   res.url = body.url || res.url;
@@ -90,45 +99,20 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         res.secrets.push({ userId: res.ownerId, encryptedData: ownerEncryptedData });
       }
     }
-  }
 
-  // In organization mode, keep the organization owner's secret in sync when a password changes
-  if (body.password && userMode === 'organization' && authUser.organizationId) {
-    const owner = db.users.find(
-      (u) => u.organizationId === authUser.organizationId && u.role === 'Owner'
-    );
-    if (owner && owner.id !== authUser.id) {
-      const ownerSecret = res.secrets.find((s) => s.userId === owner.id);
-      const ownerEncryptedData = await encryptSecret(body.password, owner.publicKey);
-      if (ownerSecret) {
-        ownerSecret.encryptedData = ownerEncryptedData;
-      } else {
-        res.secrets.push({ userId: owner.id, encryptedData: ownerEncryptedData });
-      }
-    }
-  }
-
-  // If a base64 fallback exists and owner/org-owner PGP copies are missing, backfill them
-  const canBackfill = authUser.id === res.ownerId || authUser.role === 'Owner' || authUser.role === 'Admin';
-  const fallbackPlain = !body.password && canBackfill ? decodeBase64Fallback(res.secrets || []) : null;
-  if (fallbackPlain) {
-    const resourceOwner = db.users.find((u) => u.id === res.ownerId);
-    if (resourceOwner?.publicKey && !res.secrets.some((s: any) => s.userId === res.ownerId)) {
-      res.secrets.push({
-        userId: res.ownerId,
-        encryptedData: await encryptSecret(fallbackPlain, resourceOwner.publicKey),
-      });
-    }
-
-    if (userMode === 'organization' && authUser.organizationId) {
-      const orgOwner = db.users.find(
-        (u) => u.organizationId === authUser.organizationId && u.role === 'Owner'
-      );
-      if (orgOwner && orgOwner.id !== res.ownerId && !res.secrets.some((s: any) => s.userId === orgOwner.id)) {
-        res.secrets.push({
-          userId: orgOwner.id,
-          encryptedData: await encryptSecret(fallbackPlain, orgOwner.publicKey),
-        });
+    // Also re-encrypt for explicit existing recipients in sharedWith if public keys are available
+    if (res.sharedWith && Array.isArray(res.sharedWith)) {
+      for (const recipientId of res.sharedWith) {
+        const recipientUser = db.users.find((u) => u.id === recipientId || u.email?.toLowerCase() === recipientId.toLowerCase());
+        if (recipientUser?.publicKey) {
+          const recEncryptedData = await encryptSecret(body.password, recipientUser.publicKey);
+          const existingSec = res.secrets.find((s) => s.userId === recipientUser.id);
+          if (existingSec) {
+            existingSec.encryptedData = recEncryptedData;
+          } else {
+            res.secrets.push({ userId: recipientUser.id, encryptedData: recEncryptedData });
+          }
+        }
       }
     }
   }
@@ -143,7 +127,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   });
 
   persistDb(db);
-  return NextResponse.json(res);
+  const sanitized = sanitizeResourceForUser(res, authUser);
+  return NextResponse.json(sanitized);
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -158,6 +143,13 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
   if (index === -1) {
     return NextResponse.json({ error: 'Resource not found' }, { status: 404 });
+  }
+
+  const targetResource = store[index];
+
+  // Only the resource owner can delete the resource
+  if (!canUserModifyResource(targetResource, authUser)) {
+    return NextResponse.json({ error: 'Forbidden: Only the owner can delete this resource' }, { status: 403 });
   }
 
   const deleted = store.splice(index, 1)[0];

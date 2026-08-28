@@ -48,6 +48,11 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
   const [subscription, setSubscription] = useState<any | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.avatarUrl]);
 
   // Notifications state strictly constrained to the 3 user-requested categories:
   // 1. Leaked / Compromised Passwords
@@ -386,22 +391,39 @@ export default function Header({ searchTerm = '', onSearchChange }: HeaderProps)
           </div>
 
           {/* Profile Block */}
-          <div className="flex items-center gap-2.5 bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-2.5 py-1.5 shadow-sm">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] text-[10px] font-extrabold overflow-hidden">
-              {user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                (user?.name || user?.email || 'RE').slice(0, 2).toUpperCase()
-              )}
-            </div>
-            <div className="hidden sm:block">
-              <p className="text-[11px] font-extrabold text-[#0f172a] leading-tight">
-                {user?.name || (user?.email ? user.email.split('@')[0] : 'User')}
-              </p>
-              <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight">
-                {user?.role || 'Member'}
-              </p>
-            </div>
+          <div suppressHydrationWarning className="flex items-center gap-2.5 bg-[#ffffff] border border-[#cbd5e1] rounded-xl px-2.5 py-1.5 shadow-sm min-h-[44px]">
+            {!user ? (
+              <div className="flex items-center gap-2.5 animate-pulse">
+                <div className="w-8 h-8 rounded-full bg-[#cbd5e1]/60" />
+                <div className="hidden sm:flex flex-col gap-1">
+                  <div className="w-16 h-3 rounded bg-[#cbd5e1]/60" />
+                  <div className="w-10 h-2.5 rounded bg-[#cbd5e1]/40" />
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] text-[10px] font-extrabold overflow-hidden shrink-0">
+                  {user.avatarUrl && !user.avatarUrl.startsWith('file://') && !avatarError ? (
+                    <img
+                      src={user.avatarUrl}
+                      alt={user.name || 'Avatar'}
+                      className="w-full h-full object-cover"
+                      onError={() => setAvatarError(true)}
+                    />
+                  ) : (
+                    (user.name || user.email || 'U').slice(0, 2).toUpperCase()
+                  )}
+                </div>
+                <div className="hidden sm:block">
+                  <p className="text-[11px] font-extrabold text-[#0f172a] leading-tight">
+                    {user.name || (user.email ? user.email.split('@')[0] : 'User')}
+                  </p>
+                  <p className="text-[10px] text-[#0284c7] font-extrabold leading-tight">
+                    {user.role || 'User'}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
         </div>

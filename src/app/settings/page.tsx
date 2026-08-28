@@ -648,19 +648,18 @@ ${privKey}
 
               <div className="flex items-center gap-4">
                 {/* Dynamic Avatar Image or Initial Circle */}
-                {avatarUrl ? (
+                {avatarUrl && !avatarUrl.startsWith('file://') ? (
                   <div className="relative group">
-                    <Image
+                    <img
                       src={avatarUrl}
-                      alt={name}
-                      width={64}
-                      height={64}
+                      alt={name || 'Avatar'}
                       className="w-16 h-16 rounded-full object-cover shadow-md border-2 border-[#1fbbd2]"
+                      onError={() => setAvatarUrl('')}
                     />
                   </div>
                 ) : (
                   <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[#f39c12] to-[#1fbbd2] flex items-center justify-center text-[#0f172a] font-extrabold text-lg shadow-md border-2 border-[#1fbbd2]">
-                    {name.slice(0, 2).toUpperCase()}
+                    {(name || email || 'US').slice(0, 2).toUpperCase()}
                   </div>
                 )}
 

@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
@@ -134,14 +134,33 @@ export default function AdminPage() {
     }
   };
 
+  const [resendingEmail, setResendingEmail] = useState<string | null>(null);
+
+  const handleResendInvite = async (email: string, role: string) => {
+    setResendingEmail(email);
+    try {
+      const res = await api.post('/admin/invite', { email, role });
+      if (res.data?.success) {
+        alert(`Invitation email resent to ${email}!`);
+      } else {
+        alert(res.data?.error || 'Failed to resend invitation email.');
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to resend invitation.');
+    } finally {
+      setResendingEmail(null);
+    }
+  };
+
   const handleStatusToggle = async (userId: string, currentStatus: string) => {
+    if (currentStatus === 'Invited') return;
     const nextStatus = currentStatus === 'Active' ? 'Suspended' : 'Active';
     try {
       await api.put('/admin/users', { id: userId, status: nextStatus });
       fetchUsers();
       fetchAuditLogs();
-    } catch (err) {
-      alert('Failed to update user status');
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to update user status');
     }
   };
 
@@ -500,24 +519,36 @@ export default function AdminPage() {
                       <td className="py-4 px-4 text-right">
                         {canManageUser(u) ? (
                           <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => handleStatusToggle(u.id, u.status)}
-                              className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all border shadow-xs cursor-pointer ${
-                                u.status === 'Active'
-                                  ? 'bg-[#ffffff] hover:bg-[#fffbeb] border-[#f39c12] text-[#d97706]'
-                                  : 'bg-[#ffffff] hover:bg-[#ecfdf5] border-emerald-500 text-emerald-700'
-                              }`}
-                            >
-                              {u.status === 'Active' ? 'Suspend' : 'Activate'}
-                            </button>
+                            {u.status === 'Invited' ? (
+                              <button
+                                onClick={() => handleResendInvite(u.email, u.role)}
+                                disabled={resendingEmail === u.email}
+                                className="px-3 py-1 bg-[#ffffff] hover:bg-[#e0f2fe] border border-[#1fbbd2] text-[#0284c7] rounded-lg text-xs font-extrabold transition-all flex items-center gap-1 shadow-xs cursor-pointer disabled:opacity-50"
+                                title="Resend invitation email"
+                              >
+                                <Mail className="w-3.5 h-3.5 text-[#0284c7]" />
+                                <span>{resendingEmail === u.email ? 'Sending...' : 'Resend Invite'}</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleStatusToggle(u.id, u.status)}
+                                className={`px-3 py-1 rounded-lg text-xs font-extrabold transition-all border shadow-xs cursor-pointer ${
+                                  u.status === 'Active'
+                                    ? 'bg-[#ffffff] hover:bg-[#fffbeb] border-[#f39c12] text-[#d97706]'
+                                    : 'bg-[#ffffff] hover:bg-[#ecfdf5] border-emerald-500 text-emerald-700'
+                                }`}
+                              >
+                                {u.status === 'Active' ? 'Suspend' : 'Activate'}
+                              </button>
+                            )}
 
                             <button
                               onClick={() => handleDeleteUser(u.id, u.name)}
                               className="px-2.5 py-1 bg-[#fff1f2] hover:bg-[#ffe4e6] border border-rose-300 text-rose-700 rounded-lg text-xs font-extrabold transition-all flex items-center gap-1 shadow-xs cursor-pointer"
-                              title="Permanently delete user"
+                              title={u.status === 'Invited' ? 'Revoke invitation' : 'Permanently delete user'}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
-                              <span>Delete</span>
+                              <span>{u.status === 'Invited' ? 'Revoke' : 'Delete'}</span>
                             </button>
                           </div>
                         ) : (

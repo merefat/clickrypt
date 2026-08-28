@@ -480,3 +480,17 @@ for (const key of persistableKeys) {
 }
 
 (db as any).subscription = createPersistedObject(db.subscription, db);
+
+// Periodic background sync from Supabase to prevent stale cache across processes
+if (typeof setInterval !== 'undefined') {
+  const globalObj = globalThis as any;
+  if (!globalObj.__dbSyncInterval) {
+    globalObj.__dbSyncInterval = setInterval(async () => {
+      try {
+        await loadDb(db);
+      } catch {
+        // background sync error ignored
+      }
+    }, 30000);
+  }
+}

@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
+import {
+  getUserGroupFolderIds,
+  canUserAccessResource,
+} from '@/lib/resourceAuth';
 
 export async function GET(req: Request) {
   try {
@@ -9,8 +13,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userMode = (authUser.accountMode || 'personal') as 'personal' | 'organization';
     const { searchParams } = new URL(req.url);
+    const requestedMode = req.headers.get('x-app-mode') || searchParams.get('mode');
+    const userMode = (requestedMode === 'organization' || requestedMode === 'personal')
+      ? requestedMode
+      : ((authUser.accountMode || 'personal') as 'personal' | 'organization');
+
     const secretVaultParam = searchParams.get('secretVault');
     const scope = searchParams.get('scope');
 
@@ -31,33 +39,18 @@ export async function GET(req: Request) {
     });
 
     const currentUserId = authUser.id;
-    const currentUserEmail = authUser.email.toLowerCase();
     const resourcesStore = db.resourcesFor(userMode);
 
-    const canManage = authUser.role === 'Owner';
+    const canManage = authUser.role === 'Owner' || authUser.role === 'Admin';
     const isManagerView = canManage && scope === 'manage';
 
-    const userGroups = db.groups.filter((g) => g.members.some((m) => m.userId === currentUserId));
-    const groupFolderIds = new Set<string>();
-    if (userMode === 'organization') {
-      userGroups.forEach((g) => {
-        (g.assignedFolderIds || []).forEach((fid: string) => groupFolderIds.add(fid));
-      });
-    }
-
-    const isExplicitlySharedWithMe = (r: any) => {
-      if (r.isPrivateOnly) return false;
-      if (r.sharedWith && (r.sharedWith.includes(currentUserId) || r.sharedWith.includes(currentUserEmail))) return true;
-      if (r.secrets && r.secrets.some((s: any) => s.userId === currentUserId && s.userId !== r.ownerId)) return true;
-      return false;
-    };
+    const groupFolderIds = userMode === 'organization'
+      ? getUserGroupFolderIds(currentUserId, db.groups)
+      : new Set<string>();
 
     const isResourceVisibleToMe = (r: any) => {
       if (r.isPrivateOnly) return false;
-      if (r.ownerId === currentUserId) return true;
-      if (isExplicitlySharedWithMe(r)) return true;
-      if (r.folderId && groupFolderIds.has(r.folderId)) return true;
-      return false;
+      return canUserAccessResource(r, authUser, groupFolderIds);
     };
 
     const userNameMap = new Map(db.users.map((u) => [u.id, u.name]));
@@ -84,8 +77,8 @@ export async function GET(req: Request) {
       return NextResponse.json(foldersWithCounts);
     }
 
-    // Organization management view: show all workplace folders with visible item counts.
-    if (isManagerView) {
+    // Organization management view or Owner/Admin view: show all workplace folders with visible item counts.
+    if (isManagerView || authUser.role === 'Owner' || authUser.role === 'Admin') {
       const foldersWithCounts = folders.map((f) => ({
         ...f,
         itemCount: resourcesStore.filter((r) => r.folderId === f.id && isResourceVisibleToMe(r)).length,

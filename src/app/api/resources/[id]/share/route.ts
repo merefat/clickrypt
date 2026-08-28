@@ -119,7 +119,7 @@ export async function POST(
     }
 
     // Ensure the resource owner always has a usable secret after sharing
-    const plainText = body.password || decodeBase64Fallback(resource.secrets || []);
+    const plainText = body.password;
     if (plainText) {
       const resourceOwner = db.users.find((u) => u.id === resource.ownerId);
       if (resourceOwner?.publicKey) {
@@ -130,22 +130,6 @@ export async function POST(
           if (existing) existing.encryptedData = ownerEncryptedData;
         } else {
           resource.secrets.push({ userId: resource.ownerId, encryptedData: ownerEncryptedData });
-        }
-      }
-
-      if (userMode === 'organization' && authUser.organizationId) {
-        const orgOwner = db.users.find(
-          (u) => u.organizationId === authUser.organizationId && u.role === 'Owner'
-        );
-        if (orgOwner && orgOwner.id !== resource.ownerId) {
-          const hasOrgOwnerSecret = resource.secrets.some((s) => s.userId === orgOwner.id);
-          const orgOwnerEncryptedData = await encryptSecret(plainText, orgOwner.publicKey);
-          if (hasOrgOwnerSecret) {
-            const existing = resource.secrets.find((s) => s.userId === orgOwner.id);
-            if (existing) existing.encryptedData = orgOwnerEncryptedData;
-          } else {
-            resource.secrets.push({ userId: orgOwner.id, encryptedData: orgOwnerEncryptedData });
-          }
         }
       }
     }

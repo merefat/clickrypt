@@ -46,13 +46,42 @@ export async function POST(request: Request) {
       );
     }
 
-    const user = db.users.find((u) => u.email?.toLowerCase() === lowerEmail);
+    let user = db.users.find((u) => u.email?.toLowerCase() === lowerEmail);
+
+    // Fallback: If not in memory yet, query Supabase public.users directly
+    if (!user) {
+      const { getSupabaseServer } = await import('@/lib/supabaseServer');
+      const { data: row } = await getSupabaseServer()
+        .from('users')
+        .select('id, auth_id, email, name, account_mode, data')
+        .eq('email', lowerEmail)
+        .maybeSingle();
+
+      if (row) {
+        user = {
+          ...row.data,
+          id: row.id,
+          email: row.email,
+          name: row.name,
+          accountMode: row.account_mode,
+          authId: row.auth_id || row.data?.authId || signInData.user.id,
+        } as any;
+        if (user) db.users.push(user);
+      }
+    }
 
     if (!user) {
       return NextResponse.json(
         { error: 'Profile not found. Authentication succeeded but the Clickrypt account profile is missing.' },
         { status: 404 }
       );
+    }
+
+    // Auto-link authId if missing
+    if (!user.authId && signInData.user?.id) {
+      user.authId = signInData.user.id;
+      const { persistDb } = await import('@/lib/dbPersistence');
+      persistDb(db).catch((e) => console.warn('Failed to auto-persist authId:', e));
     }
 
     const userMode = (user.accountMode || 'personal') as 'personal' | 'organization';

@@ -558,7 +558,7 @@ export default function VaultPage() {
   const ownCount = resources.filter((r) => r.ownerId === user?.id).length;
 
   const sharedCount = resources.filter(
-    (r) => (r.secrets && r.secrets.length > 1) || (r.sharedWith && r.sharedWith.length > 0) || r.isExternalShared
+    (r) => (r.sharedWith && r.sharedWith.length > 0) || r.isExternalShared
   ).length;
 
   const duplicateMap: Record<string, string[]> = {};
@@ -576,7 +576,7 @@ export default function VaultPage() {
     .filter((r) => {
       if (showDuplicates && !duplicateIds.has(r.id)) return false;
       if (activeFilterMode === 'leaked') {
-        return r.isPwned || r.isCompromised || r.strength === 'Weak' || r.name.toLowerCase().includes('leaked') || r.name.toLowerCase().includes('breach');
+        return r.strength === 'Weak' || r.name.toLowerCase().includes('leak');
       }
       if (activeFilterMode === 'outdated') {
         if (r.isOld || r.name.toLowerCase().includes('old')) return true;
@@ -588,7 +588,7 @@ export default function VaultPage() {
         return r.ownerId === user?.id;
       }
       if (activeFilterMode === 'shared') {
-        return (r.secrets && r.secrets.length > 1) || (r.sharedWith && r.sharedWith.length > 0) || r.isExternalShared;
+        return (r.sharedWith && r.sharedWith.length > 0) || r.isExternalShared;
       }
       return true;
     })
@@ -1214,7 +1214,7 @@ export default function VaultPage() {
                     {displayedResources.map((res) => {
                       const isRevealed = !!revealedPasswords[res.id];
                       const displayedPass = isRevealed ? revealedPasswords[res.id] : '••••••••';
-                      const isTeamShared = (res.secrets && res.secrets.length > 1) || (res.sharedWith && res.sharedWith.length > 0);
+                      const isTeamShared = (res.sharedWith && res.sharedWith.length > 0) || res.isExternalShared;
 
                       return (
                         <SortableTableRow
@@ -1243,9 +1243,9 @@ export default function VaultPage() {
                                 <p className="font-bold text-[#0f172a] text-sm group-hover:text-[#1fbbd2] transition-colors truncate min-w-0" title={res.name}>
                                   {res.name}
                                 </p>
-                                {(res.strength === 'Weak' || res.isOld || isOldFilter || res.name.toLowerCase().includes('old') || isTeamShared || res.isExternalShared) && (
+                                {(res.strength === 'Weak' || res.isOld || res.name.toLowerCase().includes('old') || (res.lastModified ? new Date(res.lastModified) < sixMonthsAgo : false) || isTeamShared || res.isExternalShared) && (
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  {(res.strength === 'Weak' || res.isOld || isOldFilter || res.name.toLowerCase().includes('old')) && (
+                                  {(res.strength === 'Weak' || res.isOld || res.name.toLowerCase().includes('old') || (res.lastModified ? new Date(res.lastModified) < sixMonthsAgo : false)) && (
                                   <span
                                     className="px-2 py-0.5 rounded-full bg-rose-50 border border-rose-300 text-rose-700 text-[10px] font-extrabold inline-flex items-center gap-1 shadow-xs shrink-0"
                                     title="This password is old and needs attention (Action Required)"

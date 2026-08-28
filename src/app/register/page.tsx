@@ -37,19 +37,19 @@ function RegisterForm() {
   const { register } = useAuth();
 
   const mode = searchParams.get('mode'); // 'organization' or 'personal'
-  const isOrgMode = mode === 'organization';
   const inviteToken = searchParams.get('inviteToken');
   const invitedEmail = searchParams.get('email');
   const invitedRole = searchParams.get('role');
   const externalShareId = searchParams.get('externalShareId');
   const isExternalShare = !!externalShareId || invitedRole === 'External';
+  const isOrgMode = mode === 'organization' || (!!inviteToken && !isExternalShare);
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [isInvited, setIsInvited] = useState(false);
+  const [isInvited, setIsInvited] = useState(!!inviteToken);
   const formId = 'reg-form';
   const [errorMsg, setErrorMsg] = useState('');
   const [isConflict, setIsConflict] = useState(false);
@@ -59,7 +59,7 @@ function RegisterForm() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const selectedMode = mode === 'organization' ? 'organization' : 'personal';
+      const selectedMode = isOrgMode ? 'organization' : 'personal';
       localStorage.setItem('clickrypt_app_mode', selectedMode);
       const paidFlag = sessionStorage.getItem('clickrypt_org_paid');
       if (searchParams.get('paid') === '1' || paidFlag === '1') {
@@ -67,11 +67,11 @@ function RegisterForm() {
         sessionStorage.removeItem('clickrypt_org_paid');
       }
     }
-    if (invitedEmail) {
-      setEmail(invitedEmail);
+    if (invitedEmail || inviteToken) {
+      if (invitedEmail) setEmail(invitedEmail);
       setIsInvited(true);
     }
-  }, [invitedEmail, mode, searchParams]);
+  }, [invitedEmail, inviteToken, isOrgMode, mode, searchParams]);
 
   const strength = evaluatePasswordStrength(password);
 
@@ -84,7 +84,7 @@ function RegisterForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (ENABLE_PAY_BILL && isOrgMode && !paymentDone) {
+    if (ENABLE_PAY_BILL && isOrgMode && !paymentDone && !isInvited) {
       return;
     }
 
@@ -104,7 +104,7 @@ function RegisterForm() {
       }
     }
 
-    if (!isOrgMode && !isExternalShare && isAllowedOrgEmailDomain(email)) {
+    if (!isOrgMode && !isExternalShare && !isInvited && isAllowedOrgEmailDomain(email)) {
       setErrorMsg('Personal accounts require a consumer email address. Use a personal email or choose Organization.');
       return;
     }

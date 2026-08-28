@@ -1,13 +1,22 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
+import { getSupabaseServer } from '@/lib/supabaseServer';
 import { sendEmail } from '@/lib/email';
 import { schedulePersist } from '@/lib/dbPersistence';
 import { Secret, TOTP } from 'otpauth';
 import crypto from 'crypto';
 
 function getCallerOrg(caller: any) {
-  return caller?.organizationId ? db.organizations.find((o) => o.id === caller.organizationId) : null;
+  if (caller?.organizationId) {
+    const org = db.organizations.find((o) => o.id === caller.organizationId);
+    if (org) return org;
+  }
+  const emailDomain = caller?.email?.split('@')[1]?.toLowerCase();
+  if (emailDomain) {
+    return db.organizations.find((o) => o.domain?.toLowerCase() === emailDomain) || null;
+  }
+  return null;
 }
 
 export async function GET(request: Request) {
@@ -27,7 +36,19 @@ export async function GET(request: Request) {
     return NextResponse.json([]);
   }
 
-  return NextResponse.json(db.users.filter((u) => u.organizationId === org.id));
+  const orgDomain = org.domain?.toLowerCase();
+  const orgUsers = db.users
+    .filter(
+      (u) =>
+        u.organizationId === org.id ||
+        (orgDomain && u.email?.toLowerCase().endsWith('@' + orgDomain) && u.accountMode === 'organization')
+    )
+    .map((u) => ({
+      ...u,
+      role: u.id === org.ownerId ? 'Owner' : (u.role === 'Owner' ? 'User' : u.role),
+    }));
+
+  return NextResponse.json(orgUsers);
 }
 
 export async function PUT(request: Request) {
@@ -52,7 +73,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (targetUser.role === 'Owner') {
+    if (targetUser.role === 'Owner' || targetUser.id === org.ownerId) {
       return NextResponse.json({ error: 'Organization Owner account cannot be modified this way' }, { status: 403 });
     }
 
@@ -63,12 +84,29 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Not allowed to modify this user' }, { status: 403 });
     }
 
-    if (status && !['Active', 'Suspended'].includes(status)) {
+    if (status && !['Active', 'Suspended', 'Invited'].includes(status)) {
       return NextResponse.json({ error: 'Invalid status value' }, { status: 400 });
     }
 
-    if (role) targetUser.role = role;
-    if (status) targetUser.status = status;
+    if (role) {
+      if (role === 'Owner') {
+        return NextResponse.json({ error: 'Cannot set role to Owner directly. Use ownership transfer.' }, { status: 400 });
+      }
+      if (!['Admin', 'User'].includes(role)) {
+        return NextResponse.json({ error: 'Invalid role value' }, { status: 400 });
+      }
+      targetUser.role = role;
+    }
+
+    if (status) {
+      if (targetUser.status === 'Invited' && status !== 'Invited') {
+        return NextResponse.json(
+          { error: 'Invited members cannot be activated or suspended directly. They must complete registration via their invitation link.' },
+          { status: 400 }
+        );
+      }
+      targetUser.status = status;
+    }
 
     schedulePersist(db);
 
@@ -239,6 +277,11 @@ export async function DELETE(request: Request) {
     if (index !== -1) {
       db.users.splice(index, 1);
     }
+    if (targetUser.email) {
+      db.invitations = db.invitations.filter((i) => i.email.toLowerCase() !== targetUser.email.toLowerCase());
+      await getSupabaseServer().from('invitations').delete().eq('email', targetUser.email.toLowerCase());
+    }
+    await getSupabaseServer().from('users').delete().eq('id', userId);
     schedulePersist(db);
 
     db.auditLogsFor('organization').unshift({

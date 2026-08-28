@@ -69,22 +69,21 @@ export default function SharedPage() {
         params: { search: '', sharedWithUserId: user?.id },
       });
 
-      const currentUserId = user?.id || 'u-1';
+      const currentUserId = user?.id || '';
       const currentUserEmail = (user?.email || '').toLowerCase();
-      const currentUserRole = user?.role || 'User';
 
       const filtered = res.data.filter((r: any) => {
         const isOwner = r.ownerId === currentUserId;
-        const isSharedOut = isOwner && ((r.secrets && r.secrets.length > 1) || r.isExternalShared);
+        const isSharedOut = isOwner && ((r.sharedWith && r.sharedWith.length > 0) || r.isExternalShared);
 
-        const hasSecretForUser = r.secrets && r.secrets.some((s: any) => s.userId === currentUserId);
         const isExplicitlyShared =
-          r.sharedWith &&
-          (r.sharedWith.includes(currentUserId) ||
-            r.sharedWith.includes(currentUserEmail) ||
-            r.sharedWith.includes(currentUserRole));
+          !isOwner &&
+          ((r.sharedWith &&
+            (r.sharedWith.includes(currentUserId) ||
+              r.sharedWith.includes(currentUserEmail))) ||
+            (r.isExternalShared && r.externalShareEmail?.toLowerCase() === currentUserEmail));
 
-        return isSharedOut || (!isOwner && (hasSecretForUser || isExplicitlyShared));
+        return isSharedOut || isExplicitlyShared;
       });
 
       setResources(filtered);

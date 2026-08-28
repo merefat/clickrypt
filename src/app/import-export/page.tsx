@@ -38,7 +38,7 @@ import {
 
 export default function ImportExportPage() {
   const router = useRouter();
-  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey, isLoading } = useAuth();
+  const { user, masterPassword, unlockedPgpKey, getEncryptedPrivateKey, unlockVault, isLoading } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -436,10 +436,18 @@ export default function ImportExportPage() {
 
   const handleUnlockSubmit = async (password: string) => {
     if (!pendingExportResources) return false;
-    const privateKey = await getEncryptedPrivateKey();
-    if (!privateKey) return false;
-    const ok = await canUnlockPrivateKey(privateKey, password);
-    if (!ok) return false;
+    let unlocked = unlockedPgpKey;
+    if (!unlocked) {
+      unlocked = await unlockVault(password);
+    }
+    if (!unlocked) {
+      const privateKey = await getEncryptedPrivateKey();
+      if (privateKey && (await canUnlockPrivateKey(privateKey, password))) {
+        unlocked = privateKey;
+      }
+    }
+    if (!unlocked) return false;
+
     setShowUnlockModal(false);
     await executeExport(pendingExportResources, password);
     setPendingExportResources(null);

@@ -3,6 +3,12 @@ import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
 import { ENABLE_PAY_BILL } from '@/lib/config';
 import { encryptSecret } from '@/lib/crypto';
+import {
+  getUserGroupFolderIds,
+  canUserAccessResource,
+  isResourceSharedOut,
+  sanitizeResourceForUser,
+} from '@/lib/resourceAuth';
 
 export async function GET(request: Request) {
   // Subscription check
@@ -23,53 +29,40 @@ export async function GET(request: Request) {
   const folderId = searchParams.get('folderId');
   const secretVaultStr = searchParams.get('secretVault');
   const sharedWithUserId = searchParams.get('sharedWithUserId');
-  const userMode = (authUser.accountMode || 'personal') as 'personal' | 'organization';
+  const requestedMode = request.headers.get('x-app-mode') || searchParams.get('mode');
+  const userMode = (requestedMode === 'organization' || requestedMode === 'personal')
+    ? requestedMode
+    : ((authUser.accountMode || 'personal') as 'personal' | 'organization');
 
   const currentUserId = authUser.id;
-  const currentUserEmail = authUser.email.toLowerCase();
 
   const store = db.resourcesFor(userMode);
-
-  // Find all groups the current user is a member of
-  const userGroups = db.groups.filter((g) => g.members.some((m) => m.userId === currentUserId));
-  const userGroupFolderIds = new Set<string>();
-  userGroups.forEach((g) => {
-    if (g.assignedFolderIds) {
-      g.assignedFolderIds.forEach((fid) => userGroupFolderIds.add(fid));
-    }
-  });
+  const userGroupFolderIds = getUserGroupFolderIds(currentUserId, db.groups);
 
   let result: any[] = [];
 
   if (sharedWithUserId) {
-    // Shared With Me / Shared Out Panel (/shared page)
+    // /shared page:
+    // Outbound: items owned by current user that are explicitly shared
+    // Inbound: items NOT owned by current user where current user is an authorized recipient
     result = store.filter((r) => {
       const isOwner = r.ownerId === currentUserId;
-      const isSharedOut = isOwner && ((r.secrets && r.secrets.length > 1) || r.isExternalShared);
-      const isRecipient = r.secrets && r.secrets.some((s) => s.userId === currentUserId && s.userId !== r.ownerId);
-      const isExplicitlyShared = r.sharedWith && (r.sharedWith.includes(currentUserId) || r.sharedWith.includes(currentUserEmail));
-      const isExternalRecipient = r.isExternalShared && r.externalShareEmail?.toLowerCase() === currentUserEmail;
-      const isViaGroupFolder = !isOwner && !!(r.folderId && userGroupFolderIds.has(r.folderId));
-
-      return isSharedOut || (!isOwner && (isRecipient || isExplicitlyShared || isExternalRecipient || isViaGroupFolder));
+      if (isOwner) {
+        return isResourceSharedOut(r);
+      }
+      return canUserAccessResource(r, authUser, userGroupFolderIds);
     });
   } else if (secretVaultStr === 'true') {
-    // Secret Vault is only available for organization-mode accounts
+    // Secret Vault (/secret-vault page): Only show private items owned by the current user
     if (userMode !== 'organization') {
       return NextResponse.json({ error: 'Secret Vault is only available in organization mode' }, { status: 403 });
     }
-    // Secret Vault (/secret-vault page): Only show private items owned by the current user
     result = store.filter((r) => r.ownerId === currentUserId && r.isPrivateOnly === true);
   } else {
-    // Standard Main Vault (/vault page): Show passwords owned by, group-assigned to, or explicitly shared with the current user
+    // Standard Main Vault (/vault page): Show items accessible by the user that are NOT secret vault private items
     result = store.filter((r) => {
-      const isOwner = r.ownerId === currentUserId && !r.isPrivateOnly;
-      const isViaGroupFolder = !!(r.folderId && userGroupFolderIds.has(r.folderId));
-      const isExplicitlyShared =
-        r.sharedWith && (r.sharedWith.includes(currentUserId) || r.sharedWith.includes(currentUserEmail));
-      const isSecretRecipient =
-        r.secrets && r.secrets.some((s: any) => s.userId === currentUserId && s.userId !== r.ownerId);
-      return isOwner || (!r.isPrivateOnly && (isViaGroupFolder || isExplicitlyShared || isSecretRecipient));
+      if (r.isPrivateOnly) return false;
+      return canUserAccessResource(r, authUser, userGroupFolderIds);
     });
   }
 
@@ -107,14 +100,6 @@ export async function GET(request: Request) {
     const seen = new Set<string>();
     const recipients: { id: string; name: string; email?: string; external?: boolean }[] = [];
 
-    (r.secrets || []).forEach((s: any) => {
-      if (s.userId === r.ownerId) return;
-      if (seen.has(s.userId)) return;
-      seen.add(s.userId);
-      const name = usersById.get(s.userId) || s.userId;
-      recipients.push({ id: s.userId, name });
-    });
-
     (r.sharedWith || []).forEach((value: string) => {
       const key = value.toLowerCase();
       if (seen.has(key)) return;
@@ -131,7 +116,10 @@ export async function GET(request: Request) {
       }
     }
 
-    return { ...r, ownerName, lastModified, recipients };
+    // Sanitize secrets so only the requesting user's ciphertext is returned
+    const sanitized = sanitizeResourceForUser(r, authUser);
+
+    return { ...sanitized, ownerName, lastModified, recipients };
   });
 
   return NextResponse.json(enriched);
@@ -171,22 +159,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No usable encrypted data for the creator' }, { status: 400 });
     }
 
-    const creatorSecret = {
-      userId: authUser.id,
-      encryptedData: creatorEncryptedData,
-    };
-    const secrets = [creatorSecret];
-
-    // In organization mode, also encrypt a secret for the organization Owner so they can view any vault item
-    if (userMode === 'organization' && authUser.organizationId && body.password) {
-      const owner = db.users.find(
-        (u) => u.organizationId === authUser.organizationId && u.role === 'Owner'
-      );
-      if (owner && owner.id !== authUser.id) {
-        const ownerEncryptedData = await encryptSecret(body.password, owner.publicKey);
-        secrets.push({ userId: owner.id, encryptedData: ownerEncryptedData });
-      }
-    }
+    // Creator's secret ONLY. No auto-encryption for Owner or others.
+    const secrets = [
+      {
+        userId: authUser.id,
+        encryptedData: creatorEncryptedData,
+      },
+    ];
 
     const newResource = {
       id: `r-${Date.now()}`,
