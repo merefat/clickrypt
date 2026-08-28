@@ -281,8 +281,34 @@ export async function DELETE(request: Request) {
       db.invitations = db.invitations.filter((i) => i.email.toLowerCase() !== targetUser.email.toLowerCase());
       await getSupabaseServer().from('invitations').delete().eq('email', targetUser.email.toLowerCase());
     }
+
+    // Cascade delete owned resources & folders
+    db.resources = db.resources.filter((r) => r.ownerId !== userId);
+    db.organizationResources = db.organizationResources.filter((r) => r.ownerId !== userId);
+    db.folders = db.folders.filter((f) => f.creatorId !== userId);
+    db.organizationFolders = db.organizationFolders.filter((f) => f.creatorId !== userId);
+
+    // Remove user from all groups and shared records
+    db.groups.forEach((g) => {
+      if (g.members) g.members = g.members.filter((m) => m.userId !== userId);
+    });
+
+    await getSupabaseServer().from('group_members').delete().eq('user_id', userId);
+    await getSupabaseServer().from('resource_shares').delete().eq('recipient_id', userId);
+    await getSupabaseServer().from('resources').delete().eq('owner_id', userId);
+    await getSupabaseServer().from('folders').delete().eq('owner_id', userId);
     await getSupabaseServer().from('users').delete().eq('id', userId);
-    schedulePersist(db);
+
+    if (targetUser.authId) {
+      try {
+        await getSupabaseServer().auth.admin.deleteUser(targetUser.authId);
+      } catch (authErr) {
+        console.warn('Failed to delete auth user:', authErr);
+      }
+    }
+
+    const { persistDb } = await import('@/lib/dbPersistence');
+    await persistDb(db);
 
     db.auditLogsFor('organization').unshift({
       id: `al-${Date.now()}`,

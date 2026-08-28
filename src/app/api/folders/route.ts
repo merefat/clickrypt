@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
+import { persistDb } from '@/lib/dbPersistence';
 import {
   getUserGroupFolderIds,
   canUserAccessResource,
@@ -142,6 +143,8 @@ export async function POST(req: Request) {
       userId: authUser.id,
       details: `Created ${isPrivateOnly ? 'Private Secret' : 'Workplace'} folder ${name}`,
     });
+
+    await persistDb(db);
 
     return NextResponse.json(newFolder, { status: 201 });
   } catch (err: any) {

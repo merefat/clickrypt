@@ -165,15 +165,92 @@ async function persistDbInternal(db: any) {
   }
 
   // Mode-split tables (resources, folders, audit_logs)
+  const validUserIds = new Set(db.users.map((u: any) => u.id));
+  const validFolderIds = new Set([
+    ...db.folders.map((f: any) => f.id),
+    ...db.organizationFolders.map((f: any) => f.id),
+  ]);
+
   for (const { table, personal, organization } of MODE_SPLIT_TABLES) {
-    const rows = [
-      ...db[personal].map((item: any) => ({ id: item.id, mode: 'personal', data: { ...item } })),
-      ...db[organization].map((item: any) => ({ id: item.id, mode: 'organization', data: { ...item } })),
+    const allItems = [
+      ...db[personal].map((item: any) => ({ item, mode: 'personal' })),
+      ...db[organization].map((item: any) => ({ item, mode: 'organization' })),
     ];
+
+    let rows: any[] = [];
+    if (table === 'resources') {
+      rows = allItems.map(({ item, mode }) => ({
+        id: item.id,
+        name: item.name,
+        username: item.username || '',
+        url: item.url || '',
+        owner_id: validUserIds.has(item.ownerId) ? item.ownerId : null,
+        folder_id: validFolderIds.has(item.folderId) ? item.folderId : null,
+        is_private_only: !!item.isPrivateOnly,
+        strength: item.strength || 'Strong',
+        secrets_data: item.secrets || [],
+        tags: item.tags || [],
+        last_modified: item.lastModified || new Date().toISOString(),
+        mode,
+        data: { ...item },
+      }));
+    } else if (table === 'folders') {
+      rows = allItems.map(({ item, mode }) => {
+        const rawOwner = item.creatorId || item.ownerId;
+        return {
+          id: item.id,
+          name: item.name,
+          description: item.description || '',
+          item_count: item.itemCount || 0,
+          last_modified: item.lastModified || new Date().toISOString(),
+          owner_id: validUserIds.has(rawOwner) ? rawOwner : null,
+          mode,
+          data: { ...item },
+        };
+      });
+    } else if (table === 'audit_logs') {
+      rows = allItems.map(({ item, mode }) => ({
+        id: item.id,
+        timestamp: item.timestamp || new Date().toISOString(),
+        action: item.action,
+        user_id: validUserIds.has(item.userId) ? item.userId : null,
+        resource_id: item.resourceId || null,
+        details: item.details || '',
+        mode,
+        data: { ...item },
+      }));
+    } else {
+      rows = allItems.map(({ item, mode }) => ({ id: item.id, mode, data: { ...item } }));
+    }
+
     if (rows.length > 0) {
       const { error } = await getSupabaseServer().from(table).upsert(rows, { onConflict: 'id' });
       if (error) console.error(`Failed to save ${table}: ${error.message}`);
     }
+  }
+
+  // Synchronize resource_shares table from secrets array
+  try {
+    const allResources = [...db.resources, ...db.organizationResources];
+    const shareRows = allResources.flatMap((r: any) => {
+      if (!r.secrets || !Array.isArray(r.secrets)) return [];
+      return r.secrets
+        .filter((s: any) => s.userId && s.userId !== r.ownerId)
+        .map((s: any) => ({
+          id: `share-${r.id}-${s.userId}`,
+          resource_id: r.id,
+          recipient_id: s.userId,
+          encrypted_symmetric_key: s.encryptedData || '',
+          shared_by: r.ownerId,
+          permission: 'read',
+          shared_at: r.lastModified || new Date().toISOString(),
+        }));
+    });
+    if (shareRows.length > 0) {
+      await getSupabaseServer().from('resource_shares').upsert(shareRows, { onConflict: 'resource_id,recipient_id' });
+    }
+  } catch (err: any) {
+    console.error('Failed to sync resource_shares:', err.message);
   }
 
   // Single tables (groups, invitations, etc.)
@@ -193,6 +270,33 @@ async function persistDbInternal(db: any) {
       const { error } = await getSupabaseServer().from(table).upsert(rows, { onConflict: 'id' });
       if (error) console.error(`Failed to save ${table}: ${error.message}`);
     }
+  }
+
+  // Synchronize group join tables (group_members, group_folders)
+  try {
+    const groupMemberRows = db.groups.flatMap((g: any) =>
+      (g.members || []).map((m: any) => ({
+        group_id: g.id,
+        user_id: m.userId,
+        created_at: g.createdAt || new Date().toISOString(),
+      }))
+    );
+    if (groupMemberRows.length > 0) {
+      await getSupabaseServer().from('group_members').upsert(groupMemberRows, { onConflict: 'group_id,user_id' });
+    }
+
+    const groupFolderRows = db.groups.flatMap((g: any) =>
+      (g.assignedFolderIds || []).map((folderId: string) => ({
+        group_id: g.id,
+        folder_id: folderId,
+        created_at: g.createdAt || new Date().toISOString(),
+      }))
+    );
+    if (groupFolderRows.length > 0) {
+      await getSupabaseServer().from('group_folders').upsert(groupFolderRows, { onConflict: 'group_id,folder_id' });
+    }
+  } catch (err: any) {
+    console.error('Failed to sync group relational tables:', err.message);
   }
 }
 

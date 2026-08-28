@@ -48,7 +48,7 @@ export async function getClickryptUser(lookup: {
 
   // 2. Fallback to Supabase direct query
   try {
-    let query = getSupabaseServer().from('users').select('id, auth_id, email, name, account_mode, data');
+    let query = getSupabaseServer().from('users').select('id, auth_id, email, name, role, status, account_mode, data');
     if (lookup.authId) {
       query = query.eq('auth_id', lookup.authId);
     } else if (lookup.userId) {
@@ -65,8 +65,8 @@ export async function getClickryptUser(lookup: {
     }
 
     const mergedUser: DbUser = {
-      status: 'Active',
-      role: 'User',
+      status: row.status || row.data?.status || 'Active',
+      role: row.role || row.data?.role || 'User',
       publicKey: '',
       encryptedPrivateKey: '',
       lastActive: 'Just now',

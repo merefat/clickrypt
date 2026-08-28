@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/backendDb';
 import { getAuthUserFromRequest } from '@/lib/authHelper';
+import { persistDb } from '@/lib/dbPersistence';
 
 export async function GET(request: Request) {
   try {
@@ -74,6 +75,8 @@ export async function POST(request: Request) {
       groupId: newGroup.id,
       details: `Created team group ${name}`,
     });
+
+    await persistDb(db);
 
     return NextResponse.json(newGroup, { status: 201 });
   } catch (error) {
