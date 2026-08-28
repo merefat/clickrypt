@@ -124,9 +124,15 @@ export default function ShareModal({ resourceId, onClose }: ShareModalProps) {
         const resourceData = resResource.data;
         if (resourceData && resourceData.secrets) {
           const userSecret = resolveBestSecret(resourceData, user?.id, user?.role);
-          const privateKey = await getEncryptedPrivateKey();
+          const privateKey = unlockedPgpKey || (await getEncryptedPrivateKey());
           if (privateKey && (masterPassword || unlockedPgpKey) && userSecret?.encryptedData) {
-            secretPlainText = await decryptBestSecret(userSecret, resourceData.secrets, user?.role, privateKey, masterPassword || undefined);
+            secretPlainText = await decryptBestSecret(
+              userSecret,
+              resourceData.secrets,
+              user?.role,
+              privateKey,
+              unlockedPgpKey ? undefined : (masterPassword || undefined)
+            );
           }
         }
       } catch (e) {

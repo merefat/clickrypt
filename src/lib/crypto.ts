@@ -116,8 +116,12 @@ export async function unprotectPrivateKey(
   privateKeyArmored: string,
   passphrase: string
 ): Promise<string> {
+  const rawKey = await openpgp.readPrivateKey({ armoredKey: privateKeyArmored });
+  if (rawKey.isDecrypted()) {
+    return rawKey.armor();
+  }
   const privateKey = await openpgp.decryptKey({
-    privateKey: await openpgp.readPrivateKey({ armoredKey: privateKeyArmored }),
+    privateKey: rawKey,
     passphrase,
   });
   return privateKey.armor();
@@ -132,10 +136,13 @@ export async function reencryptPrivateKey(
   oldPassphrase: string,
   newPassphrase: string
 ): Promise<string> {
-  const decrypted = await openpgp.decryptKey({
-    privateKey: await openpgp.readPrivateKey({ armoredKey: privateKeyArmored }),
-    passphrase: oldPassphrase,
-  });
+  const rawPrivateKey = await openpgp.readPrivateKey({ armoredKey: privateKeyArmored });
+  const decrypted = rawPrivateKey.isDecrypted()
+    ? rawPrivateKey
+    : await openpgp.decryptKey({
+        privateKey: rawPrivateKey,
+        passphrase: oldPassphrase,
+      });
   const encrypted = await openpgp.encryptKey({
     privateKey: decrypted,
     passphrase: newPassphrase,
@@ -216,7 +223,7 @@ export async function decryptSecret(
       );
     }
 
-    const privateKey = passphrase
+    const privateKey = (passphrase && !rawPrivateKey.isDecrypted())
       ? await openpgp.decryptKey({ privateKey: rawPrivateKey, passphrase })
       : rawPrivateKey;
 
@@ -274,6 +281,9 @@ export async function decryptBestSecret(
 export async function canUnlockPrivateKey(privateKeyArmored: string, passphrase: string): Promise<boolean> {
   try {
     const rawPrivateKey = await openpgp.readPrivateKey({ armoredKey: privateKeyArmored });
+    if (rawPrivateKey.isDecrypted()) {
+      return true;
+    }
     await openpgp.decryptKey({ privateKey: rawPrivateKey, passphrase });
     return true;
   } catch {
