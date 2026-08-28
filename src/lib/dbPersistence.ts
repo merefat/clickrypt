@@ -123,6 +123,24 @@ export async function loadDb(db: any) {
       continue;
     }
 
+    if (table === 'groups') {
+      const { data: groupRows, error: gErr } = await getSupabaseServer().from('groups').select('id, name, description, organization_id, data');
+      if (!gErr && groupRows) {
+        db.groups.splice(
+          0,
+          db.groups.length,
+          ...groupRows.map((row: any) => ({
+            ...row.data,
+            id: row.id,
+            name: row.name || row.data?.name,
+            description: row.description || row.data?.description,
+            organizationId: row.organization_id || row.data?.organizationId || null,
+          }))
+        );
+        continue;
+      }
+    }
+
     db[prop].splice(0, db[prop].length, ...(rows || []).map((row: any) => ({ ...row.data, id: row.id })));
   }
 }
@@ -261,6 +279,23 @@ async function persistDbInternal(db: any) {
         { onConflict: 'id' }
       );
       if (error) console.error(`Failed to save subscription: ${error.message}`);
+      continue;
+    }
+
+    if (table === 'groups') {
+      const validOrgIds = new Set(db.organizations.map((o: any) => o.id));
+      const rows = db.groups.map((g: any) => ({
+        id: g.id,
+        name: g.name,
+        description: g.description || '',
+        organization_id: (g.organizationId && validOrgIds.has(g.organizationId)) ? g.organizationId : null,
+        last_active: g.lastActive || 'Just now',
+        data: { ...g },
+      }));
+      if (rows.length > 0) {
+        const { error } = await getSupabaseServer().from('groups').upsert(rows, { onConflict: 'id' });
+        if (error) console.error(`Failed to save groups: ${error.message}`);
+      }
       continue;
     }
 

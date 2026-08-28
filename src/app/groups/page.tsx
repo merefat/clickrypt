@@ -146,15 +146,8 @@ export default function GroupsPage() {
   const ITEMS_PER_PAGE = 8;
 
   // Group-assigned folders & shared passwords state
-  const [groupFolderIds, setGroupFolderIds] = useState<{ [groupId: string]: string[] }>({
-    'g-1': ['f-1', 'f-2'],
-    'g-2': ['f-3'],
-  });
-
-  const [groupResourceIds, setGroupResourceIds] = useState<{ [groupId: string]: string[] }>({
-    'g-1': ['r-1', 'r-2'],
-    'g-2': ['r-3'],
-  });
+  const [groupFolderIds, setGroupFolderIds] = useState<{ [groupId: string]: string[] }>({});
+  const [groupResourceIds, setGroupResourceIds] = useState<{ [groupId: string]: string[] }>({});
 
   const [revealedPasswords, setRevealedPasswords] = useState<{ [id: string]: string }>({});
 
@@ -1030,8 +1023,8 @@ export default function GroupsPage() {
 
                       {selectedGroup.members.map((m: any, idx: number) => {
                         const userObj = users.find((u) => u.id === m.userId) || {
-                          name: m.userId === 'u-1' ? 'Alex Morgan' : m.userId === 'u-2' ? 'Sarah Johnson' : 'Mark Wilson',
-                          email: m.userId === 'u-1' ? 'alex.morgan@acme.com' : m.userId === 'u-2' ? 'sarah.johnson@acme.com' : 'mark.wilson@acme.com',
+                          name: 'Team Member',
+                          email: '',
                         };
 
                         return (
@@ -1265,7 +1258,7 @@ export default function GroupsPage() {
                                       <Lock className="w-3.5 h-3.5 text-[#0284c7]" />
                                       <span>{res.name}</span>
                                     </td>
-                                    <td className="py-3 px-3 text-[#334155]">{res.username || 'alex.morgan'}</td>
+                                    <td className="py-3 px-3 text-[#334155]">{res.username || '—'}</td>
                                     <td className="py-3 px-3 font-mono text-[#334155]">
                                       {isRev ? revealedPasswords[res.id] : '••••••••'}
                                     </td>

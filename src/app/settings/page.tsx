@@ -276,7 +276,7 @@ export default function SettingsPage() {
   const handleDownloadBackupCodes = () => {
     const textContent = `====================================================
 CLICKRYPT 2FA EMERGENCY RECOVERY CODES
-Account Email: ${user?.email || 'alex.morgan@acme.com'}
+Account Email: ${user?.email || ''}
 Generated Date: ${new Date().toLocaleString()}
 ====================================================
 
@@ -571,7 +571,7 @@ ${backupCodes.map((code, idx) => `${idx + 1}. ${code}`).join('\n')}
     const backupContent = `====================================================================
 CLICKRYPT ZERO-KNOWLEDGE OPENPGP EMERGENCY BACKUP KEY PAIR
 Generated on: ${new Date().toLocaleString()}
-User Account: ${user?.name || 'Alex Morgan'} (${user?.email || 'alex.morgan@acme.com'})
+User Account: ${user?.name || user?.email || 'User Account'} (${user?.email || ''})
 ====================================================================
 
 --- PUBLIC KEY BLOCK ---

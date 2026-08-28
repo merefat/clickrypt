@@ -84,6 +84,8 @@ export interface DbGroup {
   id: string;
   name: string;
   description: string;
+  organizationId?: string | null;
+  mode?: 'personal' | 'organization';
   members: DbGroupMember[];
   assignedFolderIds?: string[];
   assignedResourceIds?: string[];

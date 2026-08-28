@@ -303,7 +303,7 @@ function RegisterForm() {
                     <input
                       type="text"
                       name={`org-domain-${formId}`}
-                      placeholder="acme.com"
+                      placeholder="company.com"
                       value={organizationDomain}
                       onChange={(e) => setOrganizationDomain(e.target.value)}
                       autoComplete="off"

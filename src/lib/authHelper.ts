@@ -65,18 +65,18 @@ export async function getClickryptUser(lookup: {
     }
 
     const mergedUser: DbUser = {
-      status: row.status || row.data?.status || 'Active',
-      role: row.role || row.data?.role || 'User',
       publicKey: '',
       encryptedPrivateKey: '',
       lastActive: 'Just now',
       ...row.data,
+      status: row.status || row.data?.status || 'Active',
+      role: row.role || row.data?.role || 'User',
       id: row.id,
       email: row.email || row.data?.email,
       name: row.name || row.data?.name || (row.email ? row.email.split('@')[0] : 'User'),
       accountMode: (row.account_mode || row.data?.accountMode || 'personal') as 'personal' | 'organization',
       authId: row.auth_id || row.data?.authId,
-      organizationId: row.data?.organizationId,
+      organizationId: row.data?.organizationId || (row as any).organization_id,
     };
 
     const existingIdx = db.users.findIndex((u) => u.id === mergedUser.id);

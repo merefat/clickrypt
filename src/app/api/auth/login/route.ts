@@ -59,14 +59,15 @@ export async function POST(request: Request) {
 
       if (row) {
         user = {
+          ...row.data,
           status: row.status || row.data?.status || 'Active',
           role: row.role || row.data?.role || 'User',
-          ...row.data,
           id: row.id,
           email: row.email,
           name: row.name,
           accountMode: row.account_mode,
           authId: row.auth_id || row.data?.authId || signInData.user.id,
+          organizationId: row.data?.organizationId || (row as any).organization_id || null,
         } as any;
         if (user) db.users.push(user);
       }

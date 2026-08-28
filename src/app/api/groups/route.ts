@@ -17,13 +17,24 @@ export async function GET(request: Request) {
       return a.id.localeCompare(b.id);
     };
 
-    // Organization Owners see all groups; Admins and Users only see groups they are members of
-    if (authUser.role === 'Owner') {
-      return NextResponse.json([...db.groups].sort(sortByOrder));
+    const userMode = (authUser.accountMode || 'personal') as 'personal' | 'organization';
+    const orgId = authUser.organizationId;
+
+    // Filter groups strictly belonging to this organization
+    const orgGroups = db.groups.filter((g) => {
+      if (userMode === 'organization' && orgId) {
+        return g.organizationId === orgId;
+      }
+      return g.members && g.members.some((m) => m.userId === authUser.id);
+    });
+
+    // Organization Owners and Admins see all groups in their organization
+    if (authUser.role === 'Owner' || authUser.role === 'Admin') {
+      return NextResponse.json(orgGroups.sort(sortByOrder));
     }
 
-    const userGroups = db.groups.filter((g) =>
-      g.members.some((m) => m.userId === authUser.id)
+    const userGroups = orgGroups.filter((g) =>
+      g.members && g.members.some((m) => m.userId === authUser.id)
     );
 
     userGroups.sort(sortByOrder);
@@ -45,6 +56,8 @@ export async function POST(request: Request) {
     }
 
     const { name, description, memberIds } = await request.json();
+    const userMode = (authUser.accountMode || 'organization') as 'personal' | 'organization';
+    const organizationId = authUser.organizationId || null;
 
     const maxSort = db.groups.reduce((m, it) => Math.max(m, it.sortOrder ?? 0), 0);
 
@@ -53,6 +66,8 @@ export async function POST(request: Request) {
       id: `g-${Date.now()}`,
       name,
       description: description || 'Team access group',
+      organizationId,
+      mode: userMode,
       members: [
         { userId: authUser.id, role: 'Owner' as const },
         ...(memberIds || [])
@@ -66,7 +81,6 @@ export async function POST(request: Request) {
 
     db.groups.push(newGroup);
 
-    const userMode = (authUser.accountMode || 'organization') as 'personal' | 'organization';
     db.auditLogsFor(userMode).unshift({
       id: `al-${Date.now()}`,
       timestamp: new Date().toISOString(),

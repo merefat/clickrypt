@@ -39,7 +39,23 @@ BEGIN
   END IF;
 END $$;
 
--- 3. GROUP RESOURCES: Join table for direct resource-to-group assignments
+-- 3. GROUPS: Add organization_id
+ALTER TABLE public.groups
+  ADD COLUMN IF NOT EXISTS organization_id text;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE constraint_name = 'groups_organization_id_fkey' AND table_name = 'groups'
+  ) THEN
+    ALTER TABLE public.groups
+      ADD CONSTRAINT groups_organization_id_fkey
+      FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
+-- 4. GROUP RESOURCES: Join table for direct resource-to-group assignments
 CREATE TABLE IF NOT EXISTS public.group_resources (
   group_id text NOT NULL,
   resource_id text NOT NULL,
