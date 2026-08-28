@@ -32,7 +32,7 @@ export async function getClickryptUser(lookup: {
   const cleanEmail = lookup.email?.toLowerCase().trim();
 
   // 1. Try resolving from memory first
-  let user = db.users.find(
+  const user = db.users.find(
     (u) =>
       (lookup.authId && u.authId === lookup.authId) ||
       (lookup.userId && u.id === lookup.userId) ||
